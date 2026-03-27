@@ -6,8 +6,13 @@
 #   pwsh ./demos/Visualize-AllDatasets.ps1
 #   pwsh ./demos/Visualize-AllDatasets.ps1 -OutputDir ~/my-graphs
 
+[CmdletBinding()]
 param(
     [string]$OutputDir = (Join-Path ([System.IO.Path]::GetTempPath()) 'PSGraphView-demos')
+    ,
+    [switch]$UseLocalModules,
+    [string]$PSQuickGraphManifestPath,
+    [string]$PSGraphViewManifestPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -17,9 +22,24 @@ Write-Host "`n========================================" -ForegroundColor Cyan
 Write-Host "  PSGraphView Public Dataset Demos" -ForegroundColor Cyan
 Write-Host "========================================`n" -ForegroundColor Cyan
 
-& "$demoDir/Visualize-LesMiserables.ps1" -OutputDir $OutputDir
-& "$demoDir/Visualize-KarateClub.ps1"    -OutputDir $OutputDir
-& "$demoDir/Visualize-WikiVote.ps1"      -OutputDir $OutputDir
+& "$demoDir/Visualize-LesMiserables.ps1" `
+    -OutputDir $OutputDir `
+    -UseLocalModules:$UseLocalModules `
+    -PSQuickGraphManifestPath $PSQuickGraphManifestPath `
+    -PSGraphViewManifestPath $PSGraphViewManifestPath `
+    -Verbose:($VerbosePreference -eq 'Continue')
+& "$demoDir/Visualize-KarateClub.ps1" `
+    -OutputDir $OutputDir `
+    -UseLocalModules:$UseLocalModules `
+    -PSQuickGraphManifestPath $PSQuickGraphManifestPath `
+    -PSGraphViewManifestPath $PSGraphViewManifestPath `
+    -Verbose:($VerbosePreference -eq 'Continue')
+& "$demoDir/Visualize-WikiVote.ps1" `
+    -OutputDir $OutputDir `
+    -UseLocalModules:$UseLocalModules `
+    -PSQuickGraphManifestPath $PSQuickGraphManifestPath `
+    -PSGraphViewManifestPath $PSGraphViewManifestPath `
+    -Verbose:($VerbosePreference -eq 'Continue')
 
 Write-Host "`n========================================" -ForegroundColor Cyan
 Write-Host "All output files:" -ForegroundColor Cyan

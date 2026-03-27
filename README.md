@@ -34,6 +34,12 @@ Current PowerShell surface:
 - `Export-GraphView -Graph <PsBidirectionalGraph> -Renderer <renderer> [-As Html|Json|Svg] [-Path <file>]`
 - `Export-DSMView -Dsm|Result|SequencedDsm <object> -Renderer <renderer> [-As Html|Json|Svg] [-Path <file>]`
 
+Demo scripts:
+- The scripts under `demos/` load installed `PSQuickGraph` and `PSGraphView` modules from `PSModulePath` by default.
+- Install them for demo use with `Install-Module PSQuickGraph -Scope CurrentUser` and `Install-Module PSGraphView -Scope CurrentUser`.
+- For local development before publishing, rerun a demo with `-UseLocalModules` to prefer repo build outputs when available.
+- You can also point directly at build outputs with `-PSQuickGraphManifestPath <path-to-PSQuickGraph.psd1>` and `-PSGraphViewManifestPath <path-to-PSGraphView.psd1>`.
+
 Workspace:
 - Open `/Users/andrei/repo/psgraph-visualization.code-workspace` to work on `PSGraph` and `PSGraphView` side by side in VS Code.
 

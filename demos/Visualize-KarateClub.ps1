@@ -12,30 +12,23 @@
 #   - DSM after clustering with partition boundaries (SVG + Vega HTML)
 #   - DSM after sequencing (SVG)
 
+[CmdletBinding()]
 param(
     [string]$OutputDir = (Join-Path ([System.IO.Path]::GetTempPath()) 'PSGraphView-demos')
+    ,
+    [switch]$UseLocalModules,
+    [string]$PSQuickGraphManifestPath,
+    [string]$PSGraphViewManifestPath
 )
 
 $ErrorActionPreference = 'Stop'
 
-$repoRoot     = Split-Path -Parent $PSScriptRoot
-$psGraphRoot  = Join-Path (Split-Path -Parent $repoRoot) 'PSGraph'
-$psQuickGraphModuleRoot = Join-Path $psGraphRoot 'PSGraph.Tests/bin/Debug/net9.0'
-$psGraphViewModuleRoot = Join-Path $repoRoot 'tests/PSGraphView.PowerShell.Tests/bin/Debug/net9.0'
-$psQuickGraphManifest = Join-Path $psQuickGraphModuleRoot 'PSQuickGraph.psd1'
-$psGraphViewManifest = Join-Path $psGraphViewModuleRoot 'PSGraphView.psd1'
-
-if (-not (Test-Path $psQuickGraphManifest)) {
-    throw "Expected PSQuickGraph module manifest was not found at '$psQuickGraphManifest'. Build PSGraph.Tests first."
-}
-
-if (-not (Test-Path $psGraphViewManifest)) {
-    throw "Expected PSGraphView module manifest was not found at '$psGraphViewManifest'. Build PSGraphView.PowerShell.Tests first."
-}
-
-Remove-Module PSQuickGraph, PSGraphView -ErrorAction SilentlyContinue
-Import-Module $psQuickGraphManifest -Force
-Import-Module $psGraphViewManifest -Force
+. (Join-Path $PSScriptRoot 'Import-DemoModules.ps1')
+Import-PSGraphViewDemoModules `
+    -UseLocalModules:$UseLocalModules `
+    -PSQuickGraphManifestPath $PSQuickGraphManifestPath `
+    -PSGraphViewManifestPath $PSGraphViewManifestPath `
+    -Verbose:($VerbosePreference -eq 'Continue')
 
 if (-not (Test-Path $OutputDir)) {
     New-Item -ItemType Directory -Path $OutputDir | Out-Null
