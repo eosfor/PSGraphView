@@ -1,0 +1,102 @@
+name: psgraphview-publish
+
+on:
+  release:
+    types: [published]
+
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Module version without prerelease suffix, e.g. 0.1.0'
+        required: true
+        default: '0.1.0'
+      prerelease:
+        description: 'Optional prerelease label, e.g. beta1'
+        required: false
+        default: 'beta1'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        dotnet-version: ['9.0.x']
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET SDK ${{ matrix.dotnet-version }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ matrix.dotnet-version }}
+
+      - name: Install PowerShell
+        uses: PSModule/install-powershell@v1
+        with:
+          Version: latest
+
+      - name: Resolve version inputs
+        id: version
+        shell: pwsh
+        run: |
+          if ('${{ github.event_name }}' -eq 'release') {
+            $tag = '${{ github.ref }}' -replace '^refs/tags/', ''
+            $tag = $tag -replace '^v', ''
+            if ($tag -notmatch '^([0-9]+\.[0-9]+\.[0-9]+)(?:-([A-Za-z0-9\-]+))?$') {
+              Write-Error 'Bad tag format. Expected vX.Y.Z or vX.Y.Z-label.'
+              exit 1
+            }
+
+            $version = $Matches[1]
+            $prerelease = $Matches[2]
+          }
+          else {
+            $version = '${{ github.event.inputs.version }}'
+            $prerelease = '${{ github.event.inputs.prerelease }}'
+            if ($version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') {
+              Write-Error 'Manual version must be X.Y.Z.'
+              exit 1
+            }
+          }
+
+          $isPrerelease = [string]::IsNullOrWhiteSpace($prerelease) -eq $false
+            $configuration = if ($isPrerelease) { 'Debug' } else { 'Release' }
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "prerelease=$prerelease" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+            "configuration=$configuration" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --configuration ${{ steps.version.outputs.configuration }} --no-restore
+
+      - name: Run tests
+        run: dotnet test --configuration ${{ steps.version.outputs.configuration }} --no-build --verbosity normal
+
+      - name: Publish PowerShell module
+        run: dotnet publish src/PSGraphView.PowerShell/PSGraphView.PowerShell.csproj --configuration ${{ steps.version.outputs.configuration }} --no-build -o ./PSGraphView
+
+      - name: Update module manifest version
+        shell: pwsh
+        run: |
+          $manifest = Join-Path $PWD 'PSGraphView/PSGraphView.psd1'
+          $version = '${{ steps.version.outputs.version }}'
+          $prerelease = '${{ steps.version.outputs.prerelease }}'
+
+          if ([string]::IsNullOrWhiteSpace($prerelease)) {
+            Update-ModuleManifest -Path $manifest -ModuleVersion $version -Prerelease ''
+          }
+          else {
+            Update-ModuleManifest -Path $manifest -ModuleVersion $version -Prerelease $prerelease
+          }
+
+          Test-ModuleManifest -Path $manifest | Out-Null
+
+      - name: Publish PowerShell module to PSGallery
+        shell: pwsh
+        run: |
+          Publish-Module -Path './PSGraphView' -NuGetApiKey '${{ secrets.PS_GALLERY_SECRET }}'

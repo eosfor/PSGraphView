@@ -12,4 +12,12 @@
     FunctionsToExport = @()
     AliasesToExport = @()
     VariablesToExport = '*'
+    PrivateData = @{
+        PSData = @{
+            Prerelease = 'beta1'
+            Tags = @('Graph', 'Visualization', 'DSM', 'Vega', 'MSAGL', 'PSGraph')
+            ProjectUri = 'https://github.com/eosfor/PSGraphView'
+            ReleaseNotes = 'First beta release of the extracted PSGraphView PowerShell module.'
+        }
+    }
 }

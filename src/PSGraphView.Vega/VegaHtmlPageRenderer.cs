@@ -11,17 +11,17 @@ internal static class VegaHtmlPageRenderer
         <!DOCTYPE html>
         <html>
         <head>
-            <meta charset=\"utf-8\">
+            <meta charset="utf-8">
             <title>{title}</title>
-            <script src=\"https://cdn.jsdelivr.net/npm/vega@6\"></script>
-            <script src=\"https://cdn.jsdelivr.net/npm/vega-lite@6\"></script>
-            <script src=\"https://cdn.jsdelivr.net/npm/vega-embed@7\"></script>
+            <script src="https://cdn.jsdelivr.net/npm/vega@6"></script>
+            <script src="https://cdn.jsdelivr.net/npm/vega-lite@6"></script>
+            <script src="https://cdn.jsdelivr.net/npm/vega-embed@7"></script>
         </head>
         <body>
-            <div id=\"vis\"></div>
-            <script type=\"text/javascript\">
+            <div id="vis"></div>
+            <script type="text/javascript">
                 const spec = {json};
-                vegaEmbed(\"#vis\", spec).catch(console.error);
+                vegaEmbed("#vis", spec).catch(console.error);
             </script>
         </body>
         </html>
