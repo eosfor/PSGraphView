@@ -37,7 +37,8 @@ internal static class MsaglSugiyamaSvgPostProcessor
             output = FlipHorizontalSvg(output, graph);
         }
 
-        return NormalizeFlatSvgViewport(output);
+        output = NormalizeFlatSvgViewport(output);
+        return ApplyRequestedDimensions(output, options);
     }
 
     private static string TuneFlatSvgLabels(string svg, GraphView graph, MsaglSugiyamaOptions options)
@@ -376,6 +377,39 @@ internal static class MsaglSugiyamaSvgPostProcessor
         var heightValue = (renderedMaxY - renderedMinY) + (2 * pad);
         doc.Root?.SetAttributeValue("width", widthValue.ToString("0.###", CultureInfo.InvariantCulture));
         doc.Root?.SetAttributeValue("height", heightValue.ToString("0.###", CultureInfo.InvariantCulture));
+        doc.Root?.SetAttributeValue(
+            "viewBox",
+            string.Format(
+                CultureInfo.InvariantCulture,
+                "0 0 {0:0.###} {1:0.###}",
+                widthValue,
+                heightValue));
+
+        return Save(doc);
+    }
+
+    private static string ApplyRequestedDimensions(string svg, MsaglSugiyamaOptions options)
+    {
+        if (options.Width is null && options.Height is null)
+        {
+            return svg;
+        }
+
+        var doc = XDocument.Parse(svg, LoadOptions.PreserveWhitespace);
+        if (doc.Root is null)
+        {
+            return svg;
+        }
+
+        if (options.Width is not null)
+        {
+            doc.Root.SetAttributeValue("width", options.Width.Value.ToString("0.###", CultureInfo.InvariantCulture));
+        }
+
+        if (options.Height is not null)
+        {
+            doc.Root.SetAttributeValue("height", options.Height.Value.ToString("0.###", CultureInfo.InvariantCulture));
+        }
 
         return Save(doc);
     }

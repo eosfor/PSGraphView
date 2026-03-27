@@ -16,4 +16,6 @@ public sealed class MsaglSugiyamaOptions
     public string EdgeRouting { get; init; } = "SugiyamaSplines";
     public double LabelOffsetX { get; init; } = 6.0;
     public double LabelOffsetY { get; init; } = 0.0;
+    public double? Width { get; init; }
+    public double? Height { get; init; }
 }

@@ -1,12 +1,12 @@
+using Microsoft.Msagl.Core;
 using Microsoft.Msagl.Layout.MDS;
-using Microsoft.Msagl.Miscellaneous;
 using PSGraph.Model;
 
 namespace PSGraphView.Msagl;
 
 public sealed class MsaglMdsExporter
 {
-    public string Export(GraphView graph)
+    public string Export(GraphView graph, double? width = null, double? height = null, CancelToken? cancelToken = null)
     {
         ArgumentNullException.ThrowIfNull(graph);
 
@@ -14,7 +14,7 @@ public sealed class MsaglMdsExporter
         drawingGraph.CreateGeometryGraph();
         MsaglDrawingGraphFactory.ApplyClassicNodeBoundaries(drawingGraph);
 
-        LayoutHelpers.CalculateLayout(drawingGraph.GeometryGraph, new MdsLayoutSettings(), null);
-        return MsaglSvgRenderer.RenderRawSvg(drawingGraph);
+        MsaglLayoutRunner.CalculateLayout(drawingGraph.GeometryGraph, new MdsLayoutSettings(), cancelToken);
+        return MsaglSvgRenderer.RenderRawSvg(drawingGraph, width, height);
     }
 }

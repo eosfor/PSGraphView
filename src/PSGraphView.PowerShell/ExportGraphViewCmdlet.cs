@@ -1,4 +1,5 @@
 using System.Management.Automation;
+using Microsoft.Msagl.Core;
 using PSGraph.Model;
 using PSGraphView.Msagl;
 using PSGraphView.Vega;
@@ -8,6 +9,7 @@ namespace PSGraphView.PowerShell;
 [Cmdlet(VerbsData.Export, "GraphView")]
 public sealed class ExportGraphViewCmdlet : PSCmdlet
 {
+    private readonly CancelToken _cancelToken = new();
     private readonly VegaForceDirectedExporter _vegaForceDirectedExporter = new();
     private readonly VegaAdjacencyMatrixExporter _vegaAdjacencyMatrixExporter = new();
     private readonly VegaTreeLayoutExporter _vegaTreeLayoutExporter = new();
@@ -53,6 +55,14 @@ public sealed class ExportGraphViewCmdlet : PSCmdlet
     public double LabelFontSize { get; set; } = 8.0;
 
     [Parameter]
+    [ValidateRange(1.0, 10000.0)]
+    public double? Width { get; set; }
+
+    [Parameter]
+    [ValidateRange(1.0, 10000.0)]
+    public double? Height { get; set; }
+
+    [Parameter]
     public string GroupMetadataKey { get; set; } = "group";
 
     [Parameter]
@@ -84,28 +94,45 @@ public sealed class ExportGraphViewCmdlet : PSCmdlet
 
     protected override void ProcessRecord()
     {
-        var graphView = Graph.ToGraphView();
-        var outputKind = CmdletOutputHelpers.ResolveOutputKind(
-            MyInvocation.BoundParameters,
-            nameof(As),
-            As,
-            Path,
-            Renderer is GraphViewRenderer.MsaglMds or GraphViewRenderer.MsaglFastIncremental or GraphViewRenderer.MsaglSugiyama
-                ? ViewOutputKind.Svg
-                : ViewOutputKind.Json);
-
-        var result = Renderer switch
+        try
         {
-            GraphViewRenderer.VegaForceDirected => ExportVegaForceDirected(graphView, outputKind),
-            GraphViewRenderer.VegaAdjacencyMatrix => ExportVegaAdjacencyMatrix(graphView, outputKind),
-            GraphViewRenderer.VegaTreeLayout => ExportVegaTreeLayout(graphView, outputKind),
-            GraphViewRenderer.MsaglMds => ExportMsaglMds(graphView, outputKind),
-            GraphViewRenderer.MsaglFastIncremental => ExportMsaglFastIncremental(graphView, outputKind),
-            GraphViewRenderer.MsaglSugiyama => ExportMsaglSugiyama(graphView, outputKind),
-            _ => throw new NotSupportedException($"Renderer '{Renderer}' is not supported.")
-        };
+            var graphView = Graph.ToGraphView();
+            var outputKind = CmdletOutputHelpers.ResolveOutputKind(
+                MyInvocation.BoundParameters,
+                nameof(As),
+                As,
+                Path,
+                Renderer is GraphViewRenderer.MsaglMds or GraphViewRenderer.MsaglFastIncremental or GraphViewRenderer.MsaglSugiyama
+                    ? ViewOutputKind.Svg
+                    : ViewOutputKind.Json);
 
-        CmdletOutputHelpers.WriteResult(this, result, Path);
+            var result = Renderer switch
+            {
+                GraphViewRenderer.VegaForceDirected => ExportVegaForceDirected(graphView, outputKind),
+                GraphViewRenderer.VegaAdjacencyMatrix => ExportVegaAdjacencyMatrix(graphView, outputKind),
+                GraphViewRenderer.VegaTreeLayout => ExportVegaTreeLayout(graphView, outputKind),
+                GraphViewRenderer.MsaglMds => ExportMsaglMds(graphView, outputKind),
+                GraphViewRenderer.MsaglFastIncremental => ExportMsaglFastIncremental(graphView, outputKind),
+                GraphViewRenderer.MsaglSugiyama => ExportMsaglSugiyama(graphView, outputKind),
+                _ => throw new NotSupportedException($"Renderer '{Renderer}' is not supported.")
+            };
+
+            CmdletOutputHelpers.WriteResult(this, result, Path);
+        }
+        catch (OperationCanceledException ex)
+        {
+            ThrowTerminatingError(new ErrorRecord(
+                ex,
+                "PSGraphView.LayoutCanceled",
+                ErrorCategory.OperationStopped,
+                Graph));
+        }
+    }
+
+    protected override void StopProcessing()
+    {
+        _cancelToken.Canceled = true;
+        base.StopProcessing();
     }
 
     private string ExportVegaForceDirected(GraphView graph, ViewOutputKind outputKind)
@@ -129,7 +156,7 @@ public sealed class ExportGraphViewCmdlet : PSCmdlet
     private string ExportMsaglMds(GraphView graph, ViewOutputKind outputKind)
     {
         CmdletOutputHelpers.ValidateSupportedOutputs(this, Renderer.ToString(), outputKind, ViewOutputKind.Svg);
-        return _msaglMdsExporter.Export(graph);
+        return _msaglMdsExporter.Export(graph, Width, Height, _cancelToken);
     }
 
     private string ExportMsaglFastIncremental(GraphView graph, ViewOutputKind outputKind)
@@ -144,8 +171,10 @@ public sealed class ExportGraphViewCmdlet : PSCmdlet
             EdgeLineWidth = EdgeLineWidth,
             LabelFontSize = LabelFontSize,
             GroupMetadataKey = GroupMetadataKey,
-            DisableGroupColors = DisableGroupColors.IsPresent
-        });
+            DisableGroupColors = DisableGroupColors.IsPresent,
+            Width = Width,
+            Height = Height
+        }, _cancelToken);
     }
 
     private string ExportMsaglSugiyama(GraphView graph, ViewOutputKind outputKind)
@@ -166,7 +195,9 @@ public sealed class ExportGraphViewCmdlet : PSCmdlet
             NodeSeparation = SugiyamaNodeSeparation,
             EdgeRouting = SugiyamaEdgeRouting,
             LabelOffsetX = LabelOffsetX,
-            LabelOffsetY = LabelOffsetY
-        });
+            LabelOffsetY = LabelOffsetY,
+            Width = Width,
+            Height = Height
+        }, _cancelToken);
     }
 }

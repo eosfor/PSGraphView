@@ -1,16 +1,16 @@
+using Microsoft.Msagl.Core;
 using Microsoft.Msagl.Core.Geometry;
 using Microsoft.Msagl.Core.Geometry.Curves;
 using Microsoft.Msagl.Core.Routing;
 using Microsoft.Msagl.Drawing;
 using Microsoft.Msagl.Layout.Layered;
-using Microsoft.Msagl.Miscellaneous;
 using PSGraph.Model;
 
 namespace PSGraphView.Msagl;
 
 public sealed class MsaglSugiyamaExporter
 {
-    public string Export(GraphView graph, MsaglSugiyamaOptions? options = null)
+    public string Export(GraphView graph, MsaglSugiyamaOptions? options = null, CancelToken? cancelToken = null)
     {
         ArgumentNullException.ThrowIfNull(graph);
         options ??= new MsaglSugiyamaOptions();
@@ -39,12 +39,14 @@ public sealed class MsaglSugiyamaExporter
         settings.EdgeRoutingSettings.CornerRadius = 6.0;
         settings.EdgeRoutingSettings.PolylinePadding = 2.0;
 
-        LayoutHelpers.CalculateLayout(drawingGraph.GeometryGraph, settings, null);
+        MsaglLayoutRunner.CalculateLayout(drawingGraph.GeometryGraph, settings, cancelToken);
         var svg = MsaglSvgRenderer.RenderSvg(
             drawingGraph,
             options.BackgroundColor,
             options.ShowArrows,
-            options.ShowLabels ? options.LabelFontSize : null);
+            options.ShowLabels ? options.LabelFontSize : null,
+            options.Width,
+            options.Height);
 
         return MsaglSugiyamaSvgPostProcessor.PostProcess(svg, graph, options);
     }

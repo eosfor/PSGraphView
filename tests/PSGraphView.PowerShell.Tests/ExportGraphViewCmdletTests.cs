@@ -84,6 +84,28 @@ public sealed class ExportGraphViewCmdletTests : IDisposable
     }
 
     [Fact]
+    public void ExportGraphView_MsaglSugiyamaSvg_AppliesRequestedDimensions()
+    {
+        var graph = BuildGraph(("A", "B"), ("B", "C"));
+
+        _powerShell.AddCommand("Export-GraphView")
+            .AddParameter("Graph", graph)
+            .AddParameter("Renderer", GraphViewRenderer.MsaglSugiyama)
+            .AddParameter("As", ViewOutputKind.Svg)
+            .AddParameter("Width", 300d)
+            .AddParameter("Height", 300d);
+
+        var result = _powerShell.Invoke();
+
+        Assert.Single(result);
+        var svg = Assert.IsType<string>(result[0].BaseObject);
+        Assert.Contains("width=\"300\"", svg, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("height=\"300\"", svg, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("viewBox=", svg, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("stroke-width=\"300\"", svg, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void ExportGraphView_VegaForceDirectedPath_InfersHtmlOutput()
     {
         var graph = BuildGraph(("A", "B"), ("B", "C"));

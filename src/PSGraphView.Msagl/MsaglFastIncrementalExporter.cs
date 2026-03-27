@@ -1,12 +1,12 @@
+using Microsoft.Msagl.Core;
 using Microsoft.Msagl.Layout.Incremental;
-using Microsoft.Msagl.Miscellaneous;
 using PSGraph.Model;
 
 namespace PSGraphView.Msagl;
 
 public sealed class MsaglFastIncrementalExporter
 {
-    public string Export(GraphView graph, MsaglFastIncrementalOptions? options = null)
+    public string Export(GraphView graph, MsaglFastIncrementalOptions? options = null, CancelToken? cancelToken = null)
     {
         ArgumentNullException.ThrowIfNull(graph);
         options ??= new MsaglFastIncrementalOptions();
@@ -43,11 +43,13 @@ public sealed class MsaglFastIncrementalExporter
             ProjectionIterations = options.ProjectionIterations
         };
 
-        LayoutHelpers.CalculateLayout(drawingGraph.GeometryGraph, settings, null);
+        MsaglLayoutRunner.CalculateLayout(drawingGraph.GeometryGraph, settings, cancelToken);
         return MsaglSvgRenderer.RenderSvg(
             drawingGraph,
             options.BackgroundColor,
             options.ShowArrows,
-            options.ShowLabels ? options.LabelFontSize : null);
+            options.ShowLabels ? options.LabelFontSize : null,
+            options.Width,
+            options.Height);
     }
 }

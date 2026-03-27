@@ -18,4 +18,6 @@ public sealed class MsaglFastIncrementalOptions
     public int MaxIterations { get; init; } = 250;
     public int MinorIterations { get; init; } = 6;
     public int ProjectionIterations { get; init; } = 12;
+    public double? Width { get; init; }
+    public double? Height { get; init; }
 }
