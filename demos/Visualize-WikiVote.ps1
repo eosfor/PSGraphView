@@ -22,9 +22,22 @@ $ErrorActionPreference = 'Stop'
 
 $repoRoot     = Split-Path -Parent $PSScriptRoot
 $psGraphRoot  = Join-Path (Split-Path -Parent $repoRoot) 'PSGraph'
+$psQuickGraphModuleRoot = Join-Path $psGraphRoot 'PSGraph.Tests/bin/Debug/net9.0'
+$psGraphViewModuleRoot = Join-Path $repoRoot 'tests/PSGraphView.PowerShell.Tests/bin/Debug/net9.0'
+$psQuickGraphManifest = Join-Path $psQuickGraphModuleRoot 'PSQuickGraph.psd1'
+$psGraphViewManifest = Join-Path $psGraphViewModuleRoot 'PSGraphView.psd1'
 
-Import-Module "$psGraphRoot/PSGraph.Tests/bin/Debug/net9.0/PSQuickGraph.psd1" -Force
-Import-Module "$repoRoot/tests/PSGraphView.PowerShell.Tests/bin/Debug/net9.0/PSGraphView.psd1" -Force
+if (-not (Test-Path $psQuickGraphManifest)) {
+    throw "Expected PSQuickGraph module manifest was not found at '$psQuickGraphManifest'. Build PSGraph.Tests first."
+}
+
+if (-not (Test-Path $psGraphViewManifest)) {
+    throw "Expected PSGraphView module manifest was not found at '$psGraphViewManifest'. Build PSGraphView.PowerShell.Tests first."
+}
+
+Remove-Module PSQuickGraph, PSGraphView -ErrorAction SilentlyContinue
+Import-Module $psQuickGraphManifest -Force
+Import-Module $psGraphViewManifest -Force
 
 if (-not (Test-Path $OutputDir)) {
     New-Item -ItemType Directory -Path $OutputDir | Out-Null
