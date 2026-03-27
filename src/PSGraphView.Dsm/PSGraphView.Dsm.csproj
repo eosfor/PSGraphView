@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>PSGraphView.Dsm</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Svg" Version="3.4.7" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../../PSGraph/PSGraph.Common/PSGraph.Common.csproj" />
+  </ItemGroup>
+
+</Project>

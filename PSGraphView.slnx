@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/PSGraphView.Dsm/PSGraphView.Dsm.csproj" />
+    <Project Path="src/PSGraphView.Msagl/PSGraphView.Msagl.csproj" />
+    <Project Path="src/PSGraphView.PowerShell/PSGraphView.PowerShell.csproj" />
+    <Project Path="src/PSGraphView.Vega/PSGraphView.Vega.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/PSGraphView.Dsm.Tests/PSGraphView.Dsm.Tests.csproj" />
+    <Project Path="tests/PSGraphView.Msagl.Tests/PSGraphView.Msagl.Tests.csproj" />
+    <Project Path="tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj" />
+    <Project Path="tests/PSGraphView.Vega.Tests/PSGraphView.Vega.Tests.csproj" />
+  </Folder>
+  <Project Path="../PSGraph/PSGraph.Common/PSGraph.Common.csproj" />
+</Solution>
