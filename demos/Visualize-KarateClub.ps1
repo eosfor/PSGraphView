@@ -60,7 +60,7 @@ if (-not (Test-Path $karateMtx)) {
     Write-Host "Using cached $karateMtx"
 }
 
-$graph = Import-Graph -Path $karateMtx -Format Csv -Delimiter ' ' -NoHeader
+$graph = Import-Graph -Path $karateMtx -Format MatrixMarket
 Write-Host "Loaded: $($graph.VertexCount) vertices, $($graph.EdgeCount) edges"
 
 # --- 1. Vega Force-Directed ---
