@@ -33,6 +33,9 @@ jobs:
         with:
           dotnet-version: ${{ matrix.dotnet-version }}
 
+      - name: Clone PSGraph for DSM-backed test projects
+        run: git clone --depth 1 https://github.com/eosfor/PSGraph.git ../PSGraph
+
       - name: Install PowerShell
         uses: PSModule/install-powershell@v1
         with:

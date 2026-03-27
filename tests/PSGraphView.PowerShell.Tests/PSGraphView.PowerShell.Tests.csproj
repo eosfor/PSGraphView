@@ -18,7 +18,6 @@
   <ItemGroup>
     <ProjectReference Include="../../src/PSGraphView.PowerShell/PSGraphView.PowerShell.csproj" />
     <ProjectReference Include="../../../PSGraph/DSM/DSM.csproj" />
-    <ProjectReference Include="../../../PSGraph/PSGraph.Common/PSGraph.Common.csproj" />
   </ItemGroup>
 
   <ItemGroup>

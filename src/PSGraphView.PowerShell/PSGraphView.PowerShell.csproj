@@ -9,10 +9,10 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.PowerShell.SDK" Version="7.5.1" />
+    <PackageReference Include="PSGraph.Common" Version="2.5.0-beta3" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../../PSGraph/PSGraph.Common/PSGraph.Common.csproj" />
     <ProjectReference Include="../PSGraphView.Dsm/PSGraphView.Dsm.csproj" />
     <ProjectReference Include="../PSGraphView.Msagl/PSGraphView.Msagl.csproj" />
     <ProjectReference Include="../PSGraphView.Vega/PSGraphView.Vega.csproj" />

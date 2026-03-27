@@ -137,4 +137,5 @@ public sealed class ExportDsmViewCmdletTests : IDisposable
 
         public IReadOnlyList<IReadOnlyList<PSVertex>> Partitions { get; }
     }
+
 }

@@ -8,11 +8,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../../PSGraph/PSGraph.Common/PSGraph.Common.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="PSGraph.Common" Version="2.5.0-beta3" />
   </ItemGroup>
 
   <ItemGroup>

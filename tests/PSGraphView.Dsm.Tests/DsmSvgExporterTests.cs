@@ -68,11 +68,11 @@ public class DsmSvgExporterTests
 
     private static PsBidirectionalGraph CreateGraph()
     {
-        var graph = new PsBidirectionalGraph();
         var a = new PSVertex("A");
         var b = new PSVertex("B");
         var c = new PSVertex("C");
 
+        var graph = new PsBidirectionalGraph();
         graph.AddVertex(a);
         graph.AddVertex(b);
         graph.AddVertex(c);

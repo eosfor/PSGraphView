@@ -8,12 +8,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../../PSGraph/PSGraph.Common/PSGraph.Common.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
     <PackageReference Include="AutomaticGraphLayout" Version="1.1.12" />
     <PackageReference Include="AutomaticGraphLayout.Drawing" Version="1.1.12" />
+    <PackageReference Include="PSGraph.Common" Version="2.5.0-beta3" />
   </ItemGroup>
 
 </Project>

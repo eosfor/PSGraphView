@@ -22,8 +22,4 @@
     <ProjectReference Include="..\..\src\PSGraphView.Msagl\PSGraphView.Msagl.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="../../../PSGraph/PSGraph.Common/PSGraph.Common.csproj" />
-  </ItemGroup>
-
 </Project>

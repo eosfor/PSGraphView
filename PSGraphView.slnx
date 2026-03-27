@@ -11,5 +11,4 @@
     <Project Path="tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj" />
     <Project Path="tests/PSGraphView.Vega.Tests/PSGraphView.Vega.Tests.csproj" />
   </Folder>
-  <Project Path="../PSGraph/PSGraph.Common/PSGraph.Common.csproj" />
 </Solution>

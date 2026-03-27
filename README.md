@@ -12,7 +12,7 @@ Current status:
 - Contains a standalone `PSGraphView.Vega` project in a sibling repository.
 - Contains a standalone `PSGraphView.Msagl` project in a sibling repository.
 - Contains a standalone `PSGraphView.PowerShell` project with initial `Export-GraphView` and `Export-DSMView` cmdlets.
-- Uses `GraphView` from `PSGraph.Common` via a temporary project reference to the PSGraph repository.
+- Uses `GraphView` from the published `PSGraph.Common` NuGet package.
 - Includes working Vega exporters for the force-directed, adjacency-matrix, and tree-layout paths.
 - Includes a working DSM Vega matrix exporter built on the extracted DSM node/edge payload builder.
 - Includes an extracted DSM Vega data builder for reorderable matrix node/edge payloads.
@@ -37,13 +37,13 @@ Current PowerShell surface:
 Workspace:
 - Open `/Users/andrei/repo/psgraph-visualization.code-workspace` to work on `PSGraph` and `PSGraphView` side by side in VS Code.
 
-Temporary bridge:
-- `src/PSGraphView.Vega/PSGraphView.Vega.csproj` currently references `../../PSGraph/PSGraph.Common/PSGraph.Common.csproj`.
-- This keeps the new repo usable before contracts are fully extracted or packaged independently.
+Dependency model:
+- `PSGraphView` consumes `PSGraph.Common` from NuGet instead of a sibling checkout of `PSGraph`.
+- This keeps CI and release workflows standalone while the shared contracts stay in the `PSGraph.Common` package.
 
 Next expected steps:
 - Continue moving reusable Vega helpers from PSGraph into this repository, with DSM SVG generation as the next DSM-specific target after the extracted data builder.
 - Expand the MSAGL project beyond the initial fast-incremental and Sugiyama paths.
 - Finish shrinking `/Users/andrei/repo/PSGraph/DSM/DsmView.cs` after the extracted DSM SVG exporter and DSM Vega data builder, while leaving text-oriented DSM export in `PSGraph`.
-- Replace the temporary sibling project reference with a stable contracts package or shared contracts repo.
+- Keep the `PSGraph.Common` package version aligned with the `PSGraph` release that publishes shared contracts.
 - Add additional exporters one slice at a time, with non-Vega renderers as the next larger migration step.
