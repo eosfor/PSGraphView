@@ -69,6 +69,7 @@ internal static class SfdpEdgeRouter
 
         var startClearance = options.NodeRadius + 1.0;
         var endClearance = options.NodeRadius + (options.ShowArrows ? 6.0 : 1.0);
+        (startClearance, endClearance) = ClampClearances(distance, startClearance, endClearance);
 
         if (!hasReverse)
         {
@@ -112,6 +113,19 @@ internal static class SfdpEdgeRouter
         var curveControl2Y = endYCurve + (controlY - endYCurve) * (2.0 / 3.0);
 
         return Invariant($"M {startXCurve:0.###} {startYCurve:0.###} C {curveControl1X:0.###} {curveControl1Y:0.###} {curveControl2X:0.###} {curveControl2Y:0.###} {endXCurve:0.###} {endYCurve:0.###}");
+    }
+
+    private static (double Start, double End) ClampClearances(double distance, double startClearance, double endClearance)
+    {
+        var totalClearance = startClearance + endClearance;
+        var maxTotalClearance = Math.Max(distance * 0.95, 0.001);
+        if (totalClearance <= maxTotalClearance || totalClearance <= 0.0)
+        {
+            return (startClearance, endClearance);
+        }
+
+        var scale = maxTotalClearance / totalClearance;
+        return (startClearance * scale, endClearance * scale);
     }
 
     private static string BuildSelfLoop(double x, double y, double nodeRadius)
