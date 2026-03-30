@@ -1,6 +1,7 @@
 using System.Management.Automation;
 using PSGraph.Model;
 using PSGraphView.PowerShell;
+using PSGraphView.Sfdp;
 using PowerShellInstance = System.Management.Automation.PowerShell;
 
 namespace PSGraphView.PowerShell.Tests;
@@ -81,6 +82,122 @@ public sealed class ExportGraphViewCmdletTests : IDisposable
         Assert.Single(result);
         var svg = Assert.IsType<string>(result[0].BaseObject);
         Assert.Contains("<svg", svg, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ExportGraphView_SfdpSvg_ReturnsSvg()
+    {
+        var graph = BuildGraph(("A", "B"), ("B", "C"));
+
+        _powerShell.AddCommand("Export-GraphView")
+            .AddParameter("Graph", graph)
+            .AddParameter("Renderer", GraphViewRenderer.Sfdp)
+            .AddParameter("As", ViewOutputKind.Svg);
+
+        var result = _powerShell.Invoke();
+
+        Assert.Single(result);
+        var svg = Assert.IsType<string>(result[0].BaseObject);
+        Assert.Contains("<svg", svg, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ExportGraphView_SfdpSvg_AcceptsAlgorithmParameters()
+    {
+        var graph = BuildGraph(("A", "B"), ("B", "C"), ("C", "D"), ("D", "A"));
+        var diagnosticsPath = System.IO.Path.Combine(_tempDirectory, "sfdp-diagnostics.jsonl");
+
+        _powerShell.AddCommand("Export-GraphView")
+            .AddParameter("Graph", graph)
+            .AddParameter("Renderer", GraphViewRenderer.Sfdp)
+            .AddParameter("As", ViewOutputKind.Svg)
+            .AddParameter("SfdpSeed", 42)
+            .AddParameter("SfdpMaxIterations", 40)
+            .AddParameter("SfdpInitialStep", 0.2d)
+            .AddParameter("SfdpTolerance", 0.0005d)
+            .AddParameter("DisableSfdpBarnesHut", true)
+            .AddParameter("SfdpQuadtreeMode", SfdpQuadtreeMode.Fast)
+            .AddParameter("SfdpQuadtreeHybridThreshold", 500)
+            .AddParameter("SfdpQuadtreeMaxDepth", 8)
+            .AddParameter("DisableSfdpMultilevel", true)
+            .AddParameter("DisableSfdpOverlapRemoval", true)
+            .AddParameter("DisableSfdpPrincipalComponentRotation", true)
+            .AddParameter("SfdpOverlapRemovalIterations", 5)
+            .AddParameter("SfdpOverlapRemovalPadding", 2d)
+            .AddParameter("SfdpOverlapRemovalBoxUnits", SfdpOverlapRemovalBoxUnits.GraphvizPoints)
+            .AddParameter("SfdpOverlapRemovalHalfWidth", 1.5d)
+            .AddParameter("SfdpOverlapRemovalHalfHeight", 2.5d)
+            .AddParameter("SfdpNaturalLength", 12d)
+            .AddParameter("SfdpRepulsiveExponent", -1.2d)
+            .AddParameter("SfdpSmoothing", SfdpSmoothingMode.Spring)
+            .AddParameter("SfdpSmoothingIterations", 10)
+            .AddParameter("SfdpRotationDegrees", 15d)
+            .AddParameter("EdgeColor", "#00000018")
+            .AddParameter("ArrowSize", 0.08d)
+            .AddParameter("SfdpDiagnosticsPath", diagnosticsPath)
+            .AddParameter("DisableSfdpDiagnosticsIterations", true)
+            .AddParameter("ShowArrows", true);
+
+        var result = _powerShell.Invoke();
+
+        Assert.Single(result);
+        var svg = Assert.IsType<string>(result[0].BaseObject);
+        Assert.Contains("<svg", svg, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("stroke=\"#00000018\"", svg, StringComparison.OrdinalIgnoreCase);
+        Assert.True(File.Exists(diagnosticsPath));
+        var diagnostics = File.ReadAllText(diagnosticsPath);
+        Assert.Contains("\"Phase\":\"layout\"", diagnostics, StringComparison.Ordinal);
+        Assert.Contains("\"overlapRemovalBoxUnits\":\"GraphvizPoints\"", diagnostics, StringComparison.Ordinal);
+        Assert.Contains("\"overlapRemovalHalfWidth\":1.5", diagnostics, StringComparison.Ordinal);
+        Assert.Contains("\"overlapRemovalHalfHeight\":2.5", diagnostics, StringComparison.Ordinal);
+        Assert.Contains("\"quadtreeMode\":\"None\"", diagnostics, StringComparison.Ordinal);
+        Assert.Contains("\"quadtreeHybridThreshold\":500", diagnostics, StringComparison.Ordinal);
+        Assert.Contains("\"quadtreeMaxDepth\":8", diagnostics, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ExportGraphView_SfdpParameters_WithMsaglRenderer_ReturnsError()
+    {
+        var graph = BuildGraph(("A", "B"), ("B", "C"));
+
+        _powerShell.AddCommand("Export-GraphView")
+            .AddParameter("Graph", graph)
+            .AddParameter("Renderer", GraphViewRenderer.MsaglMds)
+            .AddParameter("As", ViewOutputKind.Svg)
+            .AddParameter("SfdpSeed", 42);
+
+        var error = Assert.Throws<CmdletInvocationException>(() => _powerShell.Invoke());
+        Assert.Contains("Sfdp-specific parameters", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ExportGraphView_MsaglParameters_WithSfdpRenderer_ReturnsError()
+    {
+        var graph = BuildGraph(("A", "B"), ("B", "C"));
+
+        _powerShell.AddCommand("Export-GraphView")
+            .AddParameter("Graph", graph)
+            .AddParameter("Renderer", GraphViewRenderer.Sfdp)
+            .AddParameter("As", ViewOutputKind.Svg)
+            .AddParameter("SugiyamaDirection", "Vertical");
+
+        var error = Assert.Throws<CmdletInvocationException>(() => _powerShell.Invoke());
+        Assert.Contains("MSAGL-specific parameters", error.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ExportGraphView_SugiyamaParameters_WithNonSugiyamaRenderer_ReturnsError()
+    {
+        var graph = BuildGraph(("A", "B"), ("B", "C"));
+
+        _powerShell.AddCommand("Export-GraphView")
+            .AddParameter("Graph", graph)
+            .AddParameter("Renderer", GraphViewRenderer.MsaglMds)
+            .AddParameter("As", ViewOutputKind.Svg)
+            .AddParameter("SugiyamaNodeSeparation", 10d);
+
+        var error = Assert.Throws<CmdletInvocationException>(() => _powerShell.Invoke());
+        Assert.Contains("Sugiyama-specific parameters", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
