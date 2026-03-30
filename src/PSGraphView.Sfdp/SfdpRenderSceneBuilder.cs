@@ -27,33 +27,24 @@ internal static class SfdpRenderSceneBuilder
 
     public static SfdpRenderSceneData Build(
         GraphView graph,
-        SfdpLayoutResult layout,
+        IReadOnlyList<double> x,
+        IReadOnlyList<double> y,
+        SfdpBoundingBox nodeBounds,
         IReadOnlyList<SfdpLabelLayouter.LabelPlacement> labelPlacements,
         IReadOnlyList<SfdpEdgeRouter.RoutedEdge> routedEdges,
+        SfdpViewportMetrics viewportMetrics,
         SfdpOptions options)
     {
         ArgumentNullException.ThrowIfNull(graph);
-        ArgumentNullException.ThrowIfNull(layout);
+        ArgumentNullException.ThrowIfNull(x);
+        ArgumentNullException.ThrowIfNull(y);
+        ArgumentNullException.ThrowIfNull(nodeBounds);
         ArgumentNullException.ThrowIfNull(labelPlacements);
         ArgumentNullException.ThrowIfNull(routedEdges);
+        ArgumentNullException.ThrowIfNull(viewportMetrics);
         ArgumentNullException.ThrowIfNull(options);
 
-        var padding = Math.Max(options.NodeRadius * 2.0, 12.0);
-        var contentBounds = ExpandBoundsForLabels(layout.Bounds, labelPlacements);
-        var viewBoxMinX = contentBounds.MinX - padding;
-        var viewBoxMinY = contentBounds.MinY - padding;
-        var viewBoxWidth = Math.Max(1.0, contentBounds.Width + padding * 2.0);
-        var viewBoxHeight = Math.Max(1.0, contentBounds.Height + padding * 2.0);
-        var outputWidth = options.Width ?? Math.Ceiling(viewBoxWidth);
-        var outputHeight = options.Height ?? Math.Ceiling(viewBoxHeight);
-
-        var viewport = new GraphRenderViewport(
-            viewBoxMinX,
-            viewBoxMinY,
-            viewBoxWidth,
-            viewBoxHeight,
-            outputWidth,
-            outputHeight);
+        var contentBounds = ExpandBoundsForLabels(nodeBounds, labelPlacements);
 
         var style = new GraphRenderStyle(
             ShowBackgroundRect: true,
@@ -96,8 +87,8 @@ internal static class SfdpRenderSceneBuilder
                 Id: $"node{index + 1}",
                 DataNodeId: node.Id,
                 Title: node.Id,
-                X: layout.X[index],
-                Y: layout.Y[index],
+                X: x[index],
+                Y: y[index],
                 Radius: options.NodeRadius,
                 Fill: ResolveFill(node, options),
                 Stroke: DefaultNodeStroke,
@@ -106,9 +97,9 @@ internal static class SfdpRenderSceneBuilder
         }
 
         return new SfdpRenderSceneData(
-            new GraphRenderScene(viewport, style, edges, nodes),
+            new GraphRenderScene(viewportMetrics.Viewport, style, edges, nodes),
             contentBounds,
-            padding);
+            viewportMetrics);
     }
 
     private static SfdpBoundingBox ExpandBoundsForLabels(
@@ -168,4 +159,4 @@ internal static class SfdpRenderSceneBuilder
 internal sealed record SfdpRenderSceneData(
     GraphRenderScene Scene,
     SfdpBoundingBox ContentBounds,
-    double Padding);
+    SfdpViewportMetrics ViewportMetrics);

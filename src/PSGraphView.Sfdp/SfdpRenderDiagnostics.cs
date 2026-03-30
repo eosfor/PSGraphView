@@ -30,13 +30,24 @@ internal static class SfdpRenderDiagnostics
     public static void WriteViewport(
         SfdpDiagnosticsWriter diagnostics,
         SfdpBoundingBox contentBounds,
-        GraphRenderViewport viewport,
-        double padding,
+        SfdpViewportMetrics viewportMetrics,
         SfdpOptions options)
     {
+        var viewport = viewportMetrics.Viewport;
         diagnostics.Write("render", "viewport",
         [
-            ("padding", padding),
+            ("dpiX", viewportMetrics.DpiX),
+            ("dpiY", viewportMetrics.DpiY),
+            ("rasterDefaultDpiX", viewportMetrics.RasterDefaultDpiX),
+            ("rasterDefaultDpiY", viewportMetrics.RasterDefaultDpiY),
+            ("zoom", viewportMetrics.Zoom),
+            ("rotation", viewportMetrics.Rotation),
+            ("padding", viewportMetrics.PaddingX),
+            ("padX", viewportMetrics.PaddingX),
+            ("padY", viewportMetrics.PaddingY),
+            ("translationX", viewportMetrics.TranslationX),
+            ("translationY", viewportMetrics.TranslationY),
+            ("layoutScale", viewportMetrics.LayoutScale),
             ("contentMinX", contentBounds.MinX),
             ("contentMinY", contentBounds.MinY),
             ("contentMaxX", contentBounds.MaxX),
@@ -47,6 +58,10 @@ internal static class SfdpRenderDiagnostics
             ("viewBoxMinY", viewport.ViewBoxMinY),
             ("viewBoxWidth", viewport.ViewBoxWidth),
             ("viewBoxHeight", viewport.ViewBoxHeight),
+            ("pageBoundingBoxMinX", viewportMetrics.PageBoundingBox.MinX),
+            ("pageBoundingBoxMinY", viewportMetrics.PageBoundingBox.MinY),
+            ("pageBoundingBoxMaxX", viewportMetrics.PageBoundingBox.MaxX),
+            ("pageBoundingBoxMaxY", viewportMetrics.PageBoundingBox.MaxY),
             ("outputWidth", viewport.OutputWidth),
             ("outputHeight", viewport.OutputHeight),
             ("widthOverride", options.Width.HasValue),

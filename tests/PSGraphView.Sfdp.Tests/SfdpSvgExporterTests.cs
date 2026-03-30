@@ -238,4 +238,28 @@ public sealed class SfdpSvgExporterTests
             }
         }
     }
+
+    [Fact]
+    public void Export_WithGraphvizPointViewport_UsesZeroBasedViewBox()
+    {
+        var graph = new GraphView(
+            [
+                new GraphViewNode("A", "A", null, new Dictionary<string, object?>()),
+                new GraphViewNode("B", "B", null, new Dictionary<string, object?>())
+            ],
+            [
+                new GraphViewEdge("A", "B", null, 1)
+            ]);
+
+        var svg = _exporter.Export(graph, new SfdpOptions
+        {
+            NodeRadius = 0.72,
+            OverlapRemovalBoxUnits = SfdpOverlapRemovalBoxUnits.GraphvizPoints,
+            OverlapRemovalPadding = 4.0
+        });
+
+        Assert.Contains("viewBox=\"0 0", svg, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("width=\"", svg, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("height=\"", svg, StringComparison.OrdinalIgnoreCase);
+    }
 }

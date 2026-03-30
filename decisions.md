@@ -241,3 +241,52 @@
 - result: `TitleDelta = -1`
 - result: `RectDelta = 1`
 - result: `Diagnostics.Available = true`
+
+## 2026-03-30 01:00 PDT - Patch 2 переводит viewport в graphviz-like output space
+
+Решение: `Patch 2` закрываем через явный viewport helper и отдельный export-space conversion step перед построением scene.
+
+Причины:
+
+- до этого exporter смешивал layout units и output units
+- из-за этого `viewBox` был смещён в отрицательные координаты, padding был случайным (`max(nodeRadius * 2, 12)`), а page size почти не зависел от реальной graph geometry
+- для `GraphvizPoints` нужен явный переход из layout-space в output-space с `72 dpi` semantics
+- `png/jpg` позже тоже потребуют тех же чисел: `dpi`, `pad`, `translation`, `pageBoundingBox`
+
+Телеметрия:
+
+- code change: added `/Users/andrei/repo/PSGraphView/src/PSGraphView.Sfdp/SfdpViewportCalculator.cs`
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.Sfdp/SfdpSvgExporter.cs` now:
+  - scales layout coordinates into output-space
+  - computes zero-based page bounding box
+  - applies translation before scene rendering
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.Sfdp/SfdpRenderDiagnostics.cs` now writes `dpi/pad/translation/pageBoundingBox/layoutScale`
+- test: `dotnet test tests/PSGraphView.Sfdp.Tests/PSGraphView.Sfdp.Tests.csproj --filter SfdpSvgExporterTests`
+- result: `8/8` passed
+- test: `dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --filter ExportGraphViewCmdletTests`
+- result: `10/10` passed
+
+## 2026-03-30 01:00 PDT - После Patch 2 page-box math стал правильнее, но остался residual natural-size mismatch
+
+Решение: считаем `Patch 2` выполненным, но добавляем follow-up `Patch 2a` на исследование residual natural-size mismatch для больших графов.
+
+Причины:
+
+- после `Patch 2` zero-based `viewBox` и graphviz-like `pad = 4` уже совпадают по смыслу и по telemetry
+- оставшаяся разница теперь выглядит как mismatch natural export scale, а не как ошибка в `pageBoundingBox` math
+- смешивать это с `Patch 3` нельзя, потому что `Patch 3` про SVG structure, а не про scale calibration
+
+Телеметрия:
+
+- run: `pwsh -NoProfile -File demos/Compare-Export-SmallGraphs.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-small-compare-patch2b`
+- result: `6/6` cases completed successfully
+- result: on all `6` small-graph cases `ViewBoxMinXDelta = 0` and `ViewBoxMinYDelta = 0`
+- result: `single-edge` improved from `OutputWidthDelta = -17`, `OutputHeightDelta = 17` to `OutputWidthDelta = 5`, `OutputHeightDelta = 1`
+- result: `disconnected-components` improved from `OutputWidthDelta = -57`, `OutputHeightDelta = -5` to `OutputWidthDelta = 4`, `OutputHeightDelta = 0`
+- result: `star` improved from `OutputWidthDelta = -57`, `OutputHeightDelta = -58` to `OutputWidthDelta = -2`, `OutputHeightDelta = -4`
+- run: `pwsh -NoProfile -File demos/Compare-WikiVote-Export.ps1 -UseLocalModules -UseSubgraph -SubgraphSeedCount 30 -SubgraphStartVertexCount 3 -OutputDir /tmp/psgraphview-export-wikivote-patch2b`
+- result: `30 vertices / 99 edges`
+- result: `ViewBoxMinXDelta = 0`
+- result: `ViewBoxMinYDelta = 0`
+- result: `OutputWidthDelta` improved from `-95` to `23`
+- result: `OutputHeightDelta` improved from `-80` to `15`

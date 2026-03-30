@@ -828,7 +828,7 @@
 
 Статус:
 
-- не сделано
+- сделано
 
 Цель:
 
@@ -851,10 +851,90 @@
 3. Для будущего raster-path заложить `96 dpi` default.
 4. Перевести current width/height/viewBox logic на graphviz-like расчёт.
 
+Результат:
+
+1. Добавлен новый helper:
+   - `src/PSGraphView.Sfdp/SfdpViewportCalculator.cs`
+2. В export path теперь явно заведены и пишутся в diagnostics:
+   - `dpiX`
+   - `dpiY`
+   - `rasterDefaultDpiX`
+   - `rasterDefaultDpiY`
+   - `zoom`
+   - `rotation`
+   - `padX`
+   - `padY`
+   - `translationX`
+   - `translationY`
+   - `pageBoundingBox*`
+   - `layoutScale`
+3. Для `GraphvizPoints` exporter теперь:
+   - переводит layout coordinates в output-space через scale `72`
+   - считает `pageBoundingBox` уже в output units
+   - делает zero-based `viewBox`
+   - применяет graphviz-like `pad = 4`
+4. `SfdpSvgExporter` больше не использует старую схему:
+   - `padding = max(nodeRadius * 2, 12)`
+   - `viewBoxMinX = contentMinX - padding`
+   - `viewBoxMinY = contentMinY - padding`
+5. Добавлен regression test на zero-based viewport в `GraphvizPoints` mode.
+
+Телеметрия:
+
+- test: `dotnet test tests/PSGraphView.Sfdp.Tests/PSGraphView.Sfdp.Tests.csproj --filter SfdpSvgExporterTests`
+- result: `8/8` passed
+- test: `dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --filter ExportGraphViewCmdletTests`
+- result: `10/10` passed
+- run: `pwsh -NoProfile -File demos/Compare-Export-SmallGraphs.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-small-compare-patch2b`
+- result: `6/6` cases completed successfully
+- result: on all `6` small-graph cases `ViewBoxMinXDelta = 0` and `ViewBoxMinYDelta = 0`
+- result: `single-edge` improved from `OutputWidthDelta = -17`, `OutputHeightDelta = 17` to `OutputWidthDelta = 5`, `OutputHeightDelta = 1`
+- result: `disconnected-components` improved from `OutputWidthDelta = -57`, `OutputHeightDelta = -5` to `OutputWidthDelta = 4`, `OutputHeightDelta = 0`
+- result: `star` improved from `OutputWidthDelta = -57`, `OutputHeightDelta = -58` to `OutputWidthDelta = -2`, `OutputHeightDelta = -4`
+- run: `pwsh -NoProfile -File demos/Compare-WikiVote-Export.ps1 -UseLocalModules -UseSubgraph -SubgraphSeedCount 30 -SubgraphStartVertexCount 3 -OutputDir /tmp/psgraphview-export-wikivote-patch2b`
+- result: `Selection = ExpandedTopDegree`
+- result: `30 vertices / 99 edges`
+- result: `ViewBoxMinXDelta = 0`, `ViewBoxMinYDelta = 0`
+- result: `OutputWidthDelta` improved from `-95` to `23`
+- result: `OutputHeightDelta` improved from `-80` to `15`
+
 Критерий готовности:
 
 - viewport-метрики у managed и graphviz почти совпадают
 - главный mismatch, если останется, уже сидит не в единицах и не в рамке страницы
+
+### Patch 2a. Дотянуть natural export scale для больших графов
+
+Статус:
+
+- не сделано
+
+Зачем нужен follow-up:
+
+- после `Patch 2` рамка страницы, `pad`, `dpi` и zero-based `viewBox` уже стали graphviz-like
+- но на больших cases всё ещё остаётся остаточный natural-size mismatch
+- на `WikiVote 30 / 99` managed `pageBoundingBox` всё ещё шире и выше эталона на `23 / 15`
+
+Фокус:
+
+- `src/PSGraphView.Sfdp/SfdpViewportCalculator.cs`
+- compare telemetry из:
+  - `demos/Compare-Export-SmallGraphs.ps1`
+  - `demos/Compare-WikiVote-Export.ps1`
+
+План:
+
+1. Проверить, можно ли вычислять natural export scale ближе к `graphviz` из:
+   - current content geometry
+   - average edge length
+   - packing / overlap-removal telemetry
+2. Не смешивать эту работу с `Patch 3` по SVG structure.
+3. Если устойчивого правила не найдётся, явно зафиксировать, что остаточный mismatch относится к layout scale, а не к viewport math.
+
+Критерий готовности:
+
+- либо large-graph width/height delta уменьшается ещё заметно
+- либо в `decisions.md` жёстко зафиксировано, почему дальше это уже не viewport problem
 
 ### Patch 3. Перевести SVG output на graphviz-like structure
 
