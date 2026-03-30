@@ -1043,7 +1043,7 @@
 
 Статус:
 
-- не сделано
+- сделано
 
 Цель:
 
@@ -1087,6 +1087,58 @@
    - зависимость от native assets
    - поведение на macOS/Linux/Windows
 4. Принять backend не по удобству API, а по критериям ниже.
+
+Результат:
+
+1. Выбранный raster backend:
+   - `SkiaSharp`
+2. Зафиксированный package surface в `PSGraphView.GVExport`:
+   - `SkiaSharp`
+   - `SkiaSharp.NativeAssets.Linux.NoDependencies`
+   - `SkiaSharp.NativeAssets.macOS`
+   - `SkiaSharp.NativeAssets.Win32`
+3. `Svg.Skia` осознанно не выбран для production export path:
+   - `Patch 4+` должен рисовать scene напрямую
+   - rasterize собственного `svg` в production path не допускается
+4. В коде выбор backend-а зафиксирован отдельно, до реализации `png/jpg`.
+5. Добавлен отдельный probe-test проект `tests/PSGraphView.GVExport.Tests`, который подтверждает:
+   - создание Skia surface
+   - PNG encode
+   - JPEG encode после явного flatten transparency на заданный background
+
+Почему выбран `SkiaSharp`:
+
+- он уже используется в соседнем `libsixel`, так что packaging и native-assets path для репозитория не новые
+- он даёт прямой low-level drawing surface и encode path для `png/jpg`
+- нам не нужно подменять им export semantics:
+  - viewport
+  - scene order
+  - background policy
+  - jpeg flattening
+  всё это остаётся на стороне `PSGraphView`
+- по локальному probe он работает в текущей macOS-среде без дополнительного native-bootstrap вне NuGet package set
+
+Принятые ограничения:
+
+- `SkiaSharp` не рассматривается как analog `graphviz device/plugin system`
+- text parity остаётся отдельным риском и не считается закрытой этим patch-ем
+- точный `jpg` background color policy ещё будет формализован в `Patch 6`
+
+Телеметрия:
+
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.GVExport/PSGraphView.GVExport.csproj` now pins `SkiaSharp` + native assets packages and copies native libraries after build
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.GVExport/GraphRasterBackendSelection.cs` now fixes backend choice as `SkiaSharp`
+- code change: added `/Users/andrei/repo/PSGraphView/tests/PSGraphView.GVExport.Tests/`
+- test: `dotnet test tests/PSGraphView.GVExport.Tests/PSGraphView.GVExport.Tests.csproj`
+- result: `2/2` passed
+- result: probe confirmed:
+  - `SKSurface.Create(...)` works
+  - PNG encode works
+  - explicit transparency flatten + JPEG encode works
+- test: `dotnet test tests/PSGraphView.Sfdp.Tests/PSGraphView.Sfdp.Tests.csproj --filter SfdpSvgExporterTests`
+- result: `9/9` passed
+- test: `dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --filter ExportGraphViewCmdletTests`
+- result: `10/10` passed
 
 Критерии принятия `SkiaSharp`:
 

@@ -370,3 +370,46 @@
 - это подтверждает порядок дальнейшей работы:
   - `Patch 3a` по выбору raster backend
   - затем `Patch 4+` по raster path
+
+## 2026-03-30 10:13 PDT - Raster backend фиксируем как SkiaSharp, без Svg.Skia в production path
+
+Решение: `Patch 3a` закрываем выбором `SkiaSharp` как raster backend для будущих `png/jpg`. `Svg.Skia` в production export path не используем.
+
+Причины:
+
+- `SkiaSharp` уже присутствует в соседнем `/Users/andrei/repo/libsixel`, вместе с тем же набором native-assets packages
+- он даёт нужный нам low-level surface/encoder слой:
+  - создание bitmap surface
+  - draw path
+  - `png` encode
+  - `jpg` encode
+- по локальному probe видно, что transparency можно явно flatten-ить на заданный background до JPEG encode
+- это позволяет держать правильное разделение ответственности:
+  - graphviz-like semantics задаём мы
+  - `SkiaSharp` остаётся только backend-ом рисования и кодирования
+- `Svg.Skia` нам здесь вреден как основной путь, потому что он слишком легко толкает к rasterize собственного `svg` вместо прямого scene render
+
+Телеметрия:
+
+- source reference: `/Users/andrei/repo/libsixel/src/LibSixel.PowerShell/LibSixel.PowerShell.csproj`
+- source reference: `/Users/andrei/repo/libsixel/src/LibSixel.PowerShell/Internal/ImageDecoder.cs`
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.GVExport/PSGraphView.GVExport.csproj` now pins:
+  - `SkiaSharp 2.88.9`
+  - `SkiaSharp.NativeAssets.Linux.NoDependencies 2.88.9`
+  - `SkiaSharp.NativeAssets.macOS 2.88.9`
+  - `SkiaSharp.NativeAssets.Win32 2.88.9`
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.GVExport/GraphRasterBackendSelection.cs` fixes the selected backend as `SkiaSharp`
+- code change: added `/Users/andrei/repo/PSGraphView/tests/PSGraphView.GVExport.Tests/SkiaSharpRasterBackendProbeTests.cs`
+- test: `dotnet test tests/PSGraphView.GVExport.Tests/PSGraphView.GVExport.Tests.csproj`
+- result: `2/2` passed
+- result: probe confirmed `SKSurface.Create(...)`, PNG encode, and explicit flatten + JPEG encode on current macOS environment
+- test: `dotnet test tests/PSGraphView.Sfdp.Tests/PSGraphView.Sfdp.Tests.csproj --filter SfdpSvgExporterTests`
+- result: `9/9` passed
+- test: `dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --filter ExportGraphViewCmdletTests`
+- result: `10/10` passed
+
+Ограничения, которые принимаем:
+
+- этот patch не закрывает text parity
+- этот patch не означает, что мы принимаем Skia drawing quirks как эталон
+- точная policy для JPEG background будет ещё отдельно зафиксирована на `Patch 6`
