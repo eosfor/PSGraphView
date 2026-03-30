@@ -26,7 +26,8 @@
 Примечание:
 
 - для быстрого smoke-run `Compare-WikiVote-Export.ps1` можно запускать на маленьком `SubgraphSeedCount`
-- для содержательного сравнения edge/path structure лучше брать `SubgraphSeedCount >= 30`, потому что слишком маленький срез может оказаться без рёбер
+- текущий induced subgraph по top-degree вершинам на `WikiVote` даже при `SubgraphSeedCount = 30` может оставаться без рёбер
+- для содержательного сравнения edge/path structure нужен отдельный edge-preserving large-graph mode
 
 ---
 
@@ -665,7 +666,7 @@
 
 Статус:
 
-- не сделано
+- сделано
 
 Цель:
 
@@ -695,6 +696,47 @@
   - в scene
   - в svg structure
   - в raster surface
+- compare summary уже поднимает:
+  - `Graphviz.Outputs.*.VerboseSummary`
+  - `Managed.Outputs.*.DiagnosticsSummary`
+  - `Comparisons.Diagnostics`
+
+### Patch 0b. Добавить edge-preserving large-graph compare mode
+
+Статус:
+
+- не сделано
+
+Цель:
+
+- получить большой reference-case, где на `WikiVote` реально есть рёбра и path structure, а не только вершины без дуг
+
+Почему это понадобилось:
+
+- текущий induced subgraph по top-degree вершинам оказался плохим export-case:
+  - на `SubgraphSeedCount = 10` получился граф `10 / 0`
+  - на `SubgraphSeedCount = 30` получился граф `30 / 0`
+- такой сценарий подходит для smoke-run, но плохо подходит для:
+  - edge path parity
+  - arrow parity
+  - raster edge density checks
+
+Фокус:
+
+- `demos/Compare-WikiVote-Export.ps1`
+
+План:
+
+1. Добавить альтернативный subgraph mode, который сохраняет рёбра:
+   - ego-neighborhood
+   - BFS/expansion from seed vertices
+   - или другой простой edge-preserving extraction
+2. Явно писать в summary, какой subgraph mode использовался.
+3. Сохранить быстрый induced mode только как smoke-вариант.
+
+Критерий готовности:
+
+- есть повторяемый large-graph scenario, где `WikiVote` даёт ненулевое число рёбер и пригоден для export parity
 
 ### Patch 1. Развязать export от layout и ввести общий render scene
 

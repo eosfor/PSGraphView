@@ -153,20 +153,61 @@ public sealed class SfdpSvgExporterTests
 
             var exportInputSeen = false;
             var viewBoxSeen = false;
+            var renderSceneSeen = false;
+            var renderViewportSeen = false;
+            var svgStructureSeen = false;
 
             foreach (var line in File.ReadLines(diagnosticsPath))
             {
                 using var document = JsonDocument.Parse(line);
                 var root = document.RootElement;
                 if (!root.TryGetProperty("Phase", out var phase) ||
-                    !string.Equals(phase.GetString(), "svg", StringComparison.Ordinal) ||
-                    !root.TryGetProperty("Name", out var name) ||
-                    !string.Equals(name.GetString(), "geometry", StringComparison.Ordinal))
+                    !root.TryGetProperty("Name", out var name))
                 {
                     continue;
                 }
 
+                var phaseName = phase.GetString();
+                var eventName = name.GetString();
                 var data = root.GetProperty("Data");
+
+                if (string.Equals(phaseName, "render", StringComparison.Ordinal) &&
+                    string.Equals(eventName, "scene", StringComparison.Ordinal))
+                {
+                    renderSceneSeen = true;
+                    Assert.Equal(2, data.GetProperty("nodeCount").GetInt32());
+                    Assert.Equal(1, data.GetProperty("edgeCount").GetInt32());
+                    Assert.Equal(0, data.GetProperty("labelCount").GetInt32());
+                    continue;
+                }
+
+                if (string.Equals(phaseName, "render", StringComparison.Ordinal) &&
+                    string.Equals(eventName, "viewport", StringComparison.Ordinal))
+                {
+                    renderViewportSeen = true;
+                    Assert.True(data.GetProperty("outputWidth").GetDouble() > 0.0);
+                    Assert.True(data.GetProperty("outputHeight").GetDouble() > 0.0);
+                    Assert.True(data.GetProperty("viewBoxWidth").GetDouble() > 0.0);
+                    Assert.True(data.GetProperty("viewBoxHeight").GetDouble() > 0.0);
+                    continue;
+                }
+
+                if (string.Equals(phaseName, "svg", StringComparison.Ordinal) &&
+                    string.Equals(eventName, "structure", StringComparison.Ordinal))
+                {
+                    svgStructureSeen = true;
+                    Assert.Equal(2, data.GetProperty("nodeGroupCount").GetInt32());
+                    Assert.Equal(1, data.GetProperty("edgeGroupCount").GetInt32());
+                    Assert.Equal(1, data.GetProperty("rectCount").GetInt32());
+                    continue;
+                }
+
+                if (!string.Equals(phaseName, "svg", StringComparison.Ordinal) ||
+                    !string.Equals(eventName, "geometry", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
                 var stage = data.GetProperty("stage").GetString();
                 switch (stage)
                 {
@@ -185,6 +226,9 @@ public sealed class SfdpSvgExporterTests
 
             Assert.True(exportInputSeen);
             Assert.True(viewBoxSeen);
+            Assert.True(renderSceneSeen);
+            Assert.True(renderViewportSeen);
+            Assert.True(svgStructureSeen);
         }
         finally
         {

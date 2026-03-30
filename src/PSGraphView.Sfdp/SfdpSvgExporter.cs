@@ -36,6 +36,7 @@ public sealed class SfdpSvgExporter
             ? SfdpLabelLayouter.PlaceLabels(graph.Nodes.Select(node => node.Label).ToArray(), layout.X, layout.Y, options)
             : Array.Empty<SfdpLabelLayouter.LabelPlacement>();
         var routedEdges = SfdpEdgeRouter.RouteEdges(graph, layout.X, layout.Y, options);
+        SfdpRenderDiagnostics.WriteScene(diagnostics, graph, routedEdges, labelPlacements, options);
         var graphGeometry = SfdpGeometrySummary.Create(SfdpGraphBuilder.BuildUndirectedCsr(SfdpGraphBuilder.BuildIndexed(graph)), layout.X, layout.Y);
         WriteSvgGeometry(diagnostics, "export_input", graphGeometry, options, labelPlacements, null, null, null, null, null);
         var padding = Math.Max(options.NodeRadius * 2.0, 12.0);
@@ -57,6 +58,17 @@ public sealed class SfdpSvgExporter
             outputWidth,
             outputHeight,
             $"{Format(minX)} {Format(minY)} {Format(naturalWidth)} {Format(naturalHeight)}");
+        SfdpRenderDiagnostics.WriteViewport(
+            diagnostics,
+            contentBounds,
+            padding,
+            minX,
+            minY,
+            naturalWidth,
+            naturalHeight,
+            outputWidth,
+            outputHeight,
+            options);
 
         XNamespace ns = "http://www.w3.org/2000/svg";
         var svg = new XElement(ns + "svg",
@@ -138,6 +150,7 @@ public sealed class SfdpSvgExporter
         svg.Add(nodeGroup);
 
         var document = new XDocument(new XDeclaration("1.0", "utf-8", null), svg);
+        SfdpRenderDiagnostics.WriteSvgStructure(diagnostics, svg);
         return document.ToString(SaveOptions.DisableFormatting);
     }
 

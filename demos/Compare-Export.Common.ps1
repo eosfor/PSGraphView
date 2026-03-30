@@ -223,6 +223,212 @@ function Get-FormatSummary {
     }
 }
 
+function Convert-StructuredLogValue {
+    param([Parameter(Mandatory)][string]$Value)
+
+    if ($Value.Length -ge 2 -and $Value[0] -eq '"' -and $Value[-1] -eq '"') {
+        return $Value.Substring(1, $Value.Length - 2)
+    }
+
+    if ($Value -eq 'true') {
+        return $true
+    }
+
+    if ($Value -eq 'false') {
+        return $false
+    }
+
+    $integerValue = 0L
+    if ([long]::TryParse($Value, [System.Globalization.NumberStyles]::Integer, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$integerValue)) {
+        return $integerValue
+    }
+
+    $doubleValue = 0.0
+    if ([double]::TryParse($Value, [System.Globalization.NumberStyles]::Float, [System.Globalization.CultureInfo]::InvariantCulture, [ref]$doubleValue)) {
+        return $doubleValue
+    }
+
+    return $Value
+}
+
+function Convert-StructuredLogEntry {
+    param([Parameter(Mandatory)][string]$Line)
+
+    $tokens = $Line -split '\s+'
+    $entry = [ordered]@{}
+
+    for ($index = 1; $index -lt $tokens.Length; $index++) {
+        $token = $tokens[$index]
+        $separatorIndex = $token.IndexOf('=')
+        if ($separatorIndex -le 0) {
+            continue
+        }
+
+        $key = $token.Substring(0, $separatorIndex)
+        $value = $token.Substring($separatorIndex + 1)
+        $entry[$key] = Convert-StructuredLogValue -Value $value
+    }
+
+    return $entry
+}
+
+function Get-GraphvizVerboseSummary {
+    param([Parameter(Mandatory)][string]$Path)
+
+    if (-not (Test-Path $Path)) {
+        return $null
+    }
+
+    $summary = [ordered]@{
+        Viewport = $null
+        Scene = $null
+        Svg = $null
+        Cairo = $null
+        Gd = $null
+    }
+
+    foreach ($line in Get-Content -Path $Path) {
+        if ($line.StartsWith('GVEXPORT_VIEW ')) {
+            $summary.Viewport = Convert-StructuredLogEntry -Line $line
+            continue
+        }
+
+        if ($line.StartsWith('GVEXPORT_SCENE ')) {
+            $summary.Scene = Convert-StructuredLogEntry -Line $line
+            continue
+        }
+
+        if ($line.StartsWith('GVEXPORT_SVG ')) {
+            $summary.Svg = Convert-StructuredLogEntry -Line $line
+            continue
+        }
+
+        if ($line.StartsWith('GVEXPORT_CAIRO ')) {
+            $summary.Cairo = Convert-StructuredLogEntry -Line $line
+            continue
+        }
+
+        if ($line.StartsWith('GVEXPORT_GD ')) {
+            $summary.Gd = Convert-StructuredLogEntry -Line $line
+        }
+    }
+
+    return $summary
+}
+
+function Get-ManagedDiagnosticsSummary {
+    param([Parameter(Mandatory)][string]$Path)
+
+    if (-not (Test-Path $Path)) {
+        return $null
+    }
+
+    $summary = [ordered]@{
+        Scene = $null
+        Viewport = $null
+        SvgStructure = $null
+        SvgGeometry = @()
+    }
+
+    foreach ($line in Get-Content -Path $Path) {
+        if ([string]::IsNullOrWhiteSpace($line)) {
+            continue
+        }
+
+        $event = ConvertFrom-Json -InputObject $line -AsHashtable
+        $phase = [string]$event['Phase']
+        $name = [string]$event['Name']
+        $data = $event['Data']
+
+        if ($phase -eq 'render' -and $name -eq 'scene') {
+            $summary.Scene = $data
+            continue
+        }
+
+        if ($phase -eq 'render' -and $name -eq 'viewport') {
+            $summary.Viewport = $data
+            continue
+        }
+
+        if ($phase -eq 'svg' -and $name -eq 'structure') {
+            $summary.SvgStructure = $data
+            continue
+        }
+
+        if ($phase -eq 'svg' -and $name -eq 'geometry') {
+            $summary.SvgGeometry += $data
+        }
+    }
+
+    return $summary
+}
+
+function Get-DiagnosticsComparisonSummary {
+    param(
+        [object]$GraphvizResult,
+        [object]$ManagedResult
+    )
+
+    if (-not $GraphvizResult.Supported -or -not $ManagedResult.Supported) {
+        return [ordered]@{
+            Available = $false
+            Reason = 'One side did not produce output for diagnostics comparison.'
+        }
+    }
+
+    $graphvizVerbose = $GraphvizResult.VerboseSummary
+    $managedDiagnostics = $ManagedResult.DiagnosticsSummary
+    if ($null -eq $graphvizVerbose -or $null -eq $managedDiagnostics) {
+        return [ordered]@{
+            Available = $false
+            Reason = 'Verbose or managed diagnostics summary is missing.'
+        }
+    }
+
+    $graphvizViewport = $graphvizVerbose.Viewport
+    $managedViewport = $managedDiagnostics.Viewport
+    $graphvizScene = $graphvizVerbose.Scene
+    $managedScene = $managedDiagnostics.Scene
+    $graphvizSvg = $graphvizVerbose.Svg
+    $managedSvg = $managedDiagnostics.SvgStructure
+    $graphvizStructure = $GraphvizResult.Summary
+
+    return [ordered]@{
+        Available = $true
+        Viewport = [ordered]@{
+            Available = ($null -ne $graphvizViewport -and $null -ne $managedViewport)
+            OutputWidthDelta = if ($null -ne $graphvizViewport -and $null -ne $managedViewport) { [double]$managedViewport['outputWidth'] - [double]$graphvizViewport['width'] } else { $null }
+            OutputHeightDelta = if ($null -ne $graphvizViewport -and $null -ne $managedViewport) { [double]$managedViewport['outputHeight'] - [double]$graphvizViewport['height'] } else { $null }
+            ViewBoxMinXDelta = if ($null -ne $graphvizViewport -and $null -ne $managedViewport) { [double]$managedViewport['viewBoxMinX'] - [double]$graphvizViewport['pagebb_ll_x'] } else { $null }
+            ViewBoxMinYDelta = if ($null -ne $graphvizViewport -and $null -ne $managedViewport) { [double]$managedViewport['viewBoxMinY'] - [double]$graphvizViewport['pagebb_ll_y'] } else { $null }
+            ViewBoxWidthDelta = if ($null -ne $graphvizViewport -and $null -ne $managedViewport) { [double]$managedViewport['viewBoxWidth'] - [double]$graphvizViewport['pagebb_ur_x'] } else { $null }
+            ViewBoxHeightDelta = if ($null -ne $graphvizViewport -and $null -ne $managedViewport) { [double]$managedViewport['viewBoxHeight'] - [double]$graphvizViewport['pagebb_ur_y'] } else { $null }
+            Graphviz = $graphvizViewport
+            Managed = $managedViewport
+        }
+        Scene = [ordered]@{
+            Available = ($null -ne $graphvizScene -and $null -ne $managedScene)
+            NodeCountDelta = if ($null -ne $graphvizScene -and $null -ne $managedScene) { [long]$managedScene['nodeCount'] - [long]$graphvizScene['nodes'] } else { $null }
+            EdgeCountDelta = if ($null -ne $graphvizScene -and $null -ne $managedScene) { [long]$managedScene['edgeCount'] - [long]$graphvizScene['edges'] } else { $null }
+            Graphviz = $graphvizScene
+            Managed = $managedScene
+        }
+        SvgStructure = [ordered]@{
+            Available = ($null -ne $graphvizStructure -and $null -ne $managedSvg)
+            WidthMatch = if ($null -ne $graphvizStructure -and $null -ne $managedSvg) { [string]$managedSvg['width'] -eq [string]$graphvizStructure.Width } else { $null }
+            HeightMatch = if ($null -ne $graphvizStructure -and $null -ne $managedSvg) { [string]$managedSvg['height'] -eq [string]$graphvizStructure.Height } else { $null }
+            ViewBoxMatch = if ($null -ne $graphvizStructure -and $null -ne $managedSvg) { [string]$managedSvg['viewBox'] -eq [string]$graphvizStructure.ViewBox } else { $null }
+            TitleCountDelta = if ($null -ne $graphvizStructure -and $null -ne $managedSvg) { [long]$managedSvg['titleCount'] - [long]$graphvizStructure.TitleCount } else { $null }
+            RectCountDelta = if ($null -ne $graphvizStructure -and $null -ne $managedSvg) { [long]$managedSvg['rectCount'] - [long]$graphvizStructure.RectCount } else { $null }
+            Graphviz = [ordered]@{
+                Structure = $graphvizStructure
+                Verbose = $graphvizSvg
+            }
+            Managed = $managedSvg
+        }
+    }
+}
+
 function Invoke-GraphvizExport {
     param(
         [Parameter(Mandatory)][string]$GraphvizSfdpPath,
@@ -249,6 +455,7 @@ function Invoke-GraphvizExport {
             Error = $null
             ElapsedMilliseconds = $watch.ElapsedMilliseconds
             Summary = Get-FormatSummary -Format $FormatName -Path $OutputPath
+            VerboseSummary = Get-GraphvizVerboseSummary -Path $LogPath
         }
     }
     catch {
@@ -266,6 +473,7 @@ function Invoke-GraphvizExport {
             Error = $_.Exception.Message
             ElapsedMilliseconds = $watch.ElapsedMilliseconds
             Summary = $null
+            VerboseSummary = Get-GraphvizVerboseSummary -Path $LogPath
         }
     }
 }
@@ -311,6 +519,7 @@ function Invoke-ManagedExport {
             Error = $null
             ElapsedMilliseconds = $watch.ElapsedMilliseconds
             Summary = Get-FormatSummary -Format $FormatName -Path $OutputPath
+            DiagnosticsSummary = Get-ManagedDiagnosticsSummary -Path $DiagnosticsPath
         }
     }
     catch {
@@ -327,6 +536,7 @@ function Invoke-ManagedExport {
             Error = $_.Exception.Message
             ElapsedMilliseconds = $watch.ElapsedMilliseconds
             Summary = $null
+            DiagnosticsSummary = Get-ManagedDiagnosticsSummary -Path $DiagnosticsPath
         }
     }
 }
@@ -493,6 +703,7 @@ function Invoke-ExportComparisonRun {
         }
         Comparisons = [ordered]@{
             Svg = Get-SvgComparisonSummary -GraphvizResult $graphvizResults.Svg -ManagedResult $managedResults.Svg
+            Diagnostics = Get-DiagnosticsComparisonSummary -GraphvizResult $graphvizResults.Svg -ManagedResult $managedResults.Svg
             Png = [ordered]@{
                 Available = $false
                 Reason = 'Pixel diff will be added after managed PNG support exists.'

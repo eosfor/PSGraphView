@@ -63,3 +63,52 @@
 - run: `pwsh -NoProfile -File demos/Compare-WikiVote-Export.ps1 -UseLocalModules -UseSubgraph -SubgraphSeedCount 10 -OutputDir /tmp/psgraphview-export-wikivote-smoke`
 - result: script completed successfully and produced `svg/png/jpg` reference outputs plus managed `svg`
 - result: `SubgraphSeedCount = 10` yielded `10 vertices / 0 edges`, so this size is good for smoke only, not for edge-path parity work
+
+## 2026-03-30 00:20 PDT - Patch 0a diagnostics layer принят
+
+Решение: считаем `Patch 0a` закрытым. Новый compare loop теперь поднимает diagnostics с managed-стороны и verbose-диагностику из локального `graphviz`.
+
+Причины:
+
+- managed exporter теперь пишет явные события:
+  - `render.scene`
+  - `render.viewport`
+  - `svg.structure`
+- локальный `graphviz` теперь пишет нормализованные `GVEXPORT_*` строки для:
+  - viewport
+  - scene
+  - svg transform
+  - cairo surface
+  - gd device
+- compare summary уже сводит эти данные в отдельный блок `Comparisons.Diagnostics`
+
+Телеметрия:
+
+- managed verification: `dotnet test tests/PSGraphView.Sfdp.Tests/PSGraphView.Sfdp.Tests.csproj --filter SfdpSvgExporterTests`
+- managed verification: `dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --filter ExportGraphViewCmdletTests`
+- graphviz rebuild: `PATH=\"/opt/homebrew/opt/bison/bin:$PATH\" cmake -S /Users/andrei/repo/graphviz -B /tmp/graphviz-build-export-port -GNinja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=/tmp/graphviz-prefix -DBISON_EXECUTABLE=/opt/homebrew/opt/bison/bin/bison`
+- graphviz rebuild: `PATH=\"/opt/homebrew/opt/bison/bin:$PATH\" cmake --build /tmp/graphviz-build-export-port --target install -j4`
+- run: `pwsh -NoProfile -File demos/Compare-Export-SmallGraphs.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-small-compare-patch0a`
+- result: 6/6 small-graph cases completed successfully with `Comparisons.Diagnostics.Available = true`
+- result: on `single-edge`, `Scene.NodeCountDelta = 0` and `Scene.EdgeCountDelta = 0`
+- result: on `single-edge`, `Viewport.OutputWidthDelta = -17`, `Viewport.OutputHeightDelta = 17`
+- result: on `single-edge`, `SvgStructure.TitleCountDelta = -1`, `SvgStructure.RectCountDelta = 1`
+- run: `pwsh -NoProfile -File demos/Compare-WikiVote-Export.ps1 -UseLocalModules -UseSubgraph -SubgraphSeedCount 30 -OutputDir /tmp/psgraphview-export-wikivote-patch0a`
+- result: diagnostics summary produced successfully for `wiki-vote-subgraph-30`
+
+## 2026-03-30 00:20 PDT - Нужен отдельный edge-preserving WikiVote mode
+
+Решение: в план добавлен follow-up `Patch 0b` для большого compare-case с реальными рёбрами.
+
+Причины:
+
+- текущий способ брать induced subgraph по top-degree вершинам оказался плохим для export parity
+- без рёбер бесполезно сравнивать:
+  - edge path geometry
+  - arrows
+  - raster edge density
+
+Телеметрия:
+
+- `Compare-WikiVote-Export.ps1 -UseSubgraph -SubgraphSeedCount 10` -> `10 vertices / 0 edges`
+- `Compare-WikiVote-Export.ps1 -UseSubgraph -SubgraphSeedCount 30` -> `30 vertices / 0 edges`
