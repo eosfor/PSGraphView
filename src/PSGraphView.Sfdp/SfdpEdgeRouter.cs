@@ -50,19 +50,36 @@ internal static class SfdpEdgeRouter
     internal static SfdpBoundingBox ComputeBounds(IReadOnlyList<RoutedPoint> points)
     {
         ArgumentNullException.ThrowIfNull(points);
-        if (points.Count != 4)
+        if (points.Count < 4 || ((points.Count - 1) % 3) != 0)
         {
-            throw new ArgumentException("Expected exactly four routed points.", nameof(points));
+            throw new ArgumentException("Expected routed points to contain one or more cubic Bezier segments.", nameof(points));
         }
 
-        var xValues = GetCubicExtrema(points[0].X, points[1].X, points[2].X, points[3].X);
-        var yValues = GetCubicExtrema(points[0].Y, points[1].Y, points[2].Y, points[3].Y);
+        var minX = double.PositiveInfinity;
+        var minY = double.PositiveInfinity;
+        var maxX = double.NegativeInfinity;
+        var maxY = double.NegativeInfinity;
 
-        return new SfdpBoundingBox(
-            xValues.Min(),
-            yValues.Min(),
-            xValues.Max(),
-            yValues.Max());
+        for (var segmentStart = 0; segmentStart <= points.Count - 4; segmentStart += 3)
+        {
+            var xValues = GetCubicExtrema(
+                points[segmentStart].X,
+                points[segmentStart + 1].X,
+                points[segmentStart + 2].X,
+                points[segmentStart + 3].X);
+            var yValues = GetCubicExtrema(
+                points[segmentStart].Y,
+                points[segmentStart + 1].Y,
+                points[segmentStart + 2].Y,
+                points[segmentStart + 3].Y);
+
+            minX = Math.Min(minX, xValues.Min());
+            minY = Math.Min(minY, yValues.Min());
+            maxX = Math.Max(maxX, xValues.Max());
+            maxY = Math.Max(maxY, yValues.Max());
+        }
+
+        return new SfdpBoundingBox(minX, minY, maxX, maxY);
     }
 
     internal static RoutedPoint[] BuildRoutePoints(
@@ -114,7 +131,7 @@ internal static class SfdpEdgeRouter
 
         var nx = -uy;
         var ny = ux;
-        var curvature = Math.Max(options.NodeRadius * 4.0, distance * 0.12);
+        var curvature = Math.Max(options.NodeRadius * 12.0, distance * 0.30);
         var direction = sourceIndex < targetIndex ? 1.0 : -1.0;
         var controlX = (sx + tx) * 0.5 + nx * curvature * direction;
         var controlY = (sy + ty) * 0.5 + ny * curvature * direction;
@@ -165,31 +182,46 @@ internal static class SfdpEdgeRouter
     internal static string BuildPathData(IReadOnlyList<RoutedPoint> points)
     {
         ArgumentNullException.ThrowIfNull(points);
-        if (points.Count != 4)
+        if (points.Count < 4 || ((points.Count - 1) % 3) != 0)
         {
-            throw new ArgumentException("Expected exactly four routed points.", nameof(points));
+            throw new ArgumentException("Expected routed points to contain one or more cubic Bezier segments.", nameof(points));
         }
 
-        return Invariant($"M {points[0].X:0.###} {points[0].Y:0.###} C {points[1].X:0.###} {points[1].Y:0.###} {points[2].X:0.###} {points[2].Y:0.###} {points[3].X:0.###} {points[3].Y:0.###}");
+        var builder = new System.Text.StringBuilder();
+        builder.Append(Invariant($"M {points[0].X:0.###} {points[0].Y:0.###}"));
+        for (var segmentStart = 0; segmentStart <= points.Count - 4; segmentStart += 3)
+        {
+            builder.Append(Invariant($" C {points[segmentStart + 1].X:0.###} {points[segmentStart + 1].Y:0.###} {points[segmentStart + 2].X:0.###} {points[segmentStart + 2].Y:0.###} {points[segmentStart + 3].X:0.###} {points[segmentStart + 3].Y:0.###}"));
+        }
+
+        return builder.ToString();
     }
 
     private static RoutedPoint[] BuildSelfLoopPoints(double x, double y, double nodeRadius)
     {
-        var loopWidth = Math.Max(nodeRadius * 12.0, 6.0);
-        var loopHeight = Math.Max(nodeRadius * 7.0, 4.0);
-        var startX = x + nodeRadius * 0.8;
-        var startY = y - nodeRadius * 1.15;
-        var endX = x + nodeRadius * 1.25;
-        var endY = y + nodeRadius * 0.75;
-        var control1X = x + loopWidth;
-        var control1Y = y - loopHeight;
-        var control2X = x + loopWidth;
-        var control2Y = y + loopHeight;
+        var startX = x + (nodeRadius * 0.83);
+        var startY = y - (nodeRadius * 1.14);
+        var firstControl1X = x + (nodeRadius * 9.75);
+        var firstControl1Y = y - (nodeRadius * 12.5);
+        var firstControl2X = x + (nodeRadius * 26.0);
+        var firstControl2Y = y - (nodeRadius * 12.1);
+        var middleX = x + (nodeRadius * 26.0);
+        var middleY = y;
+        var secondControl1X = x + (nodeRadius * 26.0);
+        var secondControl1Y = y + (nodeRadius * 11.7);
+        var secondControl2X = x + (nodeRadius * 10.8);
+        var secondControl2Y = y + (nodeRadius * 12.4);
+        var endX = x + (nodeRadius * 1.69);
+        var endY = y + (nodeRadius * 2.15);
+
         return
         [
             new RoutedPoint(startX, startY),
-            new RoutedPoint(control1X, control1Y),
-            new RoutedPoint(control2X, control2Y),
+            new RoutedPoint(firstControl1X, firstControl1Y),
+            new RoutedPoint(firstControl2X, firstControl2Y),
+            new RoutedPoint(middleX, middleY),
+            new RoutedPoint(secondControl1X, secondControl1Y),
+            new RoutedPoint(secondControl2X, secondControl2Y),
             new RoutedPoint(endX, endY)
         ];
     }

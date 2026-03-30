@@ -129,9 +129,26 @@ internal static class SfdpRenderSceneBuilder
         double translateX,
         double translateY)
     {
-        return string.Create(
-            CultureInfo.InvariantCulture,
-            $"M{Format(points[0].X - translateX)},{Format(points[0].Y - translateY)}C{Format(points[1].X - translateX)},{Format(points[1].Y - translateY)} {Format(points[2].X - translateX)},{Format(points[2].Y - translateY)} {Format(points[3].X - translateX)},{Format(points[3].Y - translateY)}");
+        if (points.Count < 4 || ((points.Count - 1) % 3) != 0)
+        {
+            throw new ArgumentException("Expected routed points to contain one or more cubic Bezier segments.", nameof(points));
+        }
+
+        var builder = new System.Text.StringBuilder();
+        builder.Append(
+            string.Create(
+                CultureInfo.InvariantCulture,
+                $"M{Format(points[0].X - translateX)},{Format(points[0].Y - translateY)}"));
+
+        for (var segmentStart = 0; segmentStart <= points.Count - 4; segmentStart += 3)
+        {
+            builder.Append(
+                string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"C{Format(points[segmentStart + 1].X - translateX)},{Format(points[segmentStart + 1].Y - translateY)} {Format(points[segmentStart + 2].X - translateX)},{Format(points[segmentStart + 2].Y - translateY)} {Format(points[segmentStart + 3].X - translateX)},{Format(points[segmentStart + 3].Y - translateY)}"));
+        }
+
+        return builder.ToString();
     }
 
     private static string Format(double value)

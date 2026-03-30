@@ -668,3 +668,56 @@
 - значит следующий meaningful шаг остаётся тем же:
   - `Patch 3d`
   - затем `Patch 7`
+
+## 2026-03-30 15:40 PDT - Patch 3d улучшил export-side route envelope, но выявил layout-limited residuals
+
+Решение: считаем `Patch 3d` выполненным как export-side corrective patch для route envelope и compare baseline. При этом полный natural-size parity не закрыт: после исправления self-loop и fair arrows baseline стало видно, что часть оставшегося mismatch уже не export-only, а layout-limited.
+
+Причины:
+
+- compare harness до `Patch 3d` был нечестным:
+  - `graphviz` рендерили с arrows
+  - managed export сравнивали без `ShowArrows`
+- `self-loop` у managed был принципиально беднее `graphviz`:
+  - одна cubic curve вместо двухсегментной петли
+  - bounds и viewport из-за этого были занижены
+- после починки этих вещей `self-loop` почти выровнялся, а `triangle-cycle` и `WikiVote` почти нет
+- это важный сигнал: оставшийся большой mismatch нельзя дальше автоматически считать export bug
+
+Телеметрия:
+
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.Sfdp/SfdpEdgeRouter.cs`
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.Sfdp/SfdpRenderSceneBuilder.cs`
+- code change: `/Users/andrei/repo/PSGraphView/demos/Compare-Export.Common.ps1`
+- test: `dotnet test tests/PSGraphView.Sfdp.Tests/PSGraphView.Sfdp.Tests.csproj --filter SfdpSvgExporterTests`
+- result: `11/11` passed
+- test: `dotnet test tests/PSGraphView.Sfdp.Tests/PSGraphView.Sfdp.Tests.csproj --filter SfdpRasterExporterTests`
+- result: `2/2` passed
+- test: `dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --filter ExportGraphViewCmdletTests`
+- result: `13/13` passed
+- run: `pwsh -NoProfile -File demos/Compare-Export-SmallGraphs.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-small-compare-patch3d`
+- result: `self-loop svg` moved from `16pt x 12pt` to `28pt x 22pt`, graphviz is `27pt x 22pt`
+- result: `self-loop png` moved from `WidthDelta = -16, HeightDelta = -14` to `WidthDelta = 0, HeightDelta = 0`
+- result: `self-loop jpg` moved from `WidthDelta = -16, HeightDelta = -14` to `WidthDelta = 0, HeightDelta = 0`
+- result: `bidirectional-edge svg` moved from `48pt x 11pt` to `48pt x 16pt`, graphviz is `43pt x 22pt`
+- result: `bidirectional-edge png HeightDelta` moved from `-14` to `-8`
+- result: `bidirectional-edge jpg HeightDelta` moved from `-14` to `-8`
+- result: `PathDelta = 0` again on all small cases after excluding marker paths in `<defs>`
+- run: `pwsh -NoProfile -File demos/Compare-WikiVote-Export.ps1 -UseLocalModules -UseSubgraph -SubgraphSeedCount 30 -SubgraphStartVertexCount 3 -OutputDir /tmp/psgraphview-export-wikivote-patch3d`
+- result: `WikiVote svg` stayed `146pt x 123pt` vs `123pt x 108pt`
+- result: `WikiVote png` stayed `WidthDelta = 30`, `HeightDelta = 21`
+- result: `WikiVote jpg` stayed `WidthDelta = 30`, `HeightDelta = 21`
+- graphviz verbose reference for `triangle-cycle` after overlap removal:
+  - width `0.612462`
+  - height `0.539291`
+- managed diagnostics for `triangle-cycle` after overlap removal:
+  - width `0.230212`
+  - height `0.263516`
+
+Следствие:
+
+- export-side work на loops и reverse edges дала measurable improvement
+- но для `triangle-cycle` и `WikiVote` оставшийся большой размерный разъезд уже нельзя честно называть только export parity issue
+- следующий шаг должен быть отдельным:
+  - `Patch 3e`
+  - развести layout-limited residuals и export-limited residuals

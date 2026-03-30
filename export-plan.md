@@ -1273,7 +1273,7 @@
 
 Статус:
 
-- запланировано
+- сделано частично
 
 Цель:
 
@@ -1288,6 +1288,7 @@
 - `src/PSGraphView.Sfdp/SfdpEdgeRouter.cs`
 - `src/PSGraphView.Sfdp/SfdpViewportCalculator.cs`
 - compare scripts / visibility + size telemetry
+- compare harness parity по arrows
 
 Телеметрия, которая толкает к этому patch-у:
 
@@ -1295,9 +1296,85 @@
 - `triangle-cycle svg`: managed `27pt x 29pt` vs graphviz `54pt x 48pt`
 - `self-loop svg`: managed `16pt x 12pt` vs graphviz `27pt x 22pt`
 
+Результат:
+
+1. Compare harness теперь сравнивает одинаковую arrow semantics:
+   - managed export запускается с `ShowArrows = true`
+   - `ArrowSize = 0.08`, как и у `graphviz`
+2. `self-loop` переведён на двухсегментный cubic path, ближе к `graphviz`.
+3. Routed edge path/bounds больше не зашиты на ровно `4` точки:
+   - scene теперь умеет one-or-more cubic segments
+   - bounds считаются по всем сегментам
+4. Для bidirectional edges увеличена curvature heuristic, чтобы уменьшить vertical-envelope mismatch.
+5. `PathDelta` в compare harness снова стал честной метрикой:
+   - marker path из `<defs>` больше не считается как edge path
+
+Телеметрия:
+
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.Sfdp/SfdpEdgeRouter.cs`
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.Sfdp/SfdpRenderSceneBuilder.cs`
+- code change: `/Users/andrei/repo/PSGraphView/demos/Compare-Export.Common.ps1`
+- test: `dotnet test tests/PSGraphView.Sfdp.Tests/PSGraphView.Sfdp.Tests.csproj --filter SfdpSvgExporterTests`
+- result: `11/11` passed
+- test: `dotnet test tests/PSGraphView.Sfdp.Tests/PSGraphView.Sfdp.Tests.csproj --filter SfdpRasterExporterTests`
+- result: `2/2` passed
+- test: `dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --filter ExportGraphViewCmdletTests`
+- result: `13/13` passed
+- run: `pwsh -NoProfile -File demos/Compare-Export-SmallGraphs.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-small-compare-patch3d`
+- result: `self-loop svg` improved from `16pt x 12pt` to `28pt x 22pt` versus graphviz `27pt x 22pt`
+- result: `self-loop png` improved from `WidthDelta = -16, HeightDelta = -14` to `WidthDelta = 0, HeightDelta = 0`
+- result: `self-loop jpg` improved from `WidthDelta = -16, HeightDelta = -14` to `WidthDelta = 0, HeightDelta = 0`
+- result: `bidirectional-edge svg` improved from `48pt x 11pt` to `48pt x 16pt` versus graphviz `43pt x 22pt`
+- result: `bidirectional-edge png` improved `HeightDelta` from `-14` to `-8`
+- result: `bidirectional-edge jpg` improved `HeightDelta` from `-14` to `-8`
+- result: `PathDelta = 0` again on all small cases
+- run: `pwsh -NoProfile -File demos/Compare-WikiVote-Export.ps1 -UseLocalModules -UseSubgraph -SubgraphSeedCount 30 -SubgraphStartVertexCount 3 -OutputDir /tmp/psgraphview-export-wikivote-patch3d`
+- result: `WikiVote svg` still `146pt x 123pt` vs `123pt x 108pt`
+- result: `WikiVote png` still `WidthDelta = 30`, `HeightDelta = 21`
+- result: `WikiVote jpg` still `WidthDelta = 30`, `HeightDelta = 21`
+
+Остаток после Patch 3d:
+
+- export-side route envelope для self-loop заметно сблизили
+- reverse-edge curvature тоже стала ближе
+- но `triangle-cycle` и `WikiVote` почти не сдвинулись по size parity
+- это уже сильный сигнал, что оставшийся mismatch в этих case-ах в основном layout-limited, а не чисто export-limited
+
 Критерий готовности:
 
 - width/height deltas сокращаются заметно, но уже без потери `VisibleNodeCoverageRatio = 1.0` и `VisibleEdgeCoverageRatio = 1.0`
+
+Следующий шаг:
+
+- добавить отдельный `Patch 3e`, чтобы развести:
+  - export-side mismatch
+  - layout-side geometry mismatch
+
+### Patch 3e. Зафиксировать layout-limited residuals отдельно от export parity
+
+Статус:
+
+- запланировано
+
+Цель:
+
+- перестать лечить остаточный layout mismatch как будто это чисто export bug
+- получить честный следующий baseline для export parity после `Patch 3d`
+
+Фокус:
+
+- compare tooling / diagnostics
+- возможно fixed-geometry или scene-dump compare mode
+- явное сравнение:
+  - graphviz layout bounds
+  - managed layout bounds
+  - export-only viewport / raster deltas поверх одной и той же geometry
+
+Критерий готовности:
+
+- `triangle-cycle` и `WikiVote` residuals классифицированы:
+  - что идёт из layout
+  - что остаётся реально export-side
 
 ### Patch 3a. Отдельно выбрать и зафиксировать raster backend
 

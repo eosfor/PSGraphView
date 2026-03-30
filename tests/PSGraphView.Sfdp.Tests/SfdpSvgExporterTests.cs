@@ -84,6 +84,8 @@ public sealed class SfdpSvgExporterTests
 
         Assert.Contains("<path", svg, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("C", svg, StringComparison.Ordinal);
+        Assert.True(svg.Count(static ch => ch == 'C') >= 2);
+        Assert.Contains("marker-end=", svg, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -285,6 +287,7 @@ public sealed class SfdpSvgExporterTests
         var points = SfdpEdgeRouter.BuildRoutePoints(0, 0, hasReverse: false, x, y, options);
         var bounds = SfdpEdgeRouter.ComputeBounds(points);
 
+        Assert.Equal(7, points.Length);
         Assert.True(bounds.Width > options.NodeRadius * 2.0);
         Assert.True(bounds.Height > options.NodeRadius * 2.0);
     }

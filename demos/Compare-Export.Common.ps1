@@ -87,7 +87,7 @@ function Get-SvgStructureSummary {
     $graphGroup = $document.SelectSingleNode("//*[local-name()='g' and contains(concat(' ', normalize-space(@class), ' '), ' graph ')]")
     $titles = $document.SelectNodes("//*[local-name()='title']")
     $groups = $document.SelectNodes("//*[local-name()='g']")
-    $paths = $document.SelectNodes("//*[local-name()='path']")
+    $edgePaths = $document.SelectNodes("//*[local-name()='g' and contains(concat(' ', normalize-space(@class), ' '), ' edge ')]/*[local-name()='path']")
     $circles = $document.SelectNodes("//*[local-name()='circle']")
     $ellipses = $document.SelectNodes("//*[local-name()='ellipse']")
     $texts = $document.SelectNodes("//*[local-name()='text']")
@@ -152,7 +152,7 @@ function Get-SvgStructureSummary {
         EdgeGroupCount = $edgeGroups.Count
         ClusterGroupCount = $clusterGroups.Count
         TitleCount = $titles.Count
-        PathCount = $paths.Count
+        PathCount = $edgePaths.Count
         CircleCount = $circles.Count
         EllipseCount = $ellipses.Count
         TextCount = $texts.Count
@@ -869,6 +869,8 @@ function Invoke-ManagedExport {
             NodeRadius = 0.72
             EdgeLineWidth = 0.2
             EdgeColor = '#00000018'
+            ShowArrows = $true
+            ArrowSize = 0.08
             SfdpSeed = $SfdpSeed
             SfdpOverlapRemovalIterations = $SfdpOverlapRemovalIterations
             SfdpDiagnosticsPath = $DiagnosticsPath
