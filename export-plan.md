@@ -750,7 +750,7 @@
 
 Статус:
 
-- не сделано
+- сделано
 
 Цель:
 
@@ -770,7 +770,7 @@
 
 План:
 
-1. Завести новый проект `PSGraphView.GVExport` и подключить его в solution / PowerShell project references.
+1. Завести новый проект `PSGraphView.GVExport` и подключить его в solution.
 2. Ввести internal render scene:
    - nodes
    - routed edges
@@ -779,6 +779,44 @@
    - style info
 3. Оставить текущий public surface без breaking change.
 4. Перевести `SfdpSvgExporter` на scene, не меняя итоговый output.
+
+Результат:
+
+1. Добавлен новый проект:
+   - `src/PSGraphView.GVExport/`
+2. В `PSGraphView.GVExport` заведены:
+   - `GraphRenderScene`
+   - `GraphRenderViewport`
+   - `GraphRenderNode`
+   - `GraphRenderEdge`
+   - `GraphRenderLabel`
+   - `GraphSvgRenderSceneWriter`
+3. В `PSGraphView.Sfdp` добавлен layout-to-scene adapter:
+   - `SfdpRenderSceneBuilder`
+4. `SfdpSvgExporter` теперь:
+   - считает layout как раньше
+   - строит общий scene
+   - пишет diagnostics уже от scene / viewport
+   - генерирует `svg` через `PSGraphView.GVExport`
+5. `PSGraphView.PowerShell` в этом patch не менялся:
+   - direct reference на `GVExport` пока не нужен
+   - cmdlet продолжает работать через `PSGraphView.Sfdp`
+
+Телеметрия:
+
+- test: `dotnet test tests/PSGraphView.Sfdp.Tests/PSGraphView.Sfdp.Tests.csproj --filter SfdpSvgExporterTests`
+- result: `7/7` passed
+- test: `dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --filter ExportGraphViewCmdletTests`
+- result: `10/10` passed
+- run: `pwsh -NoProfile -File demos/Compare-Export-SmallGraphs.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-small-compare-patch1`
+- result: `6/6` cases completed successfully
+- result: on all `6` small-graph cases `NodeGroupDelta = 0` and `EdgeGroupDelta = 0`
+- result: on all `6` small-graph cases `TitleDelta = -1` and `RectDelta = 1`
+- run: `pwsh -NoProfile -File demos/Compare-WikiVote-Export.ps1 -UseLocalModules -UseSubgraph -SubgraphSeedCount 30 -SubgraphStartVertexCount 3 -OutputDir /tmp/psgraphview-export-wikivote-patch1`
+- result: `Selection = ExpandedTopDegree`
+- result: `30 vertices / 99 edges`
+- result: `NodeGroupDelta = 0`, `EdgeGroupDelta = 0`, `TitleDelta = -1`, `RectDelta = 1`
+- result: `Diagnostics.Available = true`
 
 Критерий готовности:
 

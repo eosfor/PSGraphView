@@ -159,3 +159,85 @@
 
 - `InducedTopDegree` smoke-case: `10 / 32`
 - `ExpandedTopDegree` compare-case: `30 / 99`
+
+## 2026-03-30 00:38 PDT - Для graph helpers сначала используем PSGraph/QuikGraph API
+
+Решение: при дальнейшей работе с графами в compare scripts и tooling сначала опираться на готовые API из `PSGraph` и `QuikGraph`, и только потом добавлять локальную вспомогательную логику.
+
+Причины:
+
+- графы в `PSGraph` уже построены поверх `QuikGraph`
+- там уже есть готовые механизмы для:
+  - получения `in/out` рёбер
+  - обходов графа
+  - подграфов и graph algorithms
+- это снижает риск повторно допустить ошибки в script-логике, как это было с некорректным обходом `EdgeList`
+- это уменьшает дублирование и держит compare tooling ближе к реальному graph surface проекта
+
+Телеметрия:
+
+- source reference: `/Users/andrei/repo/PSGraph`
+- source reference: `QuikGraph`-based graph model used by `PSGraph` / `PSQuickGraph`
+- trigger: user direction to учитывать исходники `PSGraph` и не пере-реализовывать графовые механизмы в тестовых скриптах без необходимости
+
+## 2026-03-30 10:44 PDT - Patch 1 делаем через отдельный managed scene project
+
+Решение: `Patch 1` закрываем через новый проект `PSGraphView.GVExport`, а не через дальнейшее разрастание `SfdpSvgExporter`.
+
+Причины:
+
+- это соответствует ранее принятому направлению на отдельный export-layer
+- scene-модель теперь отделена от layout-specific кода
+- `Sfdp` остаётся местом для layout, routing, label placement и adapter-логики
+- это открывает прямой путь к `png/jpg` поверх того же scene, без парсинга собственного `svg`
+
+Телеметрия:
+
+- code change: added `/Users/andrei/repo/PSGraphView/src/PSGraphView.GVExport`
+- code change: added `/Users/andrei/repo/PSGraphView/src/PSGraphView.Sfdp/SfdpRenderSceneBuilder.cs`
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.Sfdp/SfdpSvgExporter.cs` now renders via `GraphSvgRenderSceneWriter`
+- test: `dotnet test tests/PSGraphView.Sfdp.Tests/PSGraphView.Sfdp.Tests.csproj --filter SfdpSvgExporterTests`
+- result: `7/7` passed
+- test: `dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --filter ExportGraphViewCmdletTests`
+- result: `10/10` passed
+
+## 2026-03-30 10:44 PDT - PowerShell пока не ссылаем напрямую на GVExport
+
+Решение: на `Patch 1` не добавляем прямой `ProjectReference` из `PSGraphView.PowerShell` в `PSGraphView.GVExport`.
+
+Причины:
+
+- у cmdlet-слоя пока нет прямого использования scene/device API
+- реальная зависимость сейчас идёт через `PSGraphView.Sfdp`
+- прямую ссылку лучше добавлять только тогда, когда `PowerShell` начнёт напрямую выбирать format/device/export backend
+- это держит diff меньше и не создаёт искусственную связанность раньше времени
+
+Телеметрия:
+
+- code inspection: `/Users/andrei/repo/PSGraphView/src/PSGraphView.PowerShell/ExportGraphViewCmdlet.cs`
+- code inspection: `PSGraphView.PowerShell` после `Patch 1` продолжает работать без прямого обращения к `GVExport`
+
+## 2026-03-30 10:44 PDT - Patch 1 не изменил текущую SVG parity baseline
+
+Решение: считаем, что вынесение scene/writer в `Patch 1` не внесло новой визуальной регрессии в текущий baseline.
+
+Причины:
+
+- small-graph compare остался на тех же дельтах, что и до `Patch 1`
+- large-graph `WikiVote` compare-case тоже сохранил те же структурные расхождения
+- значит `Patch 1` действительно изолировал архитектуру, а не поменял измеряемое поведение
+
+Телеметрия:
+
+- run: `pwsh -NoProfile -File demos/Compare-Export-SmallGraphs.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-small-compare-patch1`
+- result: `6/6` cases completed successfully
+- result: on all `6` cases `NodeGroupDelta = 0` and `EdgeGroupDelta = 0`
+- result: on all `6` cases `TitleDelta = -1` and `RectDelta = 1`
+- run: `pwsh -NoProfile -File demos/Compare-WikiVote-Export.ps1 -UseLocalModules -UseSubgraph -SubgraphSeedCount 30 -SubgraphStartVertexCount 3 -OutputDir /tmp/psgraphview-export-wikivote-patch1`
+- result: `Selection = ExpandedTopDegree`
+- result: `30 vertices / 99 edges`
+- result: `NodeGroupDelta = 0`
+- result: `EdgeGroupDelta = 0`
+- result: `TitleDelta = -1`
+- result: `RectDelta = 1`
+- result: `Diagnostics.Available = true`

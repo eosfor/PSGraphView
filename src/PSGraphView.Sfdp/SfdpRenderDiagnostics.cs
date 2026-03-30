@@ -1,5 +1,6 @@
 using System.Xml.Linq;
 using PSGraph.Model;
+using PSGraphView.GVExport;
 
 namespace PSGraphView.Sfdp;
 
@@ -8,20 +9,19 @@ internal static class SfdpRenderDiagnostics
     public static void WriteScene(
         SfdpDiagnosticsWriter diagnostics,
         GraphView graph,
-        IReadOnlyList<SfdpEdgeRouter.RoutedEdge> routedEdges,
-        IReadOnlyList<SfdpLabelLayouter.LabelPlacement> labels,
+        GraphRenderScene scene,
         SfdpOptions options)
     {
         diagnostics.Write("render", "scene",
         [
             ("nodeCount", graph.Nodes.Count),
             ("edgeCount", graph.Edges.Count),
-            ("routedEdgeCount", routedEdges.Count),
-            ("labelCount", labels.Count),
+            ("routedEdgeCount", scene.Edges.Count),
+            ("labelCount", scene.Nodes.Count(static node => node.Label is not null)),
             ("showLabels", options.ShowLabels),
             ("showArrows", options.ShowArrows),
-            ("hasBackgroundRect", true),
-            ("backgroundColor", options.BackgroundColor),
+            ("hasBackgroundRect", scene.Style.ShowBackgroundRect),
+            ("backgroundColor", scene.Style.BackgroundColor),
             ("nodeRadius", options.NodeRadius),
             ("edgeLineWidth", options.EdgeLineWidth)
         ]);
@@ -30,13 +30,8 @@ internal static class SfdpRenderDiagnostics
     public static void WriteViewport(
         SfdpDiagnosticsWriter diagnostics,
         SfdpBoundingBox contentBounds,
+        GraphRenderViewport viewport,
         double padding,
-        double minX,
-        double minY,
-        double naturalWidth,
-        double naturalHeight,
-        double outputWidth,
-        double outputHeight,
         SfdpOptions options)
     {
         diagnostics.Write("render", "viewport",
@@ -48,12 +43,12 @@ internal static class SfdpRenderDiagnostics
             ("contentMaxY", contentBounds.MaxY),
             ("contentWidth", contentBounds.Width),
             ("contentHeight", contentBounds.Height),
-            ("viewBoxMinX", minX),
-            ("viewBoxMinY", minY),
-            ("viewBoxWidth", naturalWidth),
-            ("viewBoxHeight", naturalHeight),
-            ("outputWidth", outputWidth),
-            ("outputHeight", outputHeight),
+            ("viewBoxMinX", viewport.ViewBoxMinX),
+            ("viewBoxMinY", viewport.ViewBoxMinY),
+            ("viewBoxWidth", viewport.ViewBoxWidth),
+            ("viewBoxHeight", viewport.ViewBoxHeight),
+            ("outputWidth", viewport.OutputWidth),
+            ("outputHeight", viewport.OutputHeight),
             ("widthOverride", options.Width.HasValue),
             ("heightOverride", options.Height.HasValue),
             ("backgroundColor", options.BackgroundColor)

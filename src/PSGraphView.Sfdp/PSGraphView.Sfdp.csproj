@@ -11,4 +11,8 @@
     <PackageReference Include="PSGraph.Common" Version="2.5.0-beta3" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="../PSGraphView.GVExport/PSGraphView.GVExport.csproj" />
+  </ItemGroup>
+
 </Project>
