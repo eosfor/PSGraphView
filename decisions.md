@@ -112,3 +112,50 @@
 
 - `Compare-WikiVote-Export.ps1 -UseSubgraph -SubgraphSeedCount 10` -> `10 vertices / 0 edges`
 - `Compare-WikiVote-Export.ps1 -UseSubgraph -SubgraphSeedCount 30` -> `30 vertices / 0 edges`
+
+## 2026-03-30 00:34 PDT - Пересмотр решения про WikiVote induced mode
+
+Решение: прежний вывод о том, что induced top-degree mode на `WikiVote` даёт `0` рёбер, признан ошибочным.
+
+В чём была ошибка:
+
+- в `Compare-WikiVote-Export.ps1` script некорректно обходил результат `Get-OutEdge` / `Get-InEdge`
+- вместо отдельных рёбер он фактически получал `EdgeList` как единый объект
+- из-за этого subgraph builder почти не добавлял рёбра и telemetry была неверной
+
+Обновлённое решение:
+
+- `InducedTopDegree` сохраняем как простой smoke-mode
+- добавленный `ExpandedTopDegree` используем как основной large-graph compare-case для export parity
+
+Причины:
+
+- после исправления edge enumeration induced mode уже не пустой
+- но expanded mode всё равно даёт более насыщенный граф и лучше годится для сравнения edge/path behavior
+
+Телеметрия:
+
+- run: `pwsh -NoProfile -File demos/Compare-WikiVote-Export.ps1 -UseLocalModules -UseSubgraph -SubgraphMode InducedTopDegree -SubgraphSeedCount 10 -SubgraphStartVertexCount 3 -OutputDir /tmp/psgraphview-export-wikivote-patch0b-induced-smoke`
+- result: `Selection.Mode = InducedTopDegree`
+- result: `10 vertices / 32 edges`
+- run: `pwsh -NoProfile -File demos/Compare-WikiVote-Export.ps1 -UseLocalModules -UseSubgraph -SubgraphSeedCount 30 -SubgraphStartVertexCount 3 -OutputDir /tmp/psgraphview-export-wikivote-patch0b-expanded`
+- result: `Selection.Mode = ExpandedTopDegree`
+- result: `30 vertices / 99 edges`
+- result: on expanded case `NodeGroupDelta = 0`, `EdgeGroupDelta = 0`
+- result: on expanded case `TitleDelta = -1`, `RectDelta = 1`
+- result: on expanded case `Viewport.OutputWidthDelta = -95`, `Viewport.OutputHeightDelta = -80`
+
+## 2026-03-30 00:34 PDT - Patch 0b закрыт
+
+Решение: считаем `Patch 0b` выполненным.
+
+Причины:
+
+- в `Compare-WikiVote-Export.ps1` теперь есть два режима выборки подграфа
+- summary теперь явно пишет `Selection.Mode`
+- появился repeatable large-graph case с большим числом рёбер для export parity
+
+Телеметрия:
+
+- `InducedTopDegree` smoke-case: `10 / 32`
+- `ExpandedTopDegree` compare-case: `30 / 99`

@@ -26,8 +26,10 @@
 Примечание:
 
 - для быстрого smoke-run `Compare-WikiVote-Export.ps1` можно запускать на маленьком `SubgraphSeedCount`
-- текущий induced subgraph по top-degree вершинам на `WikiVote` даже при `SubgraphSeedCount = 30` может оставаться без рёбер
-- для содержательного сравнения edge/path structure нужен отдельный edge-preserving large-graph mode
+- `Compare-WikiVote-Export.ps1` теперь должен поддерживать как минимум два subgraph mode:
+  - `InducedTopDegree` для простого smoke-run
+  - `ExpandedTopDegree` для более плотного large-graph compare-case
+- для содержательного сравнения edge/path structure лучше использовать `ExpandedTopDegree`, потому что он даёт более насыщенный подграф по рёбрам
 
 ---
 
@@ -705,7 +707,7 @@
 
 Статус:
 
-- не сделано
+- сделано
 
 Цель:
 
@@ -713,13 +715,19 @@
 
 Почему это понадобилось:
 
-- текущий induced subgraph по top-degree вершинам оказался плохим export-case:
-  - на `SubgraphSeedCount = 10` получился граф `10 / 0`
-  - на `SubgraphSeedCount = 30` получился граф `30 / 0`
-- такой сценарий подходит для smoke-run, но плохо подходит для:
+- нужен явный большой compare-case, где рёбер больше, чем в простом induced smoke-run
+- такой сценарий лучше подходит для:
   - edge path parity
   - arrow parity
   - raster edge density checks
+
+Важно:
+
+- по факту прогона выяснилось, что прежний вывод про `0` рёбер был следствием бага в script:
+  он не разворачивал `EdgeList` из `Get-OutEdge` / `Get-InEdge`
+- после исправления:
+  - `InducedTopDegree` тоже даёт рёбра
+  - но `ExpandedTopDegree` всё равно полезен как более плотный compare-case
 
 Фокус:
 
@@ -728,15 +736,15 @@
 План:
 
 1. Добавить альтернативный subgraph mode, который сохраняет рёбра:
-   - ego-neighborhood
-   - BFS/expansion from seed vertices
-   - или другой простой edge-preserving extraction
+   - BFS/expansion from top-degree start vertices
 2. Явно писать в summary, какой subgraph mode использовался.
-3. Сохранить быстрый induced mode только как smoke-вариант.
+3. Сохранить induced mode как smoke-вариант.
+4. Исправить обход `Get-OutEdge` / `Get-InEdge`, чтобы script реально видел отдельные рёбра, а не `EdgeList` как единый объект.
 
 Критерий готовности:
 
-- есть повторяемый large-graph scenario, где `WikiVote` даёт ненулевое число рёбер и пригоден для export parity
+- есть повторяемый large-graph scenario, где `WikiVote` даёт достаточно плотный edge-case и пригоден для export parity
+- в summary пишется `Selection.Mode`
 
 ### Patch 1. Развязать export от layout и ввести общий render scene
 
