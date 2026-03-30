@@ -499,3 +499,117 @@
 - `Patch 6` теперь можно делать уже на фоне более честной PNG telemetry
 - оставшийся крупный raster mismatch уже нельзя списать на transparent clear policy
 - следующий meaningful шаг для raster parity идёт в JPEG flatten policy и дальше в общую geometry/text parity
+
+## 2026-03-30 14:17 PDT - Patch 3 признаём structure-only, вводим обязательный Patch 3c
+
+Решение: прежнюю трактовку `Patch 3` как фактически закрытого SVG parity сужаем. `Patch 3` остаётся принятым только как structural parity patch. Для visual SVG parity вводится отдельный corrective `Patch 3c`, который теперь обязателен до новых содержательных выводов по `svg/png/jpg`.
+
+Причины:
+
+- повторная visual-проверка артефактов показала, что managed `svg` остаётся плохим во всех прогонах начиная с `Patch 3b`
+- это не локальная проблема одного case-а:
+  - `WikiVote` почти пустой и уехавший вниз
+  - `self-loop` теряет саму петлю
+  - `triangle-cycle` клипается почти целиком
+  - `bidirectional-edge` схлопывается по высоте
+- managed `svg` для одинаковых case-ов оказался одинаковым byte-for-byte во всех прогонах:
+  - `Patch 3b`
+  - `Patch 4`
+  - `Patch 4b`
+  - `Patch 5`
+  - `Patch 5b`
+  - `Patch 5c`
+- значит последующие patch-и улучшали diagnostics и raster path, но не исправляли базовую `svg` geometry
+- code inspection показал правдоподобную причину:
+  - viewport calculator считает `TranslationX / TranslationY`
+  - но scene builder по-прежнему собирает graph transform и local coordinates через `PaddingX` и `contentBounds.MaxY`
+  - из-за этого `viewBox` и scene geometry оказываются в разных coordinate systems
+
+Телеметрия:
+
+- artifact check: SHA-256 `wiki-vote-expanded-30-s3-managed.svg` одинаковый для:
+  - `/tmp/psgraphview-export-wikivote-patch3b/wiki-vote-expanded-30-s3/svg/wiki-vote-expanded-30-s3-managed.svg`
+  - `/tmp/psgraphview-export-wikivote-patch4/wiki-vote-expanded-30-s3/svg/wiki-vote-expanded-30-s3-managed.svg`
+  - `/tmp/psgraphview-export-wikivote-patch4b/wiki-vote-expanded-30-s3/svg/wiki-vote-expanded-30-s3-managed.svg`
+  - `/tmp/psgraphview-export-wikivote-patch5/wiki-vote-expanded-30-s3/svg/wiki-vote-expanded-30-s3-managed.svg`
+  - `/tmp/psgraphview-export-wikivote-patch5b/wiki-vote-expanded-30-s3/svg/wiki-vote-expanded-30-s3-managed.svg`
+  - `/tmp/psgraphview-export-wikivote-patch5c/wiki-vote-expanded-30-s3/svg/wiki-vote-expanded-30-s3-managed.svg`
+- artifact check: SHA-256 `single-edge-managed.svg` одинаковый для `Patch 3b/4/4b/5/5b/5c`
+- preview render:
+  - graphviz `WikiVote` preview показывает весь граф
+  - managed `WikiVote` preview показывает только несколько точек у нижней границы
+  - graphviz `self-loop` preview показывает петлю
+  - managed `self-loop` preview показывает только узел
+- summary metrics:
+  - `WikiVote`: graphviz `123pt x 108pt`, managed `146pt x 123pt`, `ViewBoxMatch = false`
+  - `self-loop`: graphviz `27pt x 22pt`, managed `10pt x 10pt`
+  - `triangle-cycle`: graphviz `54pt x 48pt`, managed `27pt x 29pt`
+- code inspection:
+  - `/Users/andrei/repo/PSGraphView/src/PSGraphView.Sfdp/SfdpViewportCalculator.cs`
+  - `/Users/andrei/repo/PSGraphView/src/PSGraphView.Sfdp/SfdpRenderSceneBuilder.cs`
+  - `/Users/andrei/repo/PSGraphView/src/PSGraphView.GVExport/GraphSvgRenderSceneWriter.cs`
+
+Следствие:
+
+- `Patch 3` больше нельзя использовать как основание для вывода "SVG уже визуально близок к graphviz"
+- `Patch 4/5/6` нужно трактовать осторожно, потому что они пока наследуют неустранённую `svg` geometry проблему
+- следующий корректный шаг:
+  - выполнить `Patch 3c`
+  - перепроверить `svg`
+  - и только потом возобновлять новые parity-решения по raster
+
+## 2026-03-30 15:08 PDT - Patch 3c закрывает visibility blocker, но не natural-size parity
+
+Решение: считаем `Patch 3c` выполненным. Базовая visual-поломка `svg` устранена: managed `svg` больше не теряет граф за кадром и не даёт ложный сигнал "почти пустой export". При этом natural-size parity ещё не закрыта и должна рассматриваться как отдельный следующий слой работы.
+
+Причины:
+
+- fixed scene теперь использует graph-local `Y` sign conventions, совместимые с `graphviz svg`
+- viewport больше не считается только по node/label bounds: routed edges теперь участвуют в расчёте content bounds до final page size
+- compare harness теперь умеет проверять не только DOM/structure, но и реальную геометрическую видимость элементов внутри `viewBox`
+- после этих изменений видимость всех graphviz-visible `node/edge` совпала на `WikiVote` и на всех small-cases
+
+Телеметрия:
+
+- test: `dotnet test tests/PSGraphView.Sfdp.Tests/PSGraphView.Sfdp.Tests.csproj --filter SfdpSvgExporterTests`
+- result: `11/11` passed
+- test: `dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --filter ExportGraphViewCmdletTests`
+- result: `13/13` passed
+- test: `dotnet test tests/PSGraphView.GVExport.Tests/PSGraphView.GVExport.Tests.csproj`
+- result: `4/4` passed
+- run: `pwsh -NoProfile -File demos/Compare-Export-SmallGraphs.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-small-compare-patch3c`
+- result: all `6/6` small-graph cases now report:
+  - `VisibleNodeCoverageRatio = 1.0`
+  - `VisibleEdgeCoverageRatio = 1.0`
+  - empty `VisibleNodeIdsMissingInManaged`
+  - empty `VisibleEdgeTitlesMissingInManaged`
+- result: `triangle-cycle` is no longer clipped out of frame; all `3` nodes and `3` edges are visible
+- result: `self-loop` is now visible in managed preview; width improved from the previous `10pt` baseline to `16pt`
+- run: `pwsh -NoProfile -File demos/Compare-WikiVote-Export.ps1 -UseLocalModules -UseSubgraph -SubgraphSeedCount 30 -SubgraphStartVertexCount 3 -OutputDir /tmp/psgraphview-export-wikivote-patch3c`
+- result: `30 vertices / 99 edges`
+- result: `VisibleNodeCoverageRatio = 1.0`
+- result: `VisibleEdgeCoverageRatio = 1.0`
+- result: empty `VisibleNodeIdsMissingInManaged`
+- result: empty `VisibleEdgeTitlesMissingInManaged`
+- result: managed `WikiVote` preview now shows the whole graph instead of a few points near the lower edge
+- result: raster telemetry improved after the shared geometry fix:
+  - `PngDarkPixelDelta`: `-3008 -> -1723`
+  - `JpgDarkPixelDelta`: `-2489 -> -966`
+
+Остаточный mismatch:
+
+- `svg` size parity remains open:
+  - `WikiVote`: managed `146pt x 123pt`, graphviz `123pt x 108pt`
+  - `triangle-cycle`: managed `27pt x 29pt`, graphviz `54pt x 48pt`
+  - `self-loop`: managed `16pt x 12pt`, graphviz `27pt x 22pt`
+- это уже не проблема потери видимости
+- это следующий слой:
+  - route envelope
+  - natural edge bounds
+  - graphviz-like extent semantics for small graphs and loops
+
+Следствие:
+
+- после `Patch 3c` compare harness снова можно использовать для честной оценки `svg/png/jpg`
+- визуальный blocker на `svg` снят
+- если нужна более близкая size parity, следующий кандидат — отдельный follow-up patch на natural-size / curve-envelope alignment

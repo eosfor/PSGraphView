@@ -175,15 +175,16 @@ internal static class SfdpEdgeRouter
 
     private static RoutedPoint[] BuildSelfLoopPoints(double x, double y, double nodeRadius)
     {
-        var loopRadius = nodeRadius * 2.8;
-        var startX = x + nodeRadius * 0.6;
-        var startY = y - nodeRadius * 0.8;
-        var endX = x - nodeRadius * 0.2;
-        var endY = y - nodeRadius * 1.1;
-        var control1X = x + loopRadius;
-        var control1Y = y - loopRadius * 1.8;
-        var control2X = x - loopRadius;
-        var control2Y = y - loopRadius * 1.8;
+        var loopWidth = Math.Max(nodeRadius * 12.0, 6.0);
+        var loopHeight = Math.Max(nodeRadius * 7.0, 4.0);
+        var startX = x + nodeRadius * 0.8;
+        var startY = y - nodeRadius * 1.15;
+        var endX = x + nodeRadius * 1.25;
+        var endY = y + nodeRadius * 0.75;
+        var control1X = x + loopWidth;
+        var control1Y = y - loopHeight;
+        var control2X = x + loopWidth;
+        var control2Y = y + loopHeight;
         return
         [
             new RoutedPoint(startX, startY),

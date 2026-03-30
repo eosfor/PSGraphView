@@ -93,6 +93,53 @@ function Get-SvgStructureSummary {
     $texts = $document.SelectNodes("//*[local-name()='text']")
     $anchors = $document.SelectNodes("//*[local-name()='a']")
     $rectangles = $document.SelectNodes("//*[local-name()='rect']")
+    $graphTransformValue = $null
+    if ($null -ne $graphGroup -and $null -ne $graphGroup.Attributes['transform']) {
+        $graphTransformValue = [string]$graphGroup.Attributes['transform'].Value
+    }
+
+    $viewBoxRect = Get-SvgViewBoxRect -ViewBox ([string]$svg.GetAttribute('viewBox'))
+    $graphTransform = Get-SvgGraphTransform -Transform $graphTransformValue
+    $visibleNodeIds = New-Object System.Collections.Generic.List[string]
+    $visibleEdgeTitles = New-Object System.Collections.Generic.List[string]
+    $presentNodeIds = New-Object System.Collections.Generic.List[string]
+    $presentEdgeTitles = New-Object System.Collections.Generic.List[string]
+
+    foreach ($nodeGroup in $nodeGroups) {
+        $titleNode = $nodeGroup.SelectSingleNode("./*[local-name()='title']")
+        $ellipseNode = $nodeGroup.SelectSingleNode("./*[local-name()='ellipse']")
+        if ($null -eq $titleNode -or $null -eq $ellipseNode) {
+            continue
+        }
+
+        $title = [string]$titleNode.InnerText
+        $presentNodeIds.Add($title)
+
+        if ($null -ne $viewBoxRect -and $null -ne $graphTransform) {
+            $bounds = Get-SvgEllipseBounds -EllipseNode $ellipseNode -Transform $graphTransform
+            if ($null -ne $bounds -and (Test-SvgRectIntersection -Left $bounds.MinX -Top $bounds.MinY -Right $bounds.MaxX -Bottom $bounds.MaxY -ViewBoxRect $viewBoxRect)) {
+                $visibleNodeIds.Add($title)
+            }
+        }
+    }
+
+    foreach ($edgeGroup in $edgeGroups) {
+        $titleNode = $edgeGroup.SelectSingleNode("./*[local-name()='title']")
+        $pathNode = $edgeGroup.SelectSingleNode("./*[local-name()='path']")
+        if ($null -eq $titleNode -or $null -eq $pathNode) {
+            continue
+        }
+
+        $title = [string]$titleNode.InnerText
+        $presentEdgeTitles.Add($title)
+
+        if ($null -ne $viewBoxRect -and $null -ne $graphTransform) {
+            $bounds = Get-SvgPathBounds -PathData ([string]$pathNode.Attributes['d'].Value) -Transform $graphTransform
+            if ($null -ne $bounds -and (Test-SvgRectIntersection -Left $bounds.MinX -Top $bounds.MinY -Right $bounds.MaxX -Bottom $bounds.MaxY -ViewBoxRect $viewBoxRect)) {
+                $visibleEdgeTitles.Add($title)
+            }
+        }
+    }
 
     return [ordered]@{
         Width = [string]$svg.GetAttribute('width')
@@ -111,7 +158,193 @@ function Get-SvgStructureSummary {
         TextCount = $texts.Count
         AnchorCount = $anchors.Count
         RectCount = $rectangles.Count
+        PresentNodeCount = $presentNodeIds.Count
+        PresentEdgeCount = $presentEdgeTitles.Count
+        VisibleNodeCount = $visibleNodeIds.Count
+        VisibleEdgeCount = $visibleEdgeTitles.Count
+        PresentNodeIds = @($presentNodeIds)
+        PresentEdgeTitles = @($presentEdgeTitles)
+        VisibleNodeIds = @($visibleNodeIds)
+        VisibleEdgeTitles = @($visibleEdgeTitles)
     }
+}
+
+function Get-SvgViewBoxRect {
+    param([string]$ViewBox)
+
+    if ([string]::IsNullOrWhiteSpace($ViewBox)) {
+        return $null
+    }
+
+    $parts = $ViewBox -split '\s+' | Where-Object { $_ -ne '' }
+    if ($parts.Count -ne 4) {
+        return $null
+    }
+
+    return [ordered]@{
+        MinX = [double]::Parse($parts[0], [System.Globalization.CultureInfo]::InvariantCulture)
+        MinY = [double]::Parse($parts[1], [System.Globalization.CultureInfo]::InvariantCulture)
+        Width = [double]::Parse($parts[2], [System.Globalization.CultureInfo]::InvariantCulture)
+        Height = [double]::Parse($parts[3], [System.Globalization.CultureInfo]::InvariantCulture)
+    }
+}
+
+function Get-SvgGraphTransform {
+    param([string]$Transform)
+
+    if ([string]::IsNullOrWhiteSpace($Transform)) {
+        return $null
+    }
+
+    $match = [regex]::Match(
+        $Transform,
+        '^scale\((?<scaleX>-?\d+(?:\.\d+)?) (?<scaleY>-?\d+(?:\.\d+)?)\) rotate\((?<rotation>-?\d+(?:\.\d+)?)\) translate\((?<translateX>-?\d+(?:\.\d+)?) (?<translateY>-?\d+(?:\.\d+)?)\)$',
+        [System.Text.RegularExpressions.RegexOptions]::CultureInvariant)
+    if (-not $match.Success) {
+        return $null
+    }
+
+    return [ordered]@{
+        ScaleX = [double]::Parse($match.Groups['scaleX'].Value, [System.Globalization.CultureInfo]::InvariantCulture)
+        ScaleY = [double]::Parse($match.Groups['scaleY'].Value, [System.Globalization.CultureInfo]::InvariantCulture)
+        Rotation = [double]::Parse($match.Groups['rotation'].Value, [System.Globalization.CultureInfo]::InvariantCulture)
+        TranslateX = [double]::Parse($match.Groups['translateX'].Value, [System.Globalization.CultureInfo]::InvariantCulture)
+        TranslateY = [double]::Parse($match.Groups['translateY'].Value, [System.Globalization.CultureInfo]::InvariantCulture)
+    }
+}
+
+function Transform-SvgPoint {
+    param(
+        [double]$X,
+        [double]$Y,
+        [Parameter(Mandatory)]$Transform
+    )
+
+    $scaledX = $X * [double]$Transform.ScaleX
+    $scaledY = $Y * [double]$Transform.ScaleY
+    $rotationRadians = [double]$Transform.Rotation * [Math]::PI / 180.0
+    $cos = [Math]::Cos($rotationRadians)
+    $sin = [Math]::Sin($rotationRadians)
+
+    $rotatedX = ($scaledX * $cos) - ($scaledY * $sin)
+    $rotatedY = ($scaledX * $sin) + ($scaledY * $cos)
+
+    return [ordered]@{
+        X = $rotatedX + [double]$Transform.TranslateX
+        Y = $rotatedY + [double]$Transform.TranslateY
+    }
+}
+
+function Get-SvgEllipseBounds {
+    param(
+        [Parameter(Mandatory)]$EllipseNode,
+        [Parameter(Mandatory)]$Transform
+    )
+
+    $cx = [double]::Parse([string]$EllipseNode.Attributes['cx'].Value, [System.Globalization.CultureInfo]::InvariantCulture)
+    $cy = [double]::Parse([string]$EllipseNode.Attributes['cy'].Value, [System.Globalization.CultureInfo]::InvariantCulture)
+    $rx = [double]::Parse([string]$EllipseNode.Attributes['rx'].Value, [System.Globalization.CultureInfo]::InvariantCulture)
+    $ry = [double]::Parse([string]$EllipseNode.Attributes['ry'].Value, [System.Globalization.CultureInfo]::InvariantCulture)
+
+    $points = @(
+        (Transform-SvgPoint -X ($cx - $rx) -Y ($cy - $ry) -Transform $Transform),
+        (Transform-SvgPoint -X ($cx - $rx) -Y ($cy + $ry) -Transform $Transform),
+        (Transform-SvgPoint -X ($cx + $rx) -Y ($cy - $ry) -Transform $Transform),
+        (Transform-SvgPoint -X ($cx + $rx) -Y ($cy + $ry) -Transform $Transform)
+    )
+
+    return [ordered]@{
+        MinX = ($points | Measure-Object -Property X -Minimum).Minimum
+        MinY = ($points | Measure-Object -Property Y -Minimum).Minimum
+        MaxX = ($points | Measure-Object -Property X -Maximum).Maximum
+        MaxY = ($points | Measure-Object -Property Y -Maximum).Maximum
+    }
+}
+
+function Get-SvgPathBounds {
+    param(
+        [Parameter(Mandatory)][string]$PathData,
+        [Parameter(Mandatory)]$Transform
+    )
+
+    $matches = [regex]::Matches($PathData, '-?\d+(?:\.\d+)?')
+    if ($matches.Count -lt 8) {
+        return $null
+    }
+
+    $values = foreach ($match in $matches) {
+        [double]::Parse($match.Value, [System.Globalization.CultureInfo]::InvariantCulture)
+    }
+
+    $p0x = $values[0]
+    $p0y = $values[1]
+    $p1x = $values[2]
+    $p1y = $values[3]
+    $p2x = $values[4]
+    $p2y = $values[5]
+    $p3x = $values[6]
+    $p3y = $values[7]
+
+    $sampleCount = 32
+    $points = New-Object System.Collections.Generic.List[object]
+    for ($index = 0; $index -le $sampleCount; $index++) {
+        $t = $index / [double]$sampleCount
+        $point = Get-CubicBezierPoint -P0X $p0x -P0Y $p0y -P1X $p1x -P1Y $p1y -P2X $p2x -P2Y $p2y -P3X $p3x -P3Y $p3y -T $t
+        $points.Add((Transform-SvgPoint -X $point.X -Y $point.Y -Transform $Transform))
+    }
+
+    return [ordered]@{
+        MinX = ($points | Measure-Object -Property X -Minimum).Minimum
+        MinY = ($points | Measure-Object -Property Y -Minimum).Minimum
+        MaxX = ($points | Measure-Object -Property X -Maximum).Maximum
+        MaxY = ($points | Measure-Object -Property Y -Maximum).Maximum
+    }
+}
+
+function Get-CubicBezierPoint {
+    param(
+        [double]$P0X,
+        [double]$P0Y,
+        [double]$P1X,
+        [double]$P1Y,
+        [double]$P2X,
+        [double]$P2Y,
+        [double]$P3X,
+        [double]$P3Y,
+        [double]$T
+    )
+
+    $oneMinusT = 1.0 - $T
+    $x = ($oneMinusT * $oneMinusT * $oneMinusT * $P0X) +
+         (3.0 * $oneMinusT * $oneMinusT * $T * $P1X) +
+         (3.0 * $oneMinusT * $T * $T * $P2X) +
+         ($T * $T * $T * $P3X)
+    $y = ($oneMinusT * $oneMinusT * $oneMinusT * $P0Y) +
+         (3.0 * $oneMinusT * $oneMinusT * $T * $P1Y) +
+         (3.0 * $oneMinusT * $T * $T * $P2Y) +
+         ($T * $T * $T * $P3Y)
+
+    return [ordered]@{
+        X = $x
+        Y = $y
+    }
+}
+
+function Test-SvgRectIntersection {
+    param(
+        [double]$Left,
+        [double]$Top,
+        [double]$Right,
+        [double]$Bottom,
+        [Parameter(Mandatory)]$ViewBoxRect
+    )
+
+    $viewLeft = [double]$ViewBoxRect.MinX
+    $viewTop = [double]$ViewBoxRect.MinY
+    $viewRight = $viewLeft + [double]$ViewBoxRect.Width
+    $viewBottom = $viewTop + [double]$ViewBoxRect.Height
+
+    return -not ($Right -lt $viewLeft -or $Left -gt $viewRight -or $Bottom -lt $viewTop -or $Top -gt $viewBottom)
 }
 
 function Get-PngMetadata {
@@ -686,6 +919,8 @@ function Get-SvgComparisonSummary {
 
     $graphvizSummary = $GraphvizResult.Summary
     $managedSummary = $ManagedResult.Summary
+    $visibleNodeIdsMissingInManaged = @($graphvizSummary.VisibleNodeIds | Where-Object { $_ -notin $managedSummary.VisibleNodeIds })
+    $visibleEdgeTitlesMissingInManaged = @($graphvizSummary.VisibleEdgeTitles | Where-Object { $_ -notin $managedSummary.VisibleEdgeTitles })
 
     return [ordered]@{
         Available = $true
@@ -699,6 +934,12 @@ function Get-SvgComparisonSummary {
         TextDelta = $managedSummary.TextCount - $graphvizSummary.TextCount
         AnchorDelta = $managedSummary.AnchorCount - $graphvizSummary.AnchorCount
         RectDelta = $managedSummary.RectCount - $graphvizSummary.RectCount
+        VisibleNodeCountDelta = $managedSummary.VisibleNodeCount - $graphvizSummary.VisibleNodeCount
+        VisibleEdgeCountDelta = $managedSummary.VisibleEdgeCount - $graphvizSummary.VisibleEdgeCount
+        VisibleNodeCoverageRatio = if ($graphvizSummary.VisibleNodeCount -gt 0) { [double]$managedSummary.VisibleNodeCount / [double]$graphvizSummary.VisibleNodeCount } else { $null }
+        VisibleEdgeCoverageRatio = if ($graphvizSummary.VisibleEdgeCount -gt 0) { [double]$managedSummary.VisibleEdgeCount / [double]$graphvizSummary.VisibleEdgeCount } else { $null }
+        VisibleNodeIdsMissingInManaged = $visibleNodeIdsMissingInManaged
+        VisibleEdgeTitlesMissingInManaged = $visibleEdgeTitlesMissingInManaged
         Graphviz = $graphvizSummary
         Managed = $managedSummary
     }

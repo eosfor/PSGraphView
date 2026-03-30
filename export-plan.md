@@ -56,6 +56,19 @@
 - docs/help прямо говорят, что `Sfdp` и `MSAGL` сейчас поддерживают только `SVG`
 - отдельного export-проекта (`PSGraphView.GVExport`) в solution пока нет
 
+Критическое уточнение после повторной визуальной проверки артефактов:
+
+- `Patch 3` действительно сблизил структуру `svg`, но не закрыл visual parity
+- managed `svg` из прогонов `Patch 3b`, `Patch 4`, `Patch 4b`, `Patch 5`, `Patch 5b`, `Patch 5c` для одних и тех же case-ов оказался одинаковым byte-for-byte
+- значит дальнейшие patch-и улучшали diagnostics и raster path, но не исправляли проблемную `svg` geometry
+- на реальных preview это видно явно:
+  - `WikiVote 30 / 99`: graphviz показывает весь граф, managed почти пустой и уехавший вниз
+  - `self-loop`: у managed теряется сама петля
+  - `triangle-cycle`: у managed клипается почти весь граф
+- из этого следует новый обязательный corrective step:
+  - `Patch 3c` должен починить `svg` geometry / transform / bounds parity
+  - до этого нельзя считать результаты `Patch 4+` честной оценкой export parity
+
 Главные текущие ограничения managed-side:
 
 - нет `png/jpg` export path
@@ -278,17 +291,27 @@
 5. `Patch 3`
    - `svg` structure надо приблизить к `graphviz` до начала полной raster parity
 
-6. `Patch 3a`
+6. `Patch 3c`
+   - после structural parity нужен отдельный corrective patch на visual SVG geometry
+   - без него raster-сравнение продолжает наследовать базовую поломку `svg`
+
+7. `Patch 3d`
+   - после закрытия visibility нужен отдельный patch на natural-size / curve-envelope parity
+
+8. `Patch 3a`
    - backend decision должен быть зафиксирован до реальной реализации `png/jpg`
 
-7. `Patch 4`
+9. `Patch 4`
    - только после этого есть смысл вводить production raster surface
 
 Почему это последовательная цепочка:
 
 - `Patch 1` без `Patch 0/0a` даст код без нормальной измеримости
+- `Patch 3c` нужен потому, что post-`Patch 3` visual review показал:
+  - structure близка к `graphviz`
+  - geometry всё ещё сломана
 - `Patch 4` без `Patch 3a` слишком легко приведёт к случайному backend lock-in
-- `Patch 5/6` без `Patch 2` будут шуметь из-за viewport mismatch, а не из-за raster mismatch
+- `Patch 5/6` без `Patch 2` будут шуметь из-за viewport mismatch, а без `Patch 3c` — ещё и из-за уже сломанной `svg` geometry
 
 ### Можно делать параллельно с низким риском
 
@@ -308,6 +331,12 @@
   - SVG structure tests
   - docs notes для внутреннего плана
   можно делать параллельно с кодом exporter-а
+
+- внутри `Patch 3c`:
+  - visual compare на small-cases
+  - visual compare на `WikiVote`
+  - дополнительные diagnostics по scene / viewport / transform
+  можно вести параллельно, но сам фикс geometry должен собираться последовательно в одном месте
 
 - внутри `Patch 3a`:
   - исследование `SkiaSharp`
@@ -346,6 +375,7 @@
 Не стоит начинать это до нужной базы:
 
 - production `png/jpg` implementation до завершения `Patch 3a`
+- продолжение parity-оценки `svg/png/jpg` как будто `Patch 3` уже закрыл visual SVG parity
 - настройку pixel thresholds до появления стабильного raster output
 - подробный font parity до фиксации viewport и scene
 - публичные docs про `png/jpg` до рабочего user-facing surface
@@ -357,7 +387,9 @@
 - `Patch 0a` -> блокирует осмысленную локализацию всех следующих patch-ей
 - `Patch 1` -> блокирует чистую реализацию `Patch 4`
 - `Patch 2` -> блокирует точную оценку `Patch 3/5/6`
-- `Patch 3` -> не блокирует сам выбор backend-а, но блокирует честную оценку общей export parity
+- `Patch 3` -> закрывает structure-only слой, но не даёт ещё честной visual parity
+- `Patch 3c` -> блокирует дальнейшую честную оценку `Patch 4/5/6` и должен быть сделан раньше новых parity-выводов по raster
+- `Patch 3d` -> не блокирует саму visibility-проверку, но нужен для size parity и для сближения raster dimensions
 - `Patch 3a` -> блокирует production-реализацию `Patch 4`
 - `Patch 4` -> блокирует полноценные `Patch 5` и `Patch 6`
 - `Patch 5` и `Patch 6` -> могут идти параллельно после `Patch 4`, но с аккуратным разделением файлов
@@ -1039,6 +1071,234 @@
 - structure summary становится близким к `graphviz svg`
 - diff по `svg` уже читается как fine details, а не как другой exporter
 
+Уточнение после повторной visual-проверки:
+
+- `Patch 3` нельзя считать закрытием visual SVG parity
+- он закрыл только structure-layer:
+  - `GroupCountDelta = 0`
+  - `TitleDelta = 0`
+  - `RectDelta = 0`
+- по geometry этот patch оставил критическую проблему:
+  - `managed.svg` визуально плохой на `self-loop`, `triangle-cycle`, `bidirectional-edge` и `WikiVote`
+  - артефакты `managed.svg` от `Patch 3b` до `Patch 5c` для тех же case-ов остались одинаковыми byte-for-byte
+- поэтому ниже добавлен отдельный `Patch 3c`
+
+### Patch 3c. Исправить SVG geometry / transform / bounds parity
+
+Статус:
+
+- сделано
+
+Цель:
+
+- устранить базовую visual-поломку managed `svg`, которая сохранилась после `Patch 3`
+- добиться того, чтобы `svg` перестал терять контент, клипать петли и уводить граф за `viewBox`
+- сделать `svg` пригодной опорой для дальнейшей честной оценки `png/jpg`
+
+Почему это отдельный corrective patch:
+
+- `Patch 3` закрыл только structural parity, но не visual parity
+- дальнейшие patch-и (`4/5`) уже улучшали raster pipeline, однако сравнивали его с `svg` geometry, которая всё ещё сломана
+- без отдельного исправления `svg` geometry невозможно уверенно отделить:
+  - ошибку transform / page bounds
+  - ошибку raster surface
+  - ошибку encoder / flattening policy
+
+Фокус:
+
+- `src/PSGraphView.Sfdp/SfdpRenderSceneBuilder.cs`
+- `src/PSGraphView.Sfdp/SfdpViewportCalculator.cs`
+- `src/PSGraphView.GVExport/GraphSvgRenderSceneWriter.cs`
+- при необходимости:
+  - `src/PSGraphView.Sfdp/SfdpEdgeRouter.cs`
+  - `src/PSGraphView.Sfdp/SfdpRenderDiagnostics.cs`
+- тесты:
+  - `tests/PSGraphView.Sfdp.Tests/SfdpSvgExporterTests.cs`
+  - compare scripts и их summary
+
+Основная гипотеза:
+
+- current scene builder неправильно применяет graphviz-like page semantics:
+  - использует `PaddingX`, а не рассчитанный `TranslationX`
+  - использует `contentBounds.MaxY`, а не page/viewport-derived translate semantics
+  - из-за этого scene geometry и `viewBox` оказываются в разных coordinate systems
+- результат:
+  - часть графа оказывается вне видимой области
+  - self-loop / curved-edge bounds учитываются недостаточно
+  - raster path потом наследует ту же базовую ошибку
+
+План:
+
+1. Зафиксировать regression как explicit goal в telemetry и tests:
+   - `self-loop`
+   - `triangle-cycle`
+   - `bidirectional-edge`
+   - `wiki-vote-expanded-30-s3`
+2. Перевести scene builder на использование рассчитанных viewport translation values:
+   - не `PaddingX`
+   - а `TranslationX / TranslationY` или эквивалентную graphviz-like page transform semantics
+3. Выровнять систему координат между:
+   - `viewBox`
+   - graph-group `transform`
+   - node coordinates
+   - edge path coordinates
+   - label coordinates
+4. Пересчитать background polygon из page-bounds / graph transform semantics, а не из случайного локального bounds mix.
+5. Расширить edge-bounds учёт там, где сейчас клипается geometry:
+   - self-loop
+   - curved edges
+   - arrow-adjacent geometry, если она влияет на page bounds
+6. Добавить дополнительные diagnostics, которые покажут:
+   - scene local bounds
+   - final page bounds
+   - graph transform
+   - max visible node/edge extents внутри `viewBox`
+7. Добавить в compare harness новый слой `svg visibility`:
+   - одинаковые ли `node` / `edge` вообще присутствуют в обоих `svg`
+   - какие из них геометрически пересекают `viewBox`
+   - сколько вершин и рёбер видимо у `graphviz`
+   - сколько вершин и рёбер видимо у managed
+   - какие visible-in-graphviz элементы отсутствуют или уехали за кадр в managed
+   - для node:
+     - visibility по `ellipse` vs `viewBox`
+   - для edge:
+     - visibility по `path` bounds vs `viewBox`
+     - для начала допустим diagnostics-level bbox/sampling approach, если точная bezier math избыточна
+8. Перепрогнать:
+   - `Compare-Export-SmallGraphs.ps1`
+   - `Compare-WikiVote-Export.ps1`
+   и только после этого возвращаться к новым parity-выводам по `png/jpg`
+
+Ожидаемый результат:
+
+1. Managed `svg` перестаёт быть визуально "почти пустым" на `WikiVote`.
+2. На `self-loop` петля снова полностью видна.
+3. На `triangle-cycle` и `bidirectional-edge` не остаётся клипа и схлопывания geometry.
+4. `svg` и raster начинают расходиться уже в более локальных деталях, а не в базовом placement.
+
+Телеметрия, по которой принимаем patch:
+
+- visual preview:
+  - `WikiVote` managed preview показывает весь граф внутри кадра, а не несколько точек у нижней границы
+  - `self-loop` managed preview показывает саму петлю
+  - `triangle-cycle` managed preview показывает все три вершины и три ребра
+- summary metrics:
+  - `WidthMatch` и `HeightMatch` должны заметно улучшиться хотя бы на small-cases
+  - `ViewBoxMatch` должен либо совпасть, либо стать объяснимо близким
+  - `self-loop` больше не должен иметь деградацию уровня `27pt x 22pt` против `10pt x 10pt`
+  - `triangle-cycle` больше не должен иметь деградацию уровня `54pt x 48pt` против `27pt x 29pt`
+  - `WikiVote` больше не должен оставаться на визуально пустом managed preview
+- `svg visibility` metrics:
+  - для small-cases и `WikiVote` managed должен показывать те же видимые вершины, что и `graphviz`, либо отличаться только в явно объяснимых fine details
+  - `VisibleNodeCount` у managed не должен резко проседать относительно `graphviz`
+  - `VisibleEdgeCount` у managed не должен резко проседать относительно `graphviz`
+  - должны появиться списки:
+    - `VisibleNodeIdsMissingInManaged`
+    - `VisibleEdgeTitlesMissingInManaged`
+  - на целевых regression-case-ах эти списки должны стать пустыми или радикально уменьшиться
+- code-level check:
+  - новые `svg` outputs для одних и тех же case-ов должны измениться относительно baseline `Patch 3b/5c`
+  - иначе patch не считается состоявшимся
+
+Критерий готовности:
+
+- visual SVG mismatch перестаёт быть блокирующей проблемой
+- после `Patch 3c` можно снова доверять сравнению `Patch 4/5/6` как сравнению export layers, а не сравнению уже сломанной geometry
+
+Результат:
+
+1. Scene builder переведён на graph-local `Y` sign conventions, совместимые с `graphviz svg`:
+   - local `y` и edge path `y` больше не пишутся с ошибочной двойной инверсией
+2. Viewport теперь считается по content-bounds, в которые входят и routed edges, а не только node/label bounds.
+3. В pipeline добавлен edge-aware translate flow:
+   - bounds для viewport считаются до final scene build
+   - routed edges затем переводятся в ту же output/page coordinate system
+4. В compare harness добавлен новый `svg visibility` слой:
+   - `VisibleNodeCount`
+   - `VisibleEdgeCount`
+   - `VisibleNodeCoverageRatio`
+   - `VisibleEdgeCoverageRatio`
+   - `VisibleNodeIdsMissingInManaged`
+   - `VisibleEdgeTitlesMissingInManaged`
+5. Self-loop routing усилен, чтобы петля была реально заметна в managed preview, а не почти исчезала около вершины.
+
+Телеметрия:
+
+- test: `dotnet test tests/PSGraphView.Sfdp.Tests/PSGraphView.Sfdp.Tests.csproj --filter SfdpSvgExporterTests`
+- result: `11/11` passed
+- test: `dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --filter ExportGraphViewCmdletTests`
+- result: `13/13` passed
+- test: `dotnet test tests/PSGraphView.GVExport.Tests/PSGraphView.GVExport.Tests.csproj`
+- result: `4/4` passed
+- run: `pwsh -NoProfile -File demos/Compare-Export-SmallGraphs.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-small-compare-patch3c`
+- result: all `6/6` small-graph cases now report:
+  - `VisibleNodeCoverageRatio = 1.0`
+  - `VisibleEdgeCoverageRatio = 1.0`
+  - empty `VisibleNodeIdsMissingInManaged`
+  - empty `VisibleEdgeTitlesMissingInManaged`
+- result: `triangle-cycle` managed preview now shows all `3` vertices and all `3` edges inside frame
+- result: `bidirectional-edge` managed preview no longer collapses to an almost flat strip
+- result: `self-loop` managed preview now shows the loop as visible geometry
+- result: `self-loop` width improved from previous `10pt` baseline to `16pt`, though still below graphviz `27pt`
+- run: `pwsh -NoProfile -File demos/Compare-WikiVote-Export.ps1 -UseLocalModules -UseSubgraph -SubgraphSeedCount 30 -SubgraphStartVertexCount 3 -OutputDir /tmp/psgraphview-export-wikivote-patch3c`
+- result: `Selection = ExpandedTopDegree`
+- result: `30 vertices / 99 edges`
+- result: `VisibleNodeCoverageRatio = 1.0`
+- result: `VisibleEdgeCoverageRatio = 1.0`
+- result: empty `VisibleNodeIdsMissingInManaged`
+- result: empty `VisibleEdgeTitlesMissingInManaged`
+- result: managed `WikiVote` preview перестал быть почти пустым; весь граф теперь видим внутри кадра
+- result: raster telemetry после исправления geometry тоже улучшилась:
+  - `PngDarkPixelDelta`: from `-3008` to `-1723`
+  - `JpgDarkPixelDelta`: from `-2489` to `-966`
+
+Остаток после Patch 3c:
+
+- visual blocker закрыт, но full natural-size parity ещё не закрыта
+- size mismatch всё ещё заметен:
+  - `WikiVote svg`: `146pt x 123pt` vs `123pt x 108pt`
+  - `triangle-cycle svg`: `27pt x 29pt` vs `54pt x 48pt`
+  - `self-loop svg`: `16pt x 12pt` vs `27pt x 22pt`
+- это уже другой слой проблемы:
+  - curve envelope / route geometry
+  - natural content bounds
+  - graphviz-like edge extent semantics
+
+Следующий осмысленный follow-up:
+
+- `Patch 3c` уже достаточен, чтобы прекратить ложные выводы вида "managed svg пустой / контент уехал за viewBox"
+- следующий отдельный слой работы фиксируем как `Patch 3d`
+
+### Patch 3d. Сблизить natural size и curve-envelope с graphviz
+
+Статус:
+
+- запланировано
+
+Цель:
+
+- уменьшить оставшийся `svg` size mismatch после того, как visibility blocker уже закрыт
+- сблизить managed bounds с graphviz по:
+  - self-loop envelope
+  - bidirectional-edge curvature envelope
+  - natural page size на small-cases и `WikiVote`
+
+Фокус:
+
+- `src/PSGraphView.Sfdp/SfdpEdgeRouter.cs`
+- `src/PSGraphView.Sfdp/SfdpViewportCalculator.cs`
+- compare scripts / visibility + size telemetry
+
+Телеметрия, которая толкает к этому patch-у:
+
+- `WikiVote svg`: managed `146pt x 123pt` vs graphviz `123pt x 108pt`
+- `triangle-cycle svg`: managed `27pt x 29pt` vs graphviz `54pt x 48pt`
+- `self-loop svg`: managed `16pt x 12pt` vs graphviz `27pt x 22pt`
+
+Критерий готовности:
+
+- width/height deltas сокращаются заметно, но уже без потери `VisibleNodeCoverageRatio = 1.0` и `VisibleEdgeCoverageRatio = 1.0`
+
 ### Patch 3a. Отдельно выбрать и зафиксировать raster backend
 
 Статус:
@@ -1449,14 +1709,18 @@
    - graphviz-like SVG structure
    - главный vector parity patch
 
-6. `Patch 3a`
+6. `Patch 3c`
+   - corrective patch на visual SVG geometry / transform / bounds parity
+   - обязателен перед новыми выводами по raster parity
+
+7. `Patch 3a`
    - зафиксированный выбор raster backend
    - отдельная проверка `SkiaSharp` против parity-целей
 
-7. `Patch 4`
+8. `Patch 4`
    - общий raster surface + новый output surface в PowerShell
 
-Без этих семи patch-ей двигаться дальше в `png/jpg` будет либо шумно, либо слишком хрупко.
+После обнаружения visual SVG regression двигаться дальше в `png/jpg` без `Patch 3c` уже нельзя: выводы будут шумными и частично ложными.
 
 ---
 

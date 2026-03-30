@@ -29,7 +29,7 @@ internal static class SfdpRenderSceneBuilder
         GraphView graph,
         IReadOnlyList<double> x,
         IReadOnlyList<double> y,
-        SfdpBoundingBox nodeBounds,
+        SfdpBoundingBox contentBounds,
         IReadOnlyList<SfdpLabelLayouter.LabelPlacement> labelPlacements,
         IReadOnlyList<SfdpEdgeRouter.RoutedEdge> routedEdges,
         SfdpViewportMetrics viewportMetrics,
@@ -38,21 +38,20 @@ internal static class SfdpRenderSceneBuilder
         ArgumentNullException.ThrowIfNull(graph);
         ArgumentNullException.ThrowIfNull(x);
         ArgumentNullException.ThrowIfNull(y);
-        ArgumentNullException.ThrowIfNull(nodeBounds);
+        ArgumentNullException.ThrowIfNull(contentBounds);
         ArgumentNullException.ThrowIfNull(labelPlacements);
         ArgumentNullException.ThrowIfNull(routedEdges);
         ArgumentNullException.ThrowIfNull(viewportMetrics);
         ArgumentNullException.ThrowIfNull(options);
 
-        var contentBounds = ExpandBoundsForLabels(nodeBounds, labelPlacements);
-        contentBounds = ExpandBoundsForEdges(contentBounds, routedEdges);
+        var graphTranslateX = contentBounds.MinX;
         var graphTranslateY = contentBounds.MaxY;
         var canvas = new GraphRenderCanvas(
             GraphId: "graph0",
             GraphClass: "graph",
             GraphTitle: "G",
-            Transform: BuildGraphTransform(viewportMetrics.PaddingX, graphTranslateY),
-            BackgroundPolygonPoints: BuildBackgroundPolygonPoints(contentBounds, viewportMetrics.PaddingX, viewportMetrics.PaddingY));
+            Transform: BuildGraphTransform(graphTranslateX, graphTranslateY),
+            BackgroundPolygonPoints: BuildBackgroundPolygonPoints(contentBounds));
 
         var style = new GraphRenderStyle(
             ShowBackgroundRect: true,
@@ -84,8 +83,8 @@ internal static class SfdpRenderSceneBuilder
             var label = options.ShowLabels
                 ? new GraphRenderLabel(
                     Text: node.Label,
-                    X: labelPlacements[index].X - viewportMetrics.PaddingX,
-                    BaselineY: -((labelPlacements[index].Y + (options.LabelFontSize * 0.8)) - graphTranslateY),
+                    X: labelPlacements[index].X - graphTranslateX,
+                    BaselineY: (labelPlacements[index].Y + (options.LabelFontSize * 0.8)) - graphTranslateY,
                     FontSize: options.LabelFontSize,
                     FontFamily: DefaultLabelFontFamily,
                     Fill: DefaultLabelFill)
@@ -95,8 +94,8 @@ internal static class SfdpRenderSceneBuilder
                 Id: $"node{index + 1}",
                 DataNodeId: node.Id,
                 Title: node.Id,
-                X: x[index] - viewportMetrics.PaddingX,
-                Y: -(y[index] - graphTranslateY),
+                X: x[index] - graphTranslateX,
+                Y: y[index] - graphTranslateY,
                 RadiusX: options.NodeRadius,
                 RadiusY: options.NodeRadius,
                 Fill: ResolveFill(node, options),
@@ -111,57 +110,6 @@ internal static class SfdpRenderSceneBuilder
             viewportMetrics);
     }
 
-    private static SfdpBoundingBox ExpandBoundsForLabels(
-        SfdpBoundingBox bounds,
-        IReadOnlyList<SfdpLabelLayouter.LabelPlacement> labels)
-    {
-        if (labels.Count == 0)
-        {
-            return bounds;
-        }
-
-        var minX = bounds.MinX;
-        var minY = bounds.MinY;
-        var maxX = bounds.MaxX;
-        var maxY = bounds.MaxY;
-
-        foreach (var label in labels)
-        {
-            minX = Math.Min(minX, label.X);
-            minY = Math.Min(minY, label.Y);
-            maxX = Math.Max(maxX, label.X + label.Width);
-            maxY = Math.Max(maxY, label.Y + label.Height);
-        }
-
-        return new SfdpBoundingBox(minX, minY, maxX, maxY);
-    }
-
-    private static SfdpBoundingBox ExpandBoundsForEdges(
-        SfdpBoundingBox bounds,
-        IReadOnlyList<SfdpEdgeRouter.RoutedEdge> routedEdges)
-    {
-        if (routedEdges.Count == 0)
-        {
-            return bounds;
-        }
-
-        var minX = bounds.MinX;
-        var minY = bounds.MinY;
-        var maxX = bounds.MaxX;
-        var maxY = bounds.MaxY;
-
-        foreach (var routedEdge in routedEdges)
-        {
-            var edgeBounds = SfdpEdgeRouter.ComputeBounds(routedEdge.Points);
-            minX = Math.Min(minX, edgeBounds.MinX);
-            minY = Math.Min(minY, edgeBounds.MinY);
-            maxX = Math.Max(maxX, edgeBounds.MaxX);
-            maxY = Math.Max(maxY, edgeBounds.MaxY);
-        }
-
-        return new SfdpBoundingBox(minX, minY, maxX, maxY);
-    }
-
     private static string BuildGraphTransform(double translateX, double translateY)
     {
         return string.Create(
@@ -169,11 +117,11 @@ internal static class SfdpRenderSceneBuilder
             $"scale(1 1) rotate(0) translate({Format(translateX)} {Format(translateY)})");
     }
 
-    private static string BuildBackgroundPolygonPoints(SfdpBoundingBox contentBounds, double paddingX, double paddingY)
+    private static string BuildBackgroundPolygonPoints(SfdpBoundingBox contentBounds)
     {
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"{Format(-paddingX)},{Format(paddingY)} {Format(-paddingX)},{Format(-contentBounds.MaxY)} {Format(contentBounds.MaxX - paddingX)},{Format(-contentBounds.MaxY)} {Format(contentBounds.MaxX - paddingX)},{Format(paddingY)}");
+            $"{Format(-contentBounds.MinX)},{Format(contentBounds.MinY)} {Format(-contentBounds.MinX)},{Format(-contentBounds.MaxY)} {Format(contentBounds.MaxX - contentBounds.MinX)},{Format(-contentBounds.MaxY)} {Format(contentBounds.MaxX - contentBounds.MinX)},{Format(contentBounds.MinY)}");
     }
 
     private static string BuildGraphvizPathData(
@@ -183,7 +131,7 @@ internal static class SfdpRenderSceneBuilder
     {
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"M{Format(points[0].X - translateX)},{Format(-(points[0].Y - translateY))}C{Format(points[1].X - translateX)},{Format(-(points[1].Y - translateY))} {Format(points[2].X - translateX)},{Format(-(points[2].Y - translateY))} {Format(points[3].X - translateX)},{Format(-(points[3].Y - translateY))}");
+            $"M{Format(points[0].X - translateX)},{Format(points[0].Y - translateY)}C{Format(points[1].X - translateX)},{Format(points[1].Y - translateY)} {Format(points[2].X - translateX)},{Format(points[2].Y - translateY)} {Format(points[3].X - translateX)},{Format(points[3].Y - translateY)}");
     }
 
     private static string Format(double value)

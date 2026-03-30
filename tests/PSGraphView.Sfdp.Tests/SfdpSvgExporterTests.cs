@@ -1,6 +1,8 @@
 using PSGraph.Model;
 using PSGraphView.Sfdp;
+using System.Globalization;
 using System.Text.Json;
+using System.Xml.Linq;
 
 namespace PSGraphView.Sfdp.Tests;
 
@@ -285,5 +287,65 @@ public sealed class SfdpSvgExporterTests
 
         Assert.True(bounds.Width > options.NodeRadius * 2.0);
         Assert.True(bounds.Height > options.NodeRadius * 2.0);
+    }
+
+    [Fact]
+    public void Prepare_SelfLoop_UsesExpandedViewportAndNegativeLocalYCoordinates()
+    {
+        var graph = new GraphView(
+            [
+                new GraphViewNode("A", "A", null, new Dictionary<string, object?>())
+            ],
+            [
+                new GraphViewEdge("A", "A", null, 1)
+            ]);
+        var options = new SfdpOptions
+        {
+            NodeRadius = 0.72,
+            OverlapRemovalBoxUnits = SfdpOverlapRemovalBoxUnits.GraphvizPoints,
+            OverlapRemovalPadding = 4.0,
+            ShowArrows = true
+        };
+
+        var prepared = SfdpRenderScenePipeline.Prepare(graph, options, SfdpDiagnosticsWriter.Disabled, CancellationToken.None);
+
+        var node = Assert.Single(prepared.Scene.Nodes);
+        Assert.True(node.Y < 0.0);
+        Assert.True(prepared.Scene.Viewport.ViewBoxWidth > options.NodeRadius * 6.0);
+        Assert.True(prepared.Scene.Viewport.ViewBoxHeight > options.NodeRadius * 6.0);
+    }
+
+    [Fact]
+    public void Export_TriangleCycle_UsesGraphvizLikeNegativeLocalYCoordinates()
+    {
+        var graph = new GraphView(
+            [
+                new GraphViewNode("A", "A", null, new Dictionary<string, object?>()),
+                new GraphViewNode("B", "B", null, new Dictionary<string, object?>()),
+                new GraphViewNode("C", "C", null, new Dictionary<string, object?>())
+            ],
+            [
+                new GraphViewEdge("A", "B", null, 1),
+                new GraphViewEdge("B", "C", null, 1),
+                new GraphViewEdge("C", "A", null, 1)
+            ]);
+
+        var svg = _exporter.Export(graph, new SfdpOptions
+        {
+            NodeRadius = 0.72,
+            OverlapRemovalBoxUnits = SfdpOverlapRemovalBoxUnits.GraphvizPoints,
+            OverlapRemovalPadding = 4.0
+        });
+
+        var document = XDocument.Parse(svg);
+        XNamespace ns = "http://www.w3.org/2000/svg";
+        var ellipses = document.Descendants(ns + "ellipse").ToArray();
+
+        Assert.NotEmpty(ellipses);
+        Assert.All(ellipses, ellipse =>
+        {
+            var cy = double.Parse(ellipse.Attribute("cy")!.Value, CultureInfo.InvariantCulture);
+            Assert.True(cy <= 0.0, $"Expected graph-local cy <= 0, got {cy.ToString(CultureInfo.InvariantCulture)}.");
+        });
     }
 }
