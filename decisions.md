@@ -721,3 +721,57 @@
 - следующий шаг должен быть отдельным:
   - `Patch 3e`
   - развести layout-limited residuals и export-limited residuals
+
+## 2026-03-30 16:12 PDT - Patch 3e развёл layout-limited и export-limited residuals
+
+Решение: считаем `Patch 3e` выполненным. Compare harness теперь явно отделяет layout-side вклад в итоговый size mismatch от export-side вклада, и для `triangle-cycle` и `WikiVote` остаток признан `layout_limited`.
+
+Причины:
+
+- после `Patch 3d` было уже видно, что на `triangle-cycle` и `WikiVote` размеры расходятся сильно, но было непонятно, сколько в этом реального exporter-а
+- raw layout telemetry уже была в обеих системах, но harness её не сводил в одну decomposition-модель
+- без этого любые дальнейшие export patch-и рисковали лечить layout mismatch как будто это проблема `svg/png/jpg` writer-а
+
+Телеметрия:
+
+- code change: `/Users/andrei/repo/PSGraphView/demos/Compare-Export.Common.ps1`
+- change: `graphviz` verbose parser now reads:
+  - `pre overlap geometry`
+  - `overlap geometry`
+- change: managed diagnostics parser now reads:
+  - `postprocess.geometry`
+  - `overlap.geometry`
+  - `layout.geometry`
+  - `component.geometry`
+- change: compare summary now exposes `Comparisons.Diagnostics.LayoutResiduals`
+- run: `pwsh -NoProfile -File demos/Compare-Export-SmallGraphs.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-small-compare-patch3e`
+- result: `6/6` cases completed successfully
+- run: `pwsh -NoProfile -File demos/Compare-WikiVote-Export.ps1 -UseLocalModules -UseSubgraph -SubgraphSeedCount 30 -SubgraphStartVertexCount 3 -OutputDir /tmp/psgraphview-export-wikivote-patch3e`
+- result: `30 vertices / 99 edges`
+- result: `triangle-cycle`:
+  - classification `layout_limited`
+  - `OutputWidthDelta = -27`
+  - `LayoutWidthDelta = -28.71`
+  - `ExportWidthDelta = 1.71`
+  - `OutputHeightDelta = -19`
+  - `LayoutHeightDelta = -20.45`
+  - `ExportHeightDelta = 1.45`
+- result: `WikiVote 30 / 99`:
+  - classification `layout_limited`
+  - `OutputWidthDelta = 23`
+  - `LayoutWidthDelta = 23.28`
+  - `ExportWidthDelta = -0.28`
+  - `OutputHeightDelta = 15`
+  - `LayoutHeightDelta = 15.66`
+  - `ExportHeightDelta = -0.66`
+- result: `bidirectional-edge` classified as `mixed`
+- result: `self-loop` classified as `mixed`
+- result: `single-edge` classified as `layout_limited`
+
+Следствие:
+
+- `triangle-cycle` и `WikiVote` больше не нужно использовать как аргумент, что exporter сам по себе всё ещё сильно ломает размер
+- на этих case-ах export residual уже маленький, а основной вклад сидит в layout geometry
+- следующие export patch-и нужно выбирать по тем case-ам, где classification остаётся `mixed` или `export_limited`
+- если понадобится чистый export experiment без layout noise, следующий правильный шаг:
+  - fixed-geometry / scene-dump compare mode

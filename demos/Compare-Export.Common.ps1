@@ -635,6 +635,26 @@ function Convert-StructuredLogEntry {
     return $entry
 }
 
+function Convert-StructuredLogFields {
+    param([Parameter(Mandatory)][string]$Text)
+
+    $tokens = $Text -split '\s+'
+    $entry = [ordered]@{}
+
+    foreach ($token in $tokens) {
+        $separatorIndex = $token.IndexOf('=')
+        if ($separatorIndex -le 0) {
+            continue
+        }
+
+        $key = $token.Substring(0, $separatorIndex)
+        $value = $token.Substring($separatorIndex + 1)
+        $entry[$key] = Convert-StructuredLogValue -Value $value
+    }
+
+    return $entry
+}
+
 function Get-GraphvizVerboseSummary {
     param([Parameter(Mandatory)][string]$Path)
 
@@ -648,9 +668,21 @@ function Get-GraphvizVerboseSummary {
         Svg = $null
         Cairo = $null
         Gd = $null
+        PreOverlapGeometry = @()
+        OverlapGeometry = @()
     }
 
     foreach ($line in Get-Content -Path $Path) {
+        if ($line.StartsWith('pre overlap geometry ')) {
+            $summary.PreOverlapGeometry += Convert-StructuredLogFields -Text $line.Substring('pre overlap geometry '.Length)
+            continue
+        }
+
+        if ($line.StartsWith('overlap geometry ')) {
+            $summary.OverlapGeometry += Convert-StructuredLogFields -Text $line.Substring('overlap geometry '.Length)
+            continue
+        }
+
         if ($line.StartsWith('GVEXPORT_VIEW ')) {
             $summary.Viewport = Convert-StructuredLogEntry -Line $line
             continue
@@ -692,6 +724,10 @@ function Get-ManagedDiagnosticsSummary {
         SvgStructure = $null
         Raster = @()
         SvgGeometry = @()
+        PostprocessGeometry = @()
+        OverlapGeometry = @()
+        LayoutGeometry = @()
+        ComponentGeometry = @()
     }
 
     foreach ($line in Get-Content -Path $Path) {
@@ -724,12 +760,236 @@ function Get-ManagedDiagnosticsSummary {
             continue
         }
 
+        if ($phase -eq 'postprocess' -and $name -eq 'geometry') {
+            $summary.PostprocessGeometry += $data
+            continue
+        }
+
+        if ($phase -eq 'overlap' -and $name -eq 'geometry') {
+            $summary.OverlapGeometry += $data
+            continue
+        }
+
+        if ($phase -eq 'layout' -and $name -eq 'geometry') {
+            $summary.LayoutGeometry += $data
+            continue
+        }
+
+        if ($phase -eq 'component' -and $name -eq 'geometry') {
+            $summary.ComponentGeometry += $data
+            continue
+        }
+
         if ($phase -eq 'render' -and $name -eq 'raster') {
             $summary.Raster += $data
         }
     }
 
     return $summary
+}
+
+function Get-GeometryStageEntry {
+    param(
+        [Parameter(Mandatory)]$Entries,
+        [Parameter(Mandatory)][string]$Stage
+    )
+
+    $matched = @($Entries | Where-Object { [string]$_['stage'] -eq $Stage })
+    if ($matched.Count -eq 0) {
+        return $null
+    }
+
+    return $matched[-1]
+}
+
+function Get-GraphvizLayoutGeometry {
+    param([Parameter(Mandatory)]$VerboseSummary)
+
+    $afterOverlapRemoval = Get-GeometryStageEntry -Entries $VerboseSummary.PreOverlapGeometry -Stage 'after_overlap_removal'
+    if ($null -ne $afterOverlapRemoval) {
+        return $afterOverlapRemoval
+    }
+
+    $finish = Get-GeometryStageEntry -Entries $VerboseSummary.OverlapGeometry -Stage 'finish'
+    if ($null -ne $finish) {
+        return $finish
+    }
+
+    return $null
+}
+
+function Get-ManagedLayoutGeometry {
+    param([Parameter(Mandatory)]$DiagnosticsSummary)
+
+    $afterOverlapRemoval = Get-GeometryStageEntry -Entries $DiagnosticsSummary.PostprocessGeometry -Stage 'after_overlap_removal'
+    if ($null -ne $afterOverlapRemoval) {
+        return $afterOverlapRemoval
+    }
+
+    $finish = Get-GeometryStageEntry -Entries $DiagnosticsSummary.OverlapGeometry -Stage 'finish'
+    if ($null -ne $finish) {
+        return $finish
+    }
+
+    return $null
+}
+
+function Get-LayoutResidualClassification {
+    param(
+        [double]$LayoutWidthDelta,
+        [double]$LayoutHeightDelta,
+        [double]$ExportWidthDelta,
+        [double]$ExportHeightDelta
+    )
+
+    $layoutMagnitude = [Math]::Max([Math]::Abs($LayoutWidthDelta), [Math]::Abs($LayoutHeightDelta))
+    $exportMagnitude = [Math]::Max([Math]::Abs($ExportWidthDelta), [Math]::Abs($ExportHeightDelta))
+
+    if ($exportMagnitude -le 2.0 -and $layoutMagnitude -ge 4.0) {
+        return 'layout_limited'
+    }
+
+    if ($layoutMagnitude -le 2.0 -and $exportMagnitude -ge 4.0) {
+        return 'export_limited'
+    }
+
+    return 'mixed'
+}
+
+function Get-LayoutResidualDimensionSummary {
+    param(
+        [double]$GraphvizOutput,
+        [double]$ManagedOutput,
+        [double]$GraphvizPad,
+        [double]$ManagedPad,
+        [double]$GraphvizLayout,
+        [double]$ManagedLayout
+    )
+
+    $outputDelta = $ManagedOutput - $GraphvizOutput
+
+    if ($GraphvizLayout -le 0 -and $ManagedLayout -le 0) {
+        return [ordered]@{
+            Available = $true
+            OutputDelta = $outputDelta
+            LayoutDelta = 0.0
+            ExportDelta = $outputDelta
+            GraphvizCoreScale = $null
+            ManagedCoreScale = $null
+            CoreScaleDelta = $null
+            ExpectedManagedOutputAtGraphvizScale = $GraphvizOutput
+        }
+    }
+
+    if ($GraphvizLayout -le 0 -or $ManagedLayout -le 0) {
+        return [ordered]@{
+            Available = $true
+            OutputDelta = $outputDelta
+            LayoutDelta = $outputDelta
+            ExportDelta = 0.0
+            GraphvizCoreScale = $null
+            ManagedCoreScale = $null
+            CoreScaleDelta = $null
+            ExpectedManagedOutputAtGraphvizScale = $ManagedOutput
+        }
+    }
+
+    $graphvizCoreScale = ($GraphvizOutput - (2.0 * $GraphvizPad)) / $GraphvizLayout
+    $managedCoreScale = ($ManagedOutput - (2.0 * $ManagedPad)) / $ManagedLayout
+    $expectedManagedOutputAtGraphvizScale = ($ManagedLayout * $graphvizCoreScale) + (2.0 * $GraphvizPad)
+    $layoutDelta = $expectedManagedOutputAtGraphvizScale - $GraphvizOutput
+    $exportDelta = $ManagedOutput - $expectedManagedOutputAtGraphvizScale
+
+    return [ordered]@{
+        Available = $true
+        OutputDelta = $outputDelta
+        LayoutDelta = $layoutDelta
+        ExportDelta = $exportDelta
+        GraphvizCoreScale = $graphvizCoreScale
+        ManagedCoreScale = $managedCoreScale
+        CoreScaleDelta = $managedCoreScale - $graphvizCoreScale
+        ExpectedManagedOutputAtGraphvizScale = $expectedManagedOutputAtGraphvizScale
+    }
+}
+
+function Get-LayoutResidualSummary {
+    param(
+        [Parameter(Mandatory)]$GraphvizVerbose,
+        [Parameter(Mandatory)]$ManagedDiagnostics
+    )
+
+    $graphvizViewport = $GraphvizVerbose.Viewport
+    $managedViewport = $ManagedDiagnostics.Viewport
+    $graphvizGeometry = Get-GraphvizLayoutGeometry -VerboseSummary $GraphvizVerbose
+    $managedGeometry = Get-ManagedLayoutGeometry -DiagnosticsSummary $ManagedDiagnostics
+
+    if ($null -eq $graphvizViewport -or $null -eq $managedViewport -or $null -eq $graphvizGeometry -or $null -eq $managedGeometry) {
+        return [ordered]@{
+            Available = $false
+            Reason = 'Viewport or layout geometry summary is missing.'
+            Graphviz = $graphvizGeometry
+            Managed = $managedGeometry
+        }
+    }
+
+    $graphvizPadX = [double]$graphvizViewport['pad_x']
+    $graphvizPadY = [double]$graphvizViewport['pad_y']
+    $managedPadX = [double]$managedViewport['padX']
+    $managedPadY = [double]$managedViewport['padY']
+    $graphvizOutputWidth = [double]$graphvizViewport['width']
+    $graphvizOutputHeight = [double]$graphvizViewport['height']
+    $managedOutputWidth = [double]$managedViewport['outputWidth']
+    $managedOutputHeight = [double]$managedViewport['outputHeight']
+    $graphvizLayoutWidth = [double]$graphvizGeometry['width']
+    $graphvizLayoutHeight = [double]$graphvizGeometry['height']
+    $managedLayoutWidth = [double]$managedGeometry['width']
+    $managedLayoutHeight = [double]$managedGeometry['height']
+
+    $widthSummary = Get-LayoutResidualDimensionSummary `
+        -GraphvizOutput $graphvizOutputWidth `
+        -ManagedOutput $managedOutputWidth `
+        -GraphvizPad $graphvizPadX `
+        -ManagedPad $managedPadX `
+        -GraphvizLayout $graphvizLayoutWidth `
+        -ManagedLayout $managedLayoutWidth
+    $heightSummary = Get-LayoutResidualDimensionSummary `
+        -GraphvizOutput $graphvizOutputHeight `
+        -ManagedOutput $managedOutputHeight `
+        -GraphvizPad $graphvizPadY `
+        -ManagedPad $managedPadY `
+        -GraphvizLayout $graphvizLayoutHeight `
+        -ManagedLayout $managedLayoutHeight
+
+    return [ordered]@{
+        Available = $true
+        Classification = Get-LayoutResidualClassification `
+            -LayoutWidthDelta ([double]$widthSummary.LayoutDelta) `
+            -LayoutHeightDelta ([double]$heightSummary.LayoutDelta) `
+            -ExportWidthDelta ([double]$widthSummary.ExportDelta) `
+            -ExportHeightDelta ([double]$heightSummary.ExportDelta)
+        OutputWidthDelta = $widthSummary.OutputDelta
+        OutputHeightDelta = $heightSummary.OutputDelta
+        LayoutWidthDelta = $widthSummary.LayoutDelta
+        LayoutHeightDelta = $heightSummary.LayoutDelta
+        ExportWidthDelta = $widthSummary.ExportDelta
+        ExportHeightDelta = $heightSummary.ExportDelta
+        GraphvizCoreWidthScale = $widthSummary.GraphvizCoreScale
+        GraphvizCoreHeightScale = $heightSummary.GraphvizCoreScale
+        ManagedCoreWidthScale = $widthSummary.ManagedCoreScale
+        ManagedCoreHeightScale = $heightSummary.ManagedCoreScale
+        CoreWidthScaleDelta = $widthSummary.CoreScaleDelta
+        CoreHeightScaleDelta = $heightSummary.CoreScaleDelta
+        Width = $widthSummary
+        Height = $heightSummary
+        Graphviz = [ordered]@{
+            Viewport = $graphvizViewport
+            LayoutGeometry = $graphvizGeometry
+        }
+        Managed = [ordered]@{
+            Viewport = $managedViewport
+            LayoutGeometry = $managedGeometry
+        }
+    }
 }
 
 function Get-DiagnosticsComparisonSummary {
@@ -795,6 +1055,7 @@ function Get-DiagnosticsComparisonSummary {
             }
             Managed = $managedSvg
         }
+        LayoutResiduals = Get-LayoutResidualSummary -GraphvizVerbose $graphvizVerbose -ManagedDiagnostics $managedDiagnostics
     }
 }
 

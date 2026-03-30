@@ -1354,7 +1354,7 @@
 
 Статус:
 
-- запланировано
+- сделано
 
 Цель:
 
@@ -1370,11 +1370,55 @@
   - managed layout bounds
   - export-only viewport / raster deltas поверх одной и той же geometry
 
+Реализация:
+
+- compare harness теперь отдельно парсит layout geometry:
+  - `graphviz` verbose:
+    - `pre overlap geometry stage=...`
+    - `overlap geometry stage=...`
+  - managed diagnostics:
+    - `postprocess.geometry`
+    - `overlap.geometry`
+    - `layout.geometry`
+- в summary добавлен новый блок:
+  - `Comparisons.Diagnostics.LayoutResiduals`
+- этот блок раскладывает итоговый output delta на:
+  - `LayoutWidthDelta` / `LayoutHeightDelta`
+  - `ExportWidthDelta` / `ExportHeightDelta`
+- и ставит classification:
+  - `layout_limited`
+  - `export_limited`
+  - `mixed`
+
+Телеметрия:
+
+- run: `pwsh -NoProfile -File demos/Compare-Export-SmallGraphs.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-small-compare-patch3e`
+- result: `6/6` cases completed successfully
+- run: `pwsh -NoProfile -File demos/Compare-WikiVote-Export.ps1 -UseLocalModules -UseSubgraph -SubgraphSeedCount 30 -SubgraphStartVertexCount 3 -OutputDir /tmp/psgraphview-export-wikivote-patch3e`
+- result: `30 vertices / 99 edges`
+- result: `triangle-cycle` classified as `layout_limited`
+- result: `triangle-cycle OutputWidthDelta = -27`, `LayoutWidthDelta = -28.71`, `ExportWidthDelta = 1.71`
+- result: `triangle-cycle OutputHeightDelta = -19`, `LayoutHeightDelta = -20.45`, `ExportHeightDelta = 1.45`
+- result: `WikiVote` classified as `layout_limited`
+- result: `WikiVote OutputWidthDelta = 23`, `LayoutWidthDelta = 23.28`, `ExportWidthDelta = -0.28`
+- result: `WikiVote OutputHeightDelta = 15`, `LayoutHeightDelta = 15.66`, `ExportHeightDelta = -0.66`
+- result: `bidirectional-edge` classified as `mixed`
+- result: `self-loop` classified as `mixed`
+
 Критерий готовности:
 
 - `triangle-cycle` и `WikiVote` residuals классифицированы:
   - что идёт из layout
   - что остаётся реально export-side
+
+Вывод:
+
+- основной remaining mismatch для `triangle-cycle` и `WikiVote` теперь доказуемо layout-limited
+- значит следующие export patch-и не должны пытаться "лечить" эти два case-а как будто проблема сидит в `svg/png/jpg` writer-е
+- для export parity дальше разумно фокусироваться на:
+  - export-limited и mixed case-ах
+  - text / label parity
+  - при необходимости fixed-geometry compare mode
 
 ### Patch 3a. Отдельно выбрать и зафиксировать raster backend
 
