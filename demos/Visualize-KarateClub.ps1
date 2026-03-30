@@ -5,6 +5,7 @@
 # Produces:
 #   - Vega force-directed (HTML)
 #   - Vega adjacency matrix (HTML)
+#   - SFDP-style layout (SVG)
 #   - MSAGL MDS (SVG)
 #   - MSAGL Fast Incremental (SVG)
 #   - MSAGL Sugiyama (SVG)
@@ -82,7 +83,18 @@ Export-GraphView -Graph $graph `
     -Path $outFile
 Write-Host "[2/8] Adjacency matrix: $outFile" -ForegroundColor Green
 
-# --- 3. MSAGL MDS ---
+# --- 3. SFDP-style layout ---
+$outFile = Join-Path $OutputDir 'karate-sfdp.svg'
+Export-GraphView -Graph $graph `
+    -Renderer Sfdp `
+    -As Svg `
+    -Path $outFile `
+    -ShowLabels `
+    -NodeRadius 4 `
+    -LabelFontSize 9
+Write-Host "[3/9] SFDP-style layout: $outFile" -ForegroundColor Green
+
+# --- 4. MSAGL MDS ---
 $outFile = Join-Path $OutputDir 'karate-mds.svg'
 Export-GraphView -Graph $graph `
     -Renderer MsaglMds `
@@ -91,9 +103,9 @@ Export-GraphView -Graph $graph `
     -ShowLabels `
     -NodeRadius 4 `
     -LabelFontSize 9
-Write-Host "[3/8] MDS layout: $outFile" -ForegroundColor Green
+Write-Host "[4/9] MDS layout: $outFile" -ForegroundColor Green
 
-# --- 4. MSAGL Fast Incremental ---
+# --- 5. MSAGL Fast Incremental ---
 $outFile = Join-Path $OutputDir 'karate-fast-incremental.svg'
 Export-GraphView -Graph $graph `
     -Renderer MsaglFastIncremental `
@@ -102,9 +114,9 @@ Export-GraphView -Graph $graph `
     -ShowLabels `
     -NodeRadius 4 `
     -LabelFontSize 9
-Write-Host "[4/8] Fast incremental: $outFile" -ForegroundColor Green
+Write-Host "[5/9] Fast incremental: $outFile" -ForegroundColor Green
 
-# --- 5. MSAGL Sugiyama ---
+# --- 6. MSAGL Sugiyama ---
 $outFile = Join-Path $OutputDir 'karate-sugiyama.svg'
 Export-GraphView -Graph $graph `
     -Renderer MsaglSugiyama `
@@ -114,9 +126,9 @@ Export-GraphView -Graph $graph `
     -SugiyamaDirection Vertical `
     -SugiyamaNodeSeparation 16 `
     -SugiyamaEdgeRouting Spline
-Write-Host "[5/8] Sugiyama layout: $outFile" -ForegroundColor Green
+Write-Host "[6/9] Sugiyama layout: $outFile" -ForegroundColor Green
 
-# --- 6. DSM plain matrix (SVG + Vega HTML) ---
+# --- 7. DSM plain matrix (SVG + Vega HTML) ---
 $dsm = New-DSM -Graph $graph
 $outFile = Join-Path $OutputDir 'karate-dsm.svg'
 Export-DSMView -Dsm $dsm `
@@ -124,7 +136,7 @@ Export-DSMView -Dsm $dsm `
     -As Svg `
     -Path $outFile `
     -ItemSize 20
-Write-Host "[6/8] DSM plain (SVG): $outFile" -ForegroundColor Green
+Write-Host "[7/9] DSM plain (SVG): $outFile" -ForegroundColor Green
 
 $outFile = Join-Path $OutputDir 'karate-dsm.html'
 Export-DSMView -Dsm $dsm `
@@ -134,7 +146,7 @@ Export-DSMView -Dsm $dsm `
     -ItemSize 20
 Write-Host "       DSM plain (Vega HTML): $outFile" -ForegroundColor Green
 
-# --- 7. DSM after clustering (partition boundaries highlighted) ---
+# --- 8. DSM after clustering (partition boundaries highlighted) ---
 $clustered = Start-DSMClustering -Dsm $dsm
 $outFile = Join-Path $OutputDir 'karate-dsm-clustered.svg'
 Export-DSMView -Result $clustered `
@@ -142,7 +154,7 @@ Export-DSMView -Result $clustered `
     -As Svg `
     -Path $outFile `
     -ItemSize 20
-Write-Host "[7/8] DSM clustered (SVG): $outFile" -ForegroundColor Green
+Write-Host "[8/9] DSM clustered (SVG): $outFile" -ForegroundColor Green
 
 $outFile = Join-Path $OutputDir 'karate-dsm-clustered.html'
 Export-DSMView -Result $clustered `
@@ -152,7 +164,7 @@ Export-DSMView -Result $clustered `
     -ItemSize 20
 Write-Host "       DSM clustered (Vega HTML): $outFile" -ForegroundColor Green
 
-# --- 8. DSM after sequencing ---
+# --- 9. DSM after sequencing ---
 $sequenced = Start-DSMSequencing -Dsm $dsm
 $outFile = Join-Path $OutputDir 'karate-dsm-sequenced.svg'
 Export-DSMView -SequencedDsm $sequenced `
@@ -160,7 +172,7 @@ Export-DSMView -SequencedDsm $sequenced `
     -As Svg `
     -Path $outFile `
     -ItemSize 20
-Write-Host "[8/8] DSM sequenced (SVG): $outFile" -ForegroundColor Green
+Write-Host "[9/9] DSM sequenced (SVG): $outFile" -ForegroundColor Green
 
 Write-Host "`nAll outputs in: $OutputDir" -ForegroundColor Cyan
 Write-Host "Open the .html files in a browser for interactive exploration.`n"

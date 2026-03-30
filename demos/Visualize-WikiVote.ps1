@@ -1,192 +1,226 @@
 # Visualize-WikiVote.ps1
-# Visualize a subset of the SNAP wiki-Vote directed network using PSGraphView.
-# The full dataset has ~7k nodes and ~100k edges, which is too large for
-# node-link layouts. This script imports the full graph, extracts a small
-# subgraph (configurable), and renders it with multiple layouts.
-#
-# For the full graph we also produce a Vega adjacency matrix which handles
-# large graphs better than node-link diagrams.
+# Visualize the SNAP wiki-Vote graph with the managed PSGraphView Sfdp renderer.
+# By default the script renders the full graph. You can opt into a smaller
+# top-degree subgraph for quicker iteration.
 #
 # Produces:
-#   - Vega force-directed of the subgraph (HTML)
-#   - MSAGL MDS of the subgraph (SVG)
-#   - MSAGL Sugiyama of the subgraph (SVG)
-#   - DSM plain, clustered, and sequenced matrices of the subgraph
+#   - managed Sfdp layout of the selected graph (SVG)
+#   - optional terminal preview via Out-Sixel
 
 [CmdletBinding()]
 param(
     [string]$OutputDir = (Join-Path ([System.IO.Path]::GetTempPath()) 'PSGraphView-demos'),
+    [switch]$UseSubgraph,
     [int]$SubgraphSeedCount = 30,
     [switch]$UseLocalModules,
     [string]$PSQuickGraphManifestPath,
-    [string]$PSGraphViewManifestPath
+    [string]$PSGraphViewManifestPath,
+    [string]$LibSixelManifestPath,
+    [switch]$ShowSixelPreview,
+    [switch]$ForceSixelPreview,
+    [ValidateRange(2, 256)]
+    [int]$SixelColors = 128,
+    [ValidateRange(1, 4000)]
+    [int]$SixelWidth = 1200,
+    [int]$SfdpSeed = 42,
+    [ValidateRange(1, 10000)]
+    [int]$ImageWidth = 800,
+    [ValidateRange(1, 10000)]
+    [int]$ImageHeight = 800
 )
 
 $ErrorActionPreference = 'Stop'
+
+function Get-SixelPreviewSupport {
+    [CmdletBinding()]
+    param()
+
+    if ($env:TERM -eq 'dumb') {
+        return @{
+            Supported = $false
+            Reason = "TERM is set to 'dumb'."
+        }
+    }
+
+    if ($env:TERM_PROGRAM -eq 'iTerm.app') {
+        return @{
+            Supported = $false
+            Reason = "iTerm.app does not render SIXEL."
+        }
+    }
+
+    if ($env:TERM_PROGRAM -eq 'vscode' -or $env:VSCODE_INJECTION) {
+        return @{
+            Supported = $false
+            Reason = "VS Code integrated terminal does not render SIXEL."
+        }
+    }
+
+    if ($env:TMUX) {
+        return @{
+            Supported = $false
+            Reason = "tmux usually strips or ignores SIXEL unless explicitly configured."
+        }
+    }
+
+    return @{
+        Supported = $true
+        Reason = $null
+    }
+}
 
 . (Join-Path $PSScriptRoot 'Import-DemoModules.ps1')
 Import-PSGraphViewDemoModules `
     -UseLocalModules:$UseLocalModules `
     -PSQuickGraphManifestPath $PSQuickGraphManifestPath `
     -PSGraphViewManifestPath $PSGraphViewManifestPath `
+    -ImportLibSixel:$ShowSixelPreview `
+    -LibSixelManifestPath $LibSixelManifestPath `
     -Verbose:($VerbosePreference -eq 'Continue')
 
 if (-not (Test-Path $OutputDir)) {
     New-Item -ItemType Directory -Path $OutputDir | Out-Null
 }
 
-Write-Host "`n=== wiki-Vote Visualization ===" -ForegroundColor Cyan
+Write-Host "`n=== wiki-Vote Sfdp Demo ===" -ForegroundColor Cyan
 
 # --- Download dataset ---
 $dataDir = Join-Path ([System.IO.Path]::GetTempPath()) 'PSGraph-datasets'
-if (-not (Test-Path $dataDir)) { New-Item -ItemType Directory -Path $dataDir | Out-Null }
+if (-not (Test-Path $dataDir)) {
+    New-Item -ItemType Directory -Path $dataDir | Out-Null
+}
 
 $wikiVoteUrl = 'https://snap.stanford.edu/data/wiki-Vote.txt.gz'
-$wikiVoteGz  = Join-Path $dataDir 'wiki-Vote.txt.gz'
+$wikiVoteGz = Join-Path $dataDir 'wiki-Vote.txt.gz'
 $wikiVoteTxt = Join-Path $dataDir 'wiki-Vote.txt'
 
 if (-not (Test-Path $wikiVoteTxt)) {
     Write-Host 'Downloading wiki-Vote dataset...'
     Invoke-WebRequest -Uri $wikiVoteUrl -OutFile $wikiVoteGz
 
-    $inStream  = [System.IO.File]::OpenRead($wikiVoteGz)
-    $gzStream  = [System.IO.Compression.GZipStream]::new($inStream, [System.IO.Compression.CompressionMode]::Decompress)
+    $inStream = [System.IO.File]::OpenRead($wikiVoteGz)
+    $gzStream = [System.IO.Compression.GZipStream]::new($inStream, [System.IO.Compression.CompressionMode]::Decompress)
     $outStream = [System.IO.File]::Create($wikiVoteTxt)
     $gzStream.CopyTo($outStream)
-    $outStream.Close(); $gzStream.Close(); $inStream.Close()
+    $outStream.Close()
+    $gzStream.Close()
+    $inStream.Close()
     Remove-Item $wikiVoteGz -ErrorAction SilentlyContinue
-} else {
+}
+else {
     Write-Host "Using cached $wikiVoteTxt"
 }
 
 $fullGraph = Import-Graph -Path $wikiVoteTxt -Format Csv -Delimiter "`t" -NoHeader
 Write-Host "Full graph: $($fullGraph.VertexCount) vertices, $($fullGraph.EdgeCount) edges"
 
-# --- Extract a manageable subgraph ---
-# Pick seed vertices with the most outgoing edges, then include their 1-hop neighbors.
-Write-Host "Extracting subgraph (seed=$SubgraphSeedCount highest-degree vertices)..."
+if ($UseSubgraph) {
+    Write-Host "Extracting subgraph (seed=$SubgraphSeedCount highest-degree vertices)..."
 
-$seedVertices = $fullGraph.Vertices |
-    Sort-Object { $fullGraph.OutDegree($_) } -Descending |
-    Select-Object -First $SubgraphSeedCount
+    $seedVertices = $fullGraph.Vertices |
+        Sort-Object { $fullGraph.OutDegree($_) } -Descending |
+        Select-Object -First $SubgraphSeedCount
 
-$subgraph = New-Graph
-$included = [System.Collections.Generic.HashSet[string]]::new()
+    $graphToRender = New-Graph
+    $included = [System.Collections.Generic.HashSet[string]]::new()
 
-foreach ($v in $seedVertices) {
-    [void]$included.Add($v.Label)
-}
+    foreach ($vertex in $seedVertices) {
+        [void]$included.Add($vertex.Label)
+    }
 
-foreach ($v in $seedVertices) {
-    $outEdges = Get-OutEdge -Graph $fullGraph -Vertex $v.Label
-    if ($outEdges) {
-        foreach ($e in $outEdges) {
-            if ($included.Contains($e.Target.Label)) {
-                Add-Edge -From $e.Source.Label -To $e.Target.Label -Graph $subgraph | Out-Null
+    foreach ($vertex in $seedVertices) {
+        $outEdges = Get-OutEdge -Graph $fullGraph -Vertex $vertex.Label
+        if ($outEdges) {
+            foreach ($edge in $outEdges) {
+                if ($included.Contains($edge.Target.Label)) {
+                    Add-Edge -From $edge.Source.Label -To $edge.Target.Label -Graph $graphToRender | Out-Null
+                }
+            }
+        }
+
+        $inEdges = Get-InEdge -Graph $fullGraph -Vertex $vertex.Label
+        if ($inEdges) {
+            foreach ($edge in $inEdges) {
+                if ($included.Contains($edge.Source.Label)) {
+                    Add-Edge -From $edge.Source.Label -To $edge.Target.Label -Graph $graphToRender | Out-Null
+                }
             }
         }
     }
-    $inEdges = Get-InEdge -Graph $fullGraph -Vertex $v.Label
-    if ($inEdges) {
-        foreach ($e in $inEdges) {
-            if ($included.Contains($e.Source.Label)) {
-                Add-Edge -From $e.Source.Label -To $e.Target.Label -Graph $subgraph | Out-Null
-            }
+
+    foreach ($vertex in $seedVertices) {
+        Add-Vertex -Graph $graphToRender -Vertex $vertex.Label -ErrorAction SilentlyContinue | Out-Null
+    }
+
+    Write-Host "Subgraph: $($graphToRender.VertexCount) vertices, $($graphToRender.EdgeCount) edges"
+    $nodeRadius = 1
+    $edgeLineWidth = 0.2
+    $edgeColor = '#00000018'
+    $showArrows = $true
+    $arrowSize = 0.08
+    $outputName = 'wiki-vote-sfdp-subgraph.svg'
+}
+else {
+    $graphToRender = $fullGraph
+    Write-Host "Rendering full graph with managed Sfdp..."
+    $nodeRadius = 0.35
+    $edgeLineWidth = 0.1
+    $edgeColor = '#0000000f'
+    $showArrows = $false
+    $arrowSize = 0.08
+    $outputName = 'wiki-vote-sfdp-full.svg'
+    Write-Host "Render graph: $($graphToRender.VertexCount) vertices, $($graphToRender.EdgeCount) edges"
+}
+
+# --- Managed Sfdp layout (SVG) ---
+$outFile = Join-Path $OutputDir $outputName
+$exportParameters = @{
+    Graph = $graphToRender
+    Renderer = 'Sfdp'
+    As = 'Svg'
+    Path = $outFile
+    NodeRadius = $nodeRadius
+    EdgeLineWidth = $edgeLineWidth
+    EdgeColor = $edgeColor
+    ArrowSize = $arrowSize
+    DisableGroupColors = $true
+    SfdpSeed = $SfdpSeed
+    SfdpOverlapRemovalPadding = 4
+    Width = $ImageWidth
+    Height = $ImageHeight
+}
+if ($showArrows) {
+    $exportParameters.ShowArrows = $true
+}
+
+Export-GraphView @exportParameters
+
+Write-Host "[1/1] Managed Sfdp layout: $outFile" -ForegroundColor Green
+
+$sixelPreviewShown = $false
+if ($ShowSixelPreview) {
+    $sixelSupport = Get-SixelPreviewSupport
+    if (-not $sixelSupport.Supported -and -not $ForceSixelPreview) {
+        Write-Warning "Skipping SIXEL preview. $($sixelSupport.Reason) Use -ForceSixelPreview to send SIXEL anyway."
+    }
+    else {
+        if (-not $sixelSupport.Supported) {
+            Write-Warning "Forcing SIXEL preview even though the terminal reported: $($sixelSupport.Reason)"
         }
+
+        Write-Host "Rendering SIXEL preview in terminal..." -ForegroundColor Cyan
+        Out-Sixel -Path $outFile -Width $SixelWidth -Colors $SixelColors
+        $sixelPreviewShown = $true
     }
 }
-
-# Ensure all seed vertices present even if isolated in subgraph
-foreach ($v in $seedVertices) {
-    Add-Vertex -Graph $subgraph -Vertex $v.Label -ErrorAction SilentlyContinue | Out-Null
-}
-
-Write-Host "Subgraph: $($subgraph.VertexCount) vertices, $($subgraph.EdgeCount) edges"
-
-# --- 1. Vega Force-Directed (subgraph, interactive HTML) ---
-$outFile = Join-Path $OutputDir 'wiki-vote-force.html'
-Export-GraphView -Graph $subgraph `
-    -Renderer VegaForceDirected `
-    -As Html `
-    -Path $outFile `
-    -ShowLabels `
-    -ShowArrows `
-    -NodeRadius 4 `
-    -LabelFontSize 8
-Write-Host "[1/7] Force-directed (subgraph): $outFile" -ForegroundColor Green
-
-# --- 2. Vega Adjacency Matrix (subgraph, interactive HTML) ---
-$outFile = Join-Path $OutputDir 'wiki-vote-matrix.html'
-Export-GraphView -Graph $subgraph `
-    -Renderer VegaAdjacencyMatrix `
-    -As Html `
-    -Path $outFile
-Write-Host "[2/7] Adjacency matrix (subgraph): $outFile" -ForegroundColor Green
-
-# --- 3. MSAGL MDS (subgraph, SVG) ---
-$outFile = Join-Path $OutputDir 'wiki-vote-mds.svg'
-Export-GraphView -Graph $subgraph `
-    -Renderer MsaglMds `
-    -As Svg `
-    -Path $outFile `
-    -ShowLabels `
-    -ShowArrows `
-    -NodeRadius 3 `
-    -LabelFontSize 7
-Write-Host "[3/7] MDS layout (subgraph): $outFile" -ForegroundColor Green
-
-# --- 4. MSAGL Sugiyama (subgraph, SVG) ---
-$outFile = Join-Path $OutputDir 'wiki-vote-sugiyama.svg'
-Export-GraphView -Graph $subgraph `
-    -Renderer MsaglSugiyama `
-    -As Svg `
-    -Path $outFile `
-    -ShowLabels `
-    -ShowArrows `
-    -SugiyamaDirection Horizontal `
-    -SugiyamaNodeSeparation 10
-Write-Host "[4/7] Sugiyama layout (subgraph): $outFile" -ForegroundColor Green
-
-# --- 5. DSM plain matrix ---
-$dsm = New-DSM -Graph $subgraph
-$outFile = Join-Path $OutputDir 'wiki-vote-dsm.svg'
-Export-DSMView -Dsm $dsm `
-    -Renderer DsmMatrixSvg `
-    -As Svg `
-    -Path $outFile
-Write-Host "[5/7] DSM plain (SVG): $outFile" -ForegroundColor Green
-
-$outFile = Join-Path $OutputDir 'wiki-vote-dsm.html'
-Export-DSMView -Dsm $dsm `
-    -Renderer DsmVegaMatrix `
-    -As Html `
-    -Path $outFile
-Write-Host "       DSM plain (Vega HTML): $outFile" -ForegroundColor Green
-
-# --- 6. DSM after clustering ---
-$clustered = Start-DSMClustering -Dsm $dsm
-$outFile = Join-Path $OutputDir 'wiki-vote-dsm-clustered.svg'
-Export-DSMView -Result $clustered `
-    -Renderer DsmMatrixSvg `
-    -As Svg `
-    -Path $outFile
-Write-Host "[6/7] DSM clustered (SVG): $outFile" -ForegroundColor Green
-
-$outFile = Join-Path $OutputDir 'wiki-vote-dsm-clustered.html'
-Export-DSMView -Result $clustered `
-    -Renderer DsmVegaMatrix `
-    -As Html `
-    -Path $outFile
-Write-Host "       DSM clustered (Vega HTML): $outFile" -ForegroundColor Green
-
-# --- 7. DSM after sequencing ---
-$sequenced = Start-DSMSequencing -Dsm $dsm
-$outFile = Join-Path $OutputDir 'wiki-vote-dsm-sequenced.svg'
-Export-DSMView -SequencedDsm $sequenced `
-    -Renderer DsmMatrixSvg `
-    -As Svg `
-    -Path $outFile
-Write-Host "[7/7] DSM sequenced (SVG): $outFile" -ForegroundColor Green
 
 Write-Host "`nAll outputs in: $OutputDir" -ForegroundColor Cyan
-Write-Host "Open the .html files in a browser for interactive exploration.`n"
+if ($sixelPreviewShown) {
+    Write-Host "The SVG was also rendered in the current terminal via Out-Sixel.`n"
+}
+elseif ($ShowSixelPreview) {
+    Write-Host "SIXEL preview was requested but skipped because the current terminal does not report usable SIXEL support.`n"
+}
+else {
+    Write-Host "Rerun with -ShowSixelPreview to render the SVG directly in a SIXEL-capable terminal.`n"
+}

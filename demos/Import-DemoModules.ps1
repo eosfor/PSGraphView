@@ -3,26 +3,84 @@ function Import-PSGraphViewDemoModules {
     param(
         [switch]$UseLocalModules,
         [string]$PSQuickGraphManifestPath,
-        [string]$PSGraphViewManifestPath
+        [string]$PSGraphViewManifestPath,
+        [switch]$ImportLibSixel,
+        [string]$LibSixelManifestPath
     )
 
     $repoRoot = Split-Path -Parent $PSScriptRoot
     $defaultPsQuickGraphManifest = Join-Path (Join-Path (Split-Path -Parent $repoRoot) 'PSGraph') 'PSGraph.Tests/bin/Debug/net9.0/PSQuickGraph.psd1'
-    $defaultPsGraphViewManifest = Join-Path $repoRoot 'tests/PSGraphView.PowerShell.Tests/bin/Debug/net9.0/PSGraphView.psd1'
+    $defaultPsGraphViewManifest = Get-PSGraphViewPublishManifestPath -RepoRoot $repoRoot
+    $defaultLibSixelManifest = Join-Path (Join-Path (Split-Path -Parent $repoRoot) 'libsixel') 'src/LibSixel.PowerShell/bin/Debug/net9.0/LibSixel.PowerShell.psd1'
 
-    Remove-Module PSQuickGraph, PSGraphView -ErrorAction SilentlyContinue
+    Remove-Module PSQuickGraph, PSGraphView, LibSixel.PowerShell -ErrorAction SilentlyContinue
 
     Import-DemoModule `
         -ModuleName 'PSQuickGraph' `
         -PreferredManifestPath $PSQuickGraphManifestPath `
         -DefaultManifestPath $defaultPsQuickGraphManifest `
-        -UseLocalModules:$UseLocalModules
+        -UseLocalModules:$UseLocalModules `
+        -ResolutionHint "Install-Module PSQuickGraph -Scope CurrentUser"
 
     Import-DemoModule `
         -ModuleName 'PSGraphView' `
         -PreferredManifestPath $PSGraphViewManifestPath `
         -DefaultManifestPath $defaultPsGraphViewManifest `
-        -UseLocalModules:$UseLocalModules
+        -UseLocalModules:$UseLocalModules `
+        -ResolutionHint "Install-Module PSGraphView -Scope CurrentUser"
+
+    if ($ImportLibSixel) {
+        Import-DemoModule `
+            -ModuleName 'LibSixel.PowerShell' `
+            -PreferredManifestPath $LibSixelManifestPath `
+            -DefaultManifestPath $defaultLibSixelManifest `
+            -UseLocalModules:$UseLocalModules `
+            -ResolutionHint "Build libsixel locally with 'dotnet build ../libsixel/src/LibSixel.PowerShell/LibSixel.PowerShell.csproj' and rerun with -UseLocalModules or pass -LibSixelManifestPath."
+    }
+}
+
+function Get-PSGraphViewPublishManifestPath {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$RepoRoot
+    )
+
+    $publishRoot = Join-Path ([System.IO.Path]::GetTempPath()) 'PSGraphView-demo-publish'
+    $publishDir = Join-Path $publishRoot 'PSGraphView.PowerShell'
+    $tfmDir = Join-Path $publishDir 'net9.0'
+    if (Test-Path $tfmDir) {
+        return Join-Path $tfmDir 'PSGraphView.psd1'
+    }
+
+    return Join-Path $publishDir 'PSGraphView.psd1'
+}
+
+function Publish-PSGraphViewLocalModule {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$RepoRoot
+    )
+
+    $projectPath = Join-Path $RepoRoot 'src/PSGraphView.PowerShell/PSGraphView.PowerShell.csproj'
+    $publishManifestPath = Get-PSGraphViewPublishManifestPath -RepoRoot $RepoRoot
+    $publishDir = Split-Path -Parent $publishManifestPath
+
+    if (Test-Path $publishDir) {
+        Remove-Item -Path $publishDir -Recurse -Force
+    }
+
+    New-Item -ItemType Directory -Path $publishDir -Force | Out-Null
+
+    Write-Verbose "Publishing PSGraphView local module to '$publishDir'."
+    dotnet publish $projectPath -c Debug -o $publishDir | Out-Host
+
+    if (-not (Test-Path $publishManifestPath)) {
+        throw "Published PSGraphView manifest was not found at '$publishManifestPath'."
+    }
+
+    return $publishManifestPath
 }
 
 function Import-DemoModule {
@@ -32,7 +90,8 @@ function Import-DemoModule {
         [string]$ModuleName,
         [string]$PreferredManifestPath,
         [string]$DefaultManifestPath,
-        [switch]$UseLocalModules
+        [switch]$UseLocalModules,
+        [string]$ResolutionHint
     )
 
     if ($PreferredManifestPath) {
@@ -42,7 +101,17 @@ function Import-DemoModule {
         return
     }
 
+    if ($UseLocalModules -and $ModuleName -eq 'PSGraphView') {
+        $repoRoot = Split-Path -Parent $PSScriptRoot
+        $DefaultManifestPath = Publish-PSGraphViewLocalModule -RepoRoot $repoRoot
+
+        Write-Verbose "Loading $ModuleName from repo manifest '$DefaultManifestPath'."
+        Import-Module $DefaultManifestPath -Force -ErrorAction Stop
+        return
+    }
+
     if ($UseLocalModules -and (Test-Path $DefaultManifestPath)) {
+
         Write-Verbose "Loading $ModuleName from repo manifest '$DefaultManifestPath'."
         Import-Module $DefaultManifestPath -Force -ErrorAction Stop
         return
@@ -53,12 +122,18 @@ function Import-DemoModule {
         Import-Module $ModuleName -Force -ErrorAction Stop
     }
     catch {
-        $installHint = "Install-Module $ModuleName -Scope CurrentUser"
-        if ($UseLocalModules) {
-            throw "Module '$ModuleName' is not installed and no usable local manifest was found. Install it from PSGallery with '$installHint' or pass -${ModuleName}ManifestPath to a local build output."
+        $resolutionHintText = if ($ResolutionHint) {
+            $ResolutionHint
+        }
+        else {
+            "Install-Module $ModuleName -Scope CurrentUser"
         }
 
-        throw "Module '$ModuleName' is not installed. Install it from PSGallery with '$installHint', or rerun the demo with -UseLocalModules or an explicit local manifest path."
+        if ($UseLocalModules) {
+            throw "Module '$ModuleName' is not installed and no usable local manifest was found. $resolutionHintText"
+        }
+
+        throw "Module '$ModuleName' is not installed. $resolutionHintText"
     }
 }
 

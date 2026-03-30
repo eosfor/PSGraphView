@@ -12,7 +12,11 @@ param(
     ,
     [switch]$UseLocalModules,
     [string]$PSQuickGraphManifestPath,
-    [string]$PSGraphViewManifestPath
+    [string]$PSGraphViewManifestPath,
+    [string]$LibSixelManifestPath,
+    [switch]$ShowWikiVoteSixelPreview,
+    [int]$WikiVoteSixelColors = 128,
+    [int]$WikiVoteSixelWidth = 1200
 )
 
 $ErrorActionPreference = 'Stop'
@@ -39,6 +43,10 @@ Write-Host "========================================`n" -ForegroundColor Cyan
     -UseLocalModules:$UseLocalModules `
     -PSQuickGraphManifestPath $PSQuickGraphManifestPath `
     -PSGraphViewManifestPath $PSGraphViewManifestPath `
+    -LibSixelManifestPath $LibSixelManifestPath `
+    -ShowSixelPreview:$ShowWikiVoteSixelPreview `
+    -SixelColors $WikiVoteSixelColors `
+    -SixelWidth $WikiVoteSixelWidth `
     -Verbose:($VerbosePreference -eq 'Continue')
 
 Write-Host "`n========================================" -ForegroundColor Cyan
