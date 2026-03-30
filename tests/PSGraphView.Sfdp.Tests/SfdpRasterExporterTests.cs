@@ -61,6 +61,10 @@ public sealed class SfdpRasterExporterTests
                 Assert.True(data.GetProperty("pixelWidth").GetInt32() > 0);
                 Assert.True(data.GetProperty("pixelHeight").GetInt32() > 0);
                 Assert.True(data.GetProperty("flattenedForOpaqueOutput").GetBoolean());
+                Assert.Equal(90, data.GetProperty("encodeQuality").GetInt32());
+                Assert.Equal("GraphvizLikeGdThreshold", data.GetProperty("opaqueOutputPolicy").GetString());
+                Assert.Equal("#fffffeff", data.GetProperty("opaqueFallbackColor").GetString());
+                Assert.Equal(64, data.GetProperty("opaqueAlphaThreshold").GetInt32());
             }
 
             Assert.True(rasterSeen);

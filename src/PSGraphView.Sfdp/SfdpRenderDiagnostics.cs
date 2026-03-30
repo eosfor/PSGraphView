@@ -122,7 +122,11 @@ internal static class SfdpRenderDiagnostics
             ("outputWidth", scene.Viewport.OutputWidth),
             ("outputHeight", scene.Viewport.OutputHeight),
             ("rasterWidthPoints", scene.Viewport.RasterWidthPoints),
-            ("rasterHeightPoints", scene.Viewport.RasterHeightPoints)
+            ("rasterHeightPoints", scene.Viewport.RasterHeightPoints),
+            ("encodeQuality", result.EncodeQuality),
+            ("opaqueOutputPolicy", result.OpaqueOutputPolicy),
+            ("opaqueFallbackColor", result.OpaqueFallbackColor),
+            ("opaqueAlphaThreshold", result.OpaqueAlphaThreshold)
         ]);
     }
 

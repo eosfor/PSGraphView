@@ -32,11 +32,49 @@ public sealed class GraphRasterRenderSceneWriterTests
         Assert.Equal(64, result.PixelWidth);
         Assert.Equal(32, result.PixelHeight);
         Assert.True(result.FlattenedForOpaqueOutput);
+        Assert.Equal(90, result.EncodeQuality);
+        Assert.Equal("GraphvizLikeGdThreshold", result.OpaqueOutputPolicy);
+        Assert.Equal("#fffffeff", result.OpaqueFallbackColor);
+        Assert.Equal((byte)64, result.OpaqueAlphaThreshold);
 
         using SKData data = SKData.CreateCopy(result.Bytes);
         using SKImage image = SKImage.FromEncodedData(data)!;
         Assert.Equal(64, image.Width);
         Assert.Equal(32, image.Height);
+    }
+
+    [Fact]
+    public void RenderJpg_UsesGraphvizLikeThresholdForMostlyTransparentPixels()
+    {
+        var scene = CreateSceneWithTransparentNode("#2080ff30");
+
+        var result = GraphRasterRenderSceneWriter.RenderJpg(scene);
+
+        using SKData data = SKData.CreateCopy(result.Bytes);
+        using SKImage image = SKImage.FromEncodedData(data)!;
+        using var bitmap = ReadBitmap(image);
+
+        SKColor center = bitmap.GetPixel(24, 16);
+        Assert.InRange(center.Red, 240, 255);
+        Assert.InRange(center.Green, 240, 255);
+        Assert.InRange(center.Blue, 238, 255);
+    }
+
+    [Fact]
+    public void RenderJpg_KeepsRgbForOpaqueEnoughPixelsWithoutBlendingToWhite()
+    {
+        var scene = CreateSceneWithTransparentNode("#2080ff80");
+
+        var result = GraphRasterRenderSceneWriter.RenderJpg(scene);
+
+        using SKData data = SKData.CreateCopy(result.Bytes);
+        using SKImage image = SKImage.FromEncodedData(data)!;
+        using var bitmap = ReadBitmap(image);
+
+        SKColor center = bitmap.GetPixel(24, 16);
+        Assert.InRange(center.Red, 0, 90);
+        Assert.InRange(center.Green, 64, 176);
+        Assert.InRange(center.Blue, 180, 255);
     }
 
     private static GraphRenderScene CreateScene()
@@ -55,5 +93,27 @@ public sealed class GraphRasterRenderSceneWriterTests
         };
 
         return new GraphRenderScene(viewport, style, canvas, edges, nodes);
+    }
+
+    private static GraphRenderScene CreateSceneWithTransparentNode(string fill)
+    {
+        var viewport = new GraphRenderViewport(0.0, 0.0, 48.0, 24.0, 48.0, 24.0, 48.0, 24.0);
+        var style = new GraphRenderStyle(false, "#ffffff", null);
+        var canvas = new GraphRenderCanvas("graph0", "graph", "G", "scale(1 1) rotate(0) translate(0 0)", "0,0 0,0 0,0 0,0");
+        var nodes = new[]
+        {
+            new GraphRenderNode("node1", "A", "A", 24, 16, 8, 8, fill, fill, 0.0, null)
+        };
+
+        return new GraphRenderScene(viewport, style, canvas, Array.Empty<GraphRenderEdge>(), nodes);
+    }
+
+    private static SKBitmap ReadBitmap(SKImage image)
+    {
+        var info = new SKImageInfo(image.Width, image.Height, SKColorType.Rgba8888, SKAlphaType.Unpremul);
+        var bitmap = new SKBitmap(info);
+        var ok = image.ReadPixels(info, bitmap.GetPixels(), info.RowBytes, 0, 0);
+        Assert.True(ok);
+        return bitmap;
     }
 }

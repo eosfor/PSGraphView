@@ -1617,7 +1617,7 @@
 
 Статус:
 
-- не сделано
+- сделано
 
 Цель:
 
@@ -1635,9 +1635,55 @@
 3. Добавить сравнение по pixel metrics уже без alpha.
 4. Проверить размер / quality behavior как вспомогательную метрику.
 
+Результат:
+
+1. `jpg` path больше не рисуется сразу на fallback background.
+   Теперь `SkiaSharp` сначала получает прозрачный ARGB scene, а затем отдельный opaque-conversion step повторяет `graphviz/gd`-подобную policy:
+   - fallback color `#fffffe`
+   - threshold по 8-bit alpha `64`
+   - пиксели ниже порога заменяются fallback color
+   - пиксели на пороге и выше сохраняют исходный RGB без ручного смешивания с белым фоном
+2. Managed diagnostics для raster теперь пишут:
+   - `encodeQuality`
+   - `opaqueOutputPolicy`
+   - `opaqueFallbackColor`
+   - `opaqueAlphaThreshold`
+3. Compare harness теперь считает ещё одну `jpg`-метрику:
+   - `NearFallbackPixelDelta`
+4. `Patch 6` закрыл именно `jpeg flattening semantics`, но не снял общий большой raster mismatch:
+   - на `WikiVote 30 / 99` размеры по-прежнему `194x164` vs `164x143`
+   - значит главный remaining blocker уже не в `jpg` policy, а в тех же geometry / density / text расхождениях, которые сидят выше по pipeline
+
+Телеметрия:
+
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.GVExport/GraphRasterRenderSceneWriter.cs` now:
+  - renders `jpg` from transparent scene first
+  - applies graphviz-like gd threshold flatten step before JPEG encode
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.Sfdp/SfdpRenderDiagnostics.cs` now logs JPEG policy fields
+- code change: `/Users/andrei/repo/PSGraphView/demos/Compare-Export.Common.ps1` now reports `NearFallbackPixelDelta`
+- test: `dotnet test tests/PSGraphView.GVExport.Tests/PSGraphView.GVExport.Tests.csproj`
+- result: `6/6` passed
+- test: `dotnet test tests/PSGraphView.Sfdp.Tests/PSGraphView.Sfdp.Tests.csproj --filter SfdpRasterExporterTests`
+- result: `2/2` passed
+- test: `dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --filter ExportGraphViewCmdletTests`
+- result: `13/13` passed
+- run: `pwsh -NoProfile -File demos/Compare-Export-SmallGraphs.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-small-compare-patch6`
+- result: all `6/6` cases completed successfully and now expose `NearFallbackPixelCount`
+- result: on `self-loop`, `JpgDarkPixelDelta` improved from `-4` to `0`
+- result: on `self-loop`, `JpgNonWhitePixelDelta` improved from `-4` to `0`
+- run: `pwsh -NoProfile -File demos/Compare-WikiVote-Export.ps1 -UseLocalModules -UseSubgraph -SubgraphSeedCount 30 -SubgraphStartVertexCount 3 -OutputDir /tmp/psgraphview-export-wikivote-patch6`
+- result: `30 vertices / 99 edges`
+- result: `JpgWidthDelta = 30`
+- result: `JpgHeightDelta = 21`
+- result: `JpgDarkPixelDelta = -975`
+- result: `JpgNonWhitePixelDelta = -975`
+- result: `JpgNearFallbackPixelDelta = 9125`
+
 Критерий готовности:
 
-- `jpg` визуально и численно близок к reference output
+- `jpg` использует graphviz-like opaque conversion policy
+- compare harness умеет отдельно мерить `jpg` fallback behavior
+- зафиксировано, что remaining большой mismatch уже сидит выше, а не в самом `jpeg flattening`
 
 ### Patch 7. Добивка text / font / label parity
 

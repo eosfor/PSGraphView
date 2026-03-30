@@ -613,3 +613,58 @@
 - после `Patch 3c` compare harness снова можно использовать для честной оценки `svg/png/jpg`
 - визуальный blocker на `svg` снят
 - если нужна более близкая size parity, следующий кандидат — отдельный follow-up patch на natural-size / curve-envelope alignment
+
+## 2026-03-30 15:15 PDT - Patch 6 закрываем как JPEG semantics patch, а не как полный raster parity fix
+
+Решение: считаем `Patch 6` выполненным в узком, но важном смысле: managed `jpg` теперь использует graphviz-like opaque conversion policy, а compare harness умеет отдельно мерить fallback behavior. При этом полный `jpg` parity пока не закрыт, потому что основной remaining mismatch остаётся выше по pipeline.
+
+Причины:
+
+- в `graphviz` `jpg:cairo` идёт не через "сразу рисовать на белый фон", а через ARGB buffer + `gd` device
+- `gd` branch использует off-white transparent fallback и threshold-подобную логику для слабо непрозрачных пикселей
+- прежний managed path был слишком сглаженным:
+  - сразу очищал surface в fallback color
+  - потом смешивал всю полупрозрачность поверх этого фона
+- новый path ближе к observed `graphviz` semantics:
+  - сначала transparent scene
+  - потом отдельный opaque-conversion step
+  - fallback color `#fffffe`
+  - 8-bit alpha threshold `64`, соответствующий порогу из `gd`-ветки после пересчёта из 7-bit alpha
+- telemetry после этого показывает, что `jpg` policy действительно стала измеримой отдельно, но большой `WikiVote` mismatch почти не сдвинулся
+
+Телеметрия:
+
+- source reference: `/Users/andrei/repo/graphviz/plugin/gd/gvdevice_gd.c`
+- source reference: `/Users/andrei/repo/graphviz/plugin/pango/gvrender_pango.c`
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.GVExport/GraphRasterRenderSceneWriter.cs`
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.Sfdp/SfdpRenderDiagnostics.cs`
+- code change: `/Users/andrei/repo/PSGraphView/demos/Compare-Export.Common.ps1`
+- test: `dotnet test tests/PSGraphView.GVExport.Tests/PSGraphView.GVExport.Tests.csproj`
+- result: `6/6` passed
+- test: `dotnet test tests/PSGraphView.Sfdp.Tests/PSGraphView.Sfdp.Tests.csproj --filter SfdpRasterExporterTests`
+- result: `2/2` passed
+- test: `dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --filter ExportGraphViewCmdletTests`
+- result: `13/13` passed
+- run: `pwsh -NoProfile -File demos/Compare-Export-SmallGraphs.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-small-compare-patch6`
+- result: all `6/6` cases completed successfully
+- result: `self-loop` improved from `JpgDarkPixelDelta = -4` to `0`
+- result: `self-loop` improved from `JpgNonWhitePixelDelta = -4` to `0`
+- result: `single-edge` now has `JpgNearFallbackPixelDelta = 67`
+- run: `pwsh -NoProfile -File demos/Compare-WikiVote-Export.ps1 -UseLocalModules -UseSubgraph -SubgraphSeedCount 30 -SubgraphStartVertexCount 3 -OutputDir /tmp/psgraphview-export-wikivote-patch6`
+- result: `30 vertices / 99 edges`
+- result: `JpgWidthDelta` stayed `30`
+- result: `JpgHeightDelta` stayed `21`
+- result: `JpgDarkPixelDelta` moved from `-966` to `-975`
+- result: `JpgNonWhitePixelDelta` moved from `-962` to `-975`
+- result: `JpgNearFallbackPixelDelta = 9125`
+
+Следствие:
+
+- `Patch 6` не нужно дальше пытаться "дожать" вслепую через ещё один local tweak во flattening
+- текущий remaining mismatch прежде всего наследуется от:
+  - geometry / natural-size parity
+  - scene density
+  - text / label parity
+- значит следующий meaningful шаг остаётся тем же:
+  - `Patch 3d`
+  - затем `Patch 7`

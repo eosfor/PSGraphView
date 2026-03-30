@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using SkiaSharp;
 
@@ -9,6 +10,8 @@ public static class GraphRasterRenderSceneWriter
     private const double SvgDpi = 72.0;
     private const double RasterDpi = 96.0;
     private const int DefaultJpegQuality = 90;
+    private const byte GraphvizJpegOpaqueAlphaThreshold = 64;
+    private static readonly SKColor JpegTransparentFallbackBackground = new(255, 255, 254, 255);
 
     public static GraphRasterRenderResult RenderPng(GraphRenderScene scene)
         => Render(scene, GraphRasterImageFormat.Png, DefaultJpegQuality);
@@ -39,7 +42,7 @@ public static class GraphRasterRenderSceneWriter
         {
             GraphRasterImageFormat.Png when scene.Style.ShowBackgroundRect => ParseColor(scene.Style.BackgroundColor),
             GraphRasterImageFormat.Png => SKColors.Transparent,
-            _ => GetJpegFallbackBackground()
+            _ => SKColors.Transparent
         };
         canvas.Clear(clearColor);
         canvas.Scale((float)scaleX, (float)scaleY);
@@ -66,12 +69,9 @@ public static class GraphRasterRenderSceneWriter
         canvas.Flush();
 
         using SKImage renderedImage = surface.Snapshot();
-        using SKImage encodedImage = format == GraphRasterImageFormat.Jpg
-            ? FlattenForJpeg(renderedImage, info, scene)
-            : renderedImage;
-        using SKData data = encodedImage.Encode(
-            format == GraphRasterImageFormat.Png ? SKEncodedImageFormat.Png : SKEncodedImageFormat.Jpeg,
-            quality);
+        using SKData data = format == GraphRasterImageFormat.Jpg
+            ? EncodeJpeg(renderedImage, info, scene, quality)
+            : renderedImage.Encode(SKEncodedImageFormat.Png, quality);
 
         return new GraphRasterRenderResult(
             data.ToArray(),
@@ -81,7 +81,11 @@ public static class GraphRasterRenderSceneWriter
             scaleY,
             GraphRasterBackendSelection.Selected.ToString(),
             format.ToString(),
-            format == GraphRasterImageFormat.Jpg);
+            format == GraphRasterImageFormat.Jpg,
+            format == GraphRasterImageFormat.Jpg ? DefaultJpegQuality : null,
+            format == GraphRasterImageFormat.Jpg ? "GraphvizLikeGdThreshold" : null,
+            format == GraphRasterImageFormat.Jpg ? FormatColor(JpegTransparentFallbackBackground) : null,
+            format == GraphRasterImageFormat.Jpg ? GraphvizJpegOpaqueAlphaThreshold : null);
     }
 
     private static void DrawBackgroundPolygon(SKCanvas canvas, GraphRenderScene scene)
@@ -214,16 +218,46 @@ public static class GraphRasterRenderSceneWriter
         canvas.DrawPath(path, fillPaint);
     }
 
-    private static SKImage FlattenForJpeg(SKImage sourceImage, SKImageInfo info, GraphRenderScene scene)
+    private static SKData EncodeJpeg(SKImage sourceImage, SKImageInfo info, GraphRenderScene scene, int quality)
     {
-        using SKSurface surface = SKSurface.Create(info)
-            ?? throw new InvalidOperationException("Failed to create Skia JPEG flatten surface.");
+        var sourceInfo = new SKImageInfo(info.Width, info.Height, SKColorType.Rgba8888, SKAlphaType.Unpremul);
+        using var sourceBitmap = new SKBitmap(sourceInfo);
+        if (!sourceImage.ReadPixels(sourceInfo, sourceBitmap.GetPixels(), sourceInfo.RowBytes, 0, 0))
+        {
+            throw new InvalidOperationException("Failed to read Skia JPEG source pixels.");
+        }
 
-        var canvas = surface.Canvas;
-        canvas.Clear(scene.Style.ShowBackgroundRect ? ParseColor(scene.Style.BackgroundColor) : GetJpegFallbackBackground());
-        canvas.DrawImage(sourceImage, 0, 0);
-        canvas.Flush();
-        return surface.Snapshot();
+        var sourceBytes = new byte[sourceInfo.RowBytes * sourceInfo.Height];
+        Marshal.Copy(sourceBitmap.GetPixels(), sourceBytes, 0, sourceBytes.Length);
+
+        var flattenedInfo = new SKImageInfo(info.Width, info.Height, SKColorType.Rgba8888, SKAlphaType.Opaque);
+        var flattenedBytes = new byte[flattenedInfo.RowBytes * flattenedInfo.Height];
+        var backgroundColor = scene.Style.ShowBackgroundRect
+            ? ParseColor(scene.Style.BackgroundColor)
+            : JpegTransparentFallbackBackground;
+
+        for (var index = 0; index < sourceBytes.Length; index += 4)
+        {
+            var alpha = sourceBytes[index + 3];
+            if (alpha >= GraphvizJpegOpaqueAlphaThreshold)
+            {
+                flattenedBytes[index] = sourceBytes[index];
+                flattenedBytes[index + 1] = sourceBytes[index + 1];
+                flattenedBytes[index + 2] = sourceBytes[index + 2];
+                flattenedBytes[index + 3] = byte.MaxValue;
+                continue;
+            }
+
+            flattenedBytes[index] = backgroundColor.Red;
+            flattenedBytes[index + 1] = backgroundColor.Green;
+            flattenedBytes[index + 2] = backgroundColor.Blue;
+            flattenedBytes[index + 3] = byte.MaxValue;
+        }
+
+        using var flattenedBitmap = new SKBitmap(flattenedInfo);
+        Marshal.Copy(flattenedBytes, 0, flattenedBitmap.GetPixels(), flattenedBytes.Length);
+        using SKImage flattenedImage = SKImage.FromBitmap(flattenedBitmap);
+        return flattenedImage.Encode(SKEncodedImageFormat.Jpeg, quality);
     }
 
     private static SKColor ParseColor(string value)
@@ -250,7 +284,10 @@ public static class GraphRasterRenderSceneWriter
     private static byte ParseByte(string hex, int startIndex)
         => byte.Parse(hex.AsSpan(startIndex, 2), NumberStyles.HexNumber, CultureInfo.InvariantCulture);
 
-    private static SKColor GetJpegFallbackBackground() => new(255, 255, 254, 255);
+    private static string FormatColor(SKColor color)
+        => string.Create(
+            CultureInfo.InvariantCulture,
+            $"#{color.Red:x2}{color.Green:x2}{color.Blue:x2}{color.Alpha:x2}");
 
     private static IReadOnlyList<SKPoint> ParsePolygonPoints(string value)
     {
@@ -317,7 +354,11 @@ public sealed record GraphRasterRenderResult(
     double ScaleY,
     string Backend,
     string Format,
-    bool FlattenedForOpaqueOutput);
+    bool FlattenedForOpaqueOutput,
+    int? EncodeQuality,
+    string? OpaqueOutputPolicy,
+    string? OpaqueFallbackColor,
+    byte? OpaqueAlphaThreshold);
 
 internal enum GraphRasterImageFormat
 {

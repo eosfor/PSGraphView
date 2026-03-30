@@ -517,6 +517,7 @@ function Get-RasterPixelSummary {
                 $transparentPixelCount = 0
                 $darkPixelCount = 0
                 $nonWhitePixelCount = 0
+                $nearFallbackPixelCount = 0
 
                 for ($index = 0; $index -lt $pixels.Length; $index += 4) {
                     $r = [int]$pixels[$index]
@@ -538,6 +539,10 @@ function Get-RasterPixelSummary {
                     if ((($r + $g + $b) / 3.0) -lt 250) {
                         $darkPixelCount++
                     }
+
+                    if ([Math]::Abs($r - 255) -le 6 -and [Math]::Abs($g - 255) -le 6 -and [Math]::Abs($b - 254) -le 6) {
+                        $nearFallbackPixelCount++
+                    }
                 }
 
                 return [ordered]@{
@@ -545,6 +550,7 @@ function Get-RasterPixelSummary {
                     TransparentPixelCount = $transparentPixelCount
                     DarkPixelCount = $darkPixelCount
                     NonWhitePixelCount = $nonWhitePixelCount
+                    NearFallbackPixelCount = $nearFallbackPixelCount
                 }
             }
             finally {
@@ -973,6 +979,7 @@ function Get-RasterComparisonSummary {
         TransparentPixelDelta = if ($graphvizSummary.Contains('TransparentPixelCount') -and $managedSummary.Contains('TransparentPixelCount')) { $managedSummary.TransparentPixelCount - $graphvizSummary.TransparentPixelCount } else { $null }
         DarkPixelDelta = if ($graphvizSummary.Contains('DarkPixelCount') -and $managedSummary.Contains('DarkPixelCount')) { $managedSummary.DarkPixelCount - $graphvizSummary.DarkPixelCount } else { $null }
         NonWhitePixelDelta = if ($graphvizSummary.Contains('NonWhitePixelCount') -and $managedSummary.Contains('NonWhitePixelCount')) { $managedSummary.NonWhitePixelCount - $graphvizSummary.NonWhitePixelCount } else { $null }
+        NearFallbackPixelDelta = if ($graphvizSummary.Contains('NearFallbackPixelCount') -and $managedSummary.Contains('NearFallbackPixelCount')) { $managedSummary.NearFallbackPixelCount - $graphvizSummary.NearFallbackPixelCount } else { $null }
         Graphviz = $graphvizSummary
         Managed = $managedSummary
         ManagedDiagnostics = if ($ManagedResult.DiagnosticsSummary.Raster.Count -gt 0) { $ManagedResult.DiagnosticsSummary.Raster[-1] } else { $null }
