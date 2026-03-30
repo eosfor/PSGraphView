@@ -15,12 +15,16 @@
   <ItemGroup>
     <ProjectReference Include="../PSGraphView.Dsm/PSGraphView.Dsm.csproj" />
     <ProjectReference Include="../PSGraphView.Msagl/PSGraphView.Msagl.csproj" />
+    <ProjectReference Include="../PSGraphView.Sfdp/PSGraphView.Sfdp.csproj" />
     <ProjectReference Include="../PSGraphView.Vega/PSGraphView.Vega.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <Content Include="../PSGraphView.Vega/Assets/**/*.*">
       <Link>Assets\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="en-US/**/*.*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <None Update="PSGraphView.psd1">
