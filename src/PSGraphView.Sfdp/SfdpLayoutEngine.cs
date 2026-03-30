@@ -116,6 +116,7 @@ public sealed class SfdpLayoutEngine
         };
         var packingResult = SfdpComponentPacker.PackDetailed(
             componentLayouts,
+            csrGraph,
             options.NodeRadius,
             packingOptions);
 

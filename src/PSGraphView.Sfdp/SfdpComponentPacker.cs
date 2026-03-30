@@ -48,7 +48,7 @@ internal sealed record SfdpPackingResult(
 
 public sealed class SfdpPackingOptions
 {
-    public double ComponentGap { get; init; } = 40.0;
+    public double ComponentGap { get; init; } = 16.0;
     public double MaxRowWidth { get; init; } = 1600.0;
 }
 
@@ -89,13 +89,14 @@ public static class SfdpComponentPacker
         IReadOnlyList<SfdpComponentLayout> componentLayouts,
         double nodeRadius,
         SfdpPackingOptions? options = null)
-        => PackDetailed(componentLayouts, nodeRadius, options)
+        => PackDetailed(componentLayouts, null, nodeRadius, options)
             .Components
             .Select(static component => component.PackedComponent)
             .ToArray();
 
     internal static SfdpPackingResult PackDetailed(
         IReadOnlyList<SfdpComponentLayout> componentLayouts,
+        SfdpCsrGraph? graph,
         double nodeRadius,
         SfdpPackingOptions? options = null)
     {
@@ -152,12 +153,7 @@ public static class SfdpComponentPacker
                 0);
         }
 
-        if (ShouldPackAroundDominantComponent(preparedLayouts))
-        {
-            return PackAroundDominantComponent(preparedLayouts, options);
-        }
-
-        return PackBySpiralGrid(preparedLayouts, options);
+        return PackByPolyomino(preparedLayouts, graph, nodeRadius, options);
     }
 
     private static bool ShouldPackAroundDominantComponent(IReadOnlyList<PreparedComponentLayout> layouts)
@@ -172,65 +168,37 @@ public static class SfdpComponentPacker
         return dominant >= 100 && second * 10 <= dominant;
     }
 
-    private static SfdpPackingResult PackAroundDominantComponent(
+    private static SfdpPackingResult PackByPolyomino(
         IReadOnlyList<PreparedComponentLayout> layouts,
+        SfdpCsrGraph? graph,
+        double nodeRadius,
         SfdpPackingOptions options)
     {
-        var margin = Math.Max(options.ComponentGap / 2.0, 1.0);
-        var dominant = layouts[0];
-        var remainder = layouts.Skip(1).ToArray();
-        var step = remainder.Length > 0 ? ComputeStep(remainder, margin) : 1;
-        var occupiedCells = new HashSet<long>();
-        var packed = new List<SfdpPackedComponent>(layouts.Count);
-
-        var dominantGridWidth = Grid(dominant.Bounds.Width + (2.0 * margin), step);
-        var dominantGridHeight = Grid(dominant.Bounds.Height + (2.0 * margin), step);
-        var dominantGridX = -dominantGridWidth / 2;
-        var dominantGridY = -dominantGridHeight / 2;
-        if (!TryPlace(dominant, dominantGridWidth, dominantGridHeight, dominantGridX, dominantGridY, step, margin, occupiedCells, out var dominantPlacement))
-        {
-            throw new InvalidOperationException("Failed to place dominant component during prism packing.");
-        }
-
-        packed.Add(dominantPlacement);
-
-        for (var i = 0; i < remainder.Length; i++)
-        {
-            var layout = remainder[i];
-            var placement = FindPlacement(i + 1, layout, step, margin, occupiedCells);
-            packed.Add(placement);
-        }
-
-        return CreatePackingResult(
-            layouts,
-            NormalizePackedBounds(packed),
-            SfdpPackingStrategy.DominantComponent,
-            options.ComponentGap,
-            margin,
-            options.MaxRowWidth,
-            step);
-    }
-
-    private static SfdpPackingResult PackBySpiralGrid(
-        IReadOnlyList<PreparedComponentLayout> layouts,
-        SfdpPackingOptions options)
-    {
-        var margin = Math.Max(options.ComponentGap / 2.0, 1.0);
+        var margin = Math.Max(options.ComponentGap / 2.0, 0.0);
         var step = ComputeStep(layouts, margin);
         var occupiedCells = new HashSet<long>();
         var packed = new List<SfdpPackedComponent>(layouts.Count);
+        var shapes = layouts.ToDictionary(
+            static layout => layout.Layout.ComponentId,
+            layout => BuildPackingShape(layout, graph, nodeRadius, step, margin));
+        var orderedLayouts = layouts
+            .OrderByDescending(layout => shapes[layout.Layout.ComponentId].Perimeter)
+            .ThenBy(static layout => layout.Layout.ComponentId)
+            .ToArray();
 
-        for (var i = 0; i < layouts.Count; i++)
+        for (var i = 0; i < orderedLayouts.Length; i++)
         {
-            var layout = layouts[i];
-            var placement = FindPlacement(i, layout, step, margin, occupiedCells);
-            packed.Add(placement);
+            var layout = orderedLayouts[i];
+            var shape = shapes[layout.Layout.ComponentId];
+            packed.Add(FindPlacement(i, layout, shape, step, occupiedCells));
         }
 
         return CreatePackingResult(
             layouts,
             NormalizePackedBounds(packed),
-            SfdpPackingStrategy.SpiralGrid,
+            ShouldPackAroundDominantComponent(layouts)
+                ? SfdpPackingStrategy.DominantComponent
+                : SfdpPackingStrategy.SpiralGrid,
             options.ComponentGap,
             margin,
             options.MaxRowWidth,
@@ -240,29 +208,26 @@ public static class SfdpComponentPacker
     private static SfdpPackedComponent FindPlacement(
         int index,
         PreparedComponentLayout layout,
+        SfdpPackingShape shape,
         int step,
-        double margin,
         HashSet<long> occupiedCells)
     {
-        var gridWidth = Grid(layout.Bounds.Width + (2.0 * margin), step);
-        var gridHeight = Grid(layout.Bounds.Height + (2.0 * margin), step);
-
         if (index == 0)
         {
-            var centeredX = -gridWidth / 2;
-            var centeredY = -gridHeight / 2;
-            if (TryPlace(layout, gridWidth, gridHeight, centeredX, centeredY, step, margin, occupiedCells, out var centeredPlacement))
+            var centeredX = -shape.GridWidth / 2;
+            var centeredY = -shape.GridHeight / 2;
+            if (TryPlace(layout, shape, centeredX, centeredY, step, occupiedCells, out var centeredPlacement))
             {
                 return centeredPlacement;
             }
         }
 
-        if (TryPlace(layout, gridWidth, gridHeight, 0, 0, step, margin, occupiedCells, out var originPlacement))
+        if (TryPlace(layout, shape, 0, 0, step, occupiedCells, out var originPlacement))
         {
             return originPlacement;
         }
 
-        if (gridWidth >= gridHeight)
+        if (shape.GridWidth >= shape.GridHeight)
         {
             for (var bound = 1; ; bound++)
             {
@@ -270,7 +235,7 @@ public static class SfdpComponentPacker
                 var y = -bound;
                 for (; x < bound; x++)
                 {
-                    if (TryPlace(layout, gridWidth, gridHeight, x, y, step, margin, occupiedCells, out var placement))
+                    if (TryPlace(layout, shape, x, y, step, occupiedCells, out var placement))
                     {
                         return placement;
                     }
@@ -278,7 +243,7 @@ public static class SfdpComponentPacker
 
                 for (; y < bound; y++)
                 {
-                    if (TryPlace(layout, gridWidth, gridHeight, x, y, step, margin, occupiedCells, out var placement))
+                    if (TryPlace(layout, shape, x, y, step, occupiedCells, out var placement))
                     {
                         return placement;
                     }
@@ -286,7 +251,7 @@ public static class SfdpComponentPacker
 
                 for (; x > -bound; x--)
                 {
-                    if (TryPlace(layout, gridWidth, gridHeight, x, y, step, margin, occupiedCells, out var placement))
+                    if (TryPlace(layout, shape, x, y, step, occupiedCells, out var placement))
                     {
                         return placement;
                     }
@@ -294,7 +259,7 @@ public static class SfdpComponentPacker
 
                 for (; y > -bound; y--)
                 {
-                    if (TryPlace(layout, gridWidth, gridHeight, x, y, step, margin, occupiedCells, out var placement))
+                    if (TryPlace(layout, shape, x, y, step, occupiedCells, out var placement))
                     {
                         return placement;
                     }
@@ -302,7 +267,7 @@ public static class SfdpComponentPacker
 
                 for (; x < 0; x++)
                 {
-                    if (TryPlace(layout, gridWidth, gridHeight, x, y, step, margin, occupiedCells, out var placement))
+                    if (TryPlace(layout, shape, x, y, step, occupiedCells, out var placement))
                     {
                         return placement;
                     }
@@ -316,7 +281,7 @@ public static class SfdpComponentPacker
             var x = -bound;
             for (; y > -bound; y--)
             {
-                if (TryPlace(layout, gridWidth, gridHeight, x, y, step, margin, occupiedCells, out var placement))
+                if (TryPlace(layout, shape, x, y, step, occupiedCells, out var placement))
                 {
                     return placement;
                 }
@@ -324,7 +289,7 @@ public static class SfdpComponentPacker
 
             for (; x < bound; x++)
             {
-                if (TryPlace(layout, gridWidth, gridHeight, x, y, step, margin, occupiedCells, out var placement))
+                if (TryPlace(layout, shape, x, y, step, occupiedCells, out var placement))
                 {
                     return placement;
                 }
@@ -332,7 +297,7 @@ public static class SfdpComponentPacker
 
             for (; y < bound; y++)
             {
-                if (TryPlace(layout, gridWidth, gridHeight, x, y, step, margin, occupiedCells, out var placement))
+                if (TryPlace(layout, shape, x, y, step, occupiedCells, out var placement))
                 {
                     return placement;
                 }
@@ -340,7 +305,7 @@ public static class SfdpComponentPacker
 
             for (; x > -bound; x--)
             {
-                if (TryPlace(layout, gridWidth, gridHeight, x, y, step, margin, occupiedCells, out var placement))
+                if (TryPlace(layout, shape, x, y, step, occupiedCells, out var placement))
                 {
                     return placement;
                 }
@@ -348,7 +313,7 @@ public static class SfdpComponentPacker
 
             for (; y > 0; y--)
             {
-                if (TryPlace(layout, gridWidth, gridHeight, x, y, step, margin, occupiedCells, out var placement))
+                if (TryPlace(layout, shape, x, y, step, occupiedCells, out var placement))
                 {
                     return placement;
                 }
@@ -358,37 +323,29 @@ public static class SfdpComponentPacker
 
     private static bool TryPlace(
         PreparedComponentLayout layout,
-        int gridWidth,
-        int gridHeight,
+        SfdpPackingShape shape,
         int gridX,
         int gridY,
         int step,
-        double margin,
         HashSet<long> occupiedCells,
         out SfdpPackedComponent placement)
     {
-        for (var x = 0; x < gridWidth; x++)
+        foreach (var cell in shape.Cells)
         {
-            for (var y = 0; y < gridHeight; y++)
+            if (occupiedCells.Contains(ToCellKey(gridX + cell.X, gridY + cell.Y)))
             {
-                if (occupiedCells.Contains(ToCellKey(gridX + x, gridY + y)))
-                {
-                    placement = default!;
-                    return false;
-                }
+                placement = default!;
+                return false;
             }
         }
 
-        for (var x = 0; x < gridWidth; x++)
+        foreach (var cell in shape.Cells)
         {
-            for (var y = 0; y < gridHeight; y++)
-            {
-                occupiedCells.Add(ToCellKey(gridX + x, gridY + y));
-            }
+            occupiedCells.Add(ToCellKey(gridX + cell.X, gridY + cell.Y));
         }
 
-        var offsetX = step * gridX + margin - layout.Bounds.MinX;
-        var offsetY = step * gridY + margin - layout.Bounds.MinY;
+        var offsetX = step * gridX - shape.RoundedMinX;
+        var offsetY = step * gridY - shape.RoundedMinY;
         placement = new SfdpPackedComponent(
             layout.Layout.ComponentId,
             offsetX,
@@ -455,6 +412,155 @@ public static class SfdpComponentPacker
     private static long ToCellKey(int x, int y)
         => ((long)x << 32) ^ (uint)y;
 
+    private static SfdpPackingShape BuildPackingShape(
+        PreparedComponentLayout layout,
+        SfdpCsrGraph? graph,
+        double nodeRadius,
+        int step,
+        double margin)
+    {
+        var roundedMinX = Math.Round(layout.Bounds.MinX);
+        var roundedMinY = Math.Round(layout.Bounds.MinY);
+        var nodeHalfSize = Math.Max(0, (int)Math.Round(nodeRadius + margin));
+        var cells = new HashSet<long>();
+
+        for (var i = 0; i < layout.Layout.NodeIndices.Length; i++)
+        {
+            var centerX = (int)(Math.Round(layout.Layout.X[i]) - roundedMinX);
+            var centerY = (int)(Math.Round(layout.Layout.Y[i]) - roundedMinY);
+            var minCellX = CellValue(centerX - nodeHalfSize, step);
+            var minCellY = CellValue(centerY - nodeHalfSize, step);
+            var maxCellX = CellValue(centerX + nodeHalfSize, step);
+            var maxCellY = CellValue(centerY + nodeHalfSize, step);
+
+            for (var x = minCellX; x <= maxCellX; x++)
+            {
+                for (var y = minCellY; y <= maxCellY; y++)
+                {
+                    cells.Add(ToCellKey(x, y));
+                }
+            }
+        }
+
+        if (graph is not null)
+        {
+            AddEdgeCells(layout, graph, roundedMinX, roundedMinY, step, cells);
+        }
+
+        if (cells.Count == 0)
+        {
+            cells.Add(ToCellKey(0, 0));
+        }
+
+        return new SfdpPackingShape(
+            Cells: cells.Select(static key => new SfdpPackingCell((int)(key >> 32), (int)key)).ToArray(),
+            GridWidth: Grid(layout.Bounds.Width + (2.0 * margin), step),
+            GridHeight: Grid(layout.Bounds.Height + (2.0 * margin), step),
+            Perimeter: Grid(layout.Bounds.Width + (2.0 * margin), step) + Grid(layout.Bounds.Height + (2.0 * margin), step),
+            RoundedMinX: roundedMinX,
+            RoundedMinY: roundedMinY);
+    }
+
+    private static void AddEdgeCells(
+        PreparedComponentLayout layout,
+        SfdpCsrGraph graph,
+        double roundedMinX,
+        double roundedMinY,
+        int step,
+        HashSet<long> cells)
+    {
+        var localIndexByGlobal = new Dictionary<int, int>(layout.Layout.NodeIndices.Length);
+        for (var i = 0; i < layout.Layout.NodeIndices.Length; i++)
+        {
+            localIndexByGlobal[layout.Layout.NodeIndices[i]] = i;
+        }
+
+        for (var localIndex = 0; localIndex < layout.Layout.NodeIndices.Length; localIndex++)
+        {
+            var globalIndex = layout.Layout.NodeIndices[localIndex];
+            var start = graph.Offsets[globalIndex];
+            var end = graph.Offsets[globalIndex + 1];
+            var fromCell = new SfdpPackingCell(
+                CellValue((int)(Math.Round(layout.Layout.X[localIndex]) - roundedMinX), step),
+                CellValue((int)(Math.Round(layout.Layout.Y[localIndex]) - roundedMinY), step));
+
+            for (var offset = start; offset < end; offset++)
+            {
+                var neighborGlobal = graph.Neighbors[offset];
+                if (!localIndexByGlobal.TryGetValue(neighborGlobal, out var localNeighbor) || localIndex > localNeighbor)
+                {
+                    continue;
+                }
+
+                var toCell = new SfdpPackingCell(
+                    CellValue((int)(Math.Round(layout.Layout.X[localNeighbor]) - roundedMinX), step),
+                    CellValue((int)(Math.Round(layout.Layout.Y[localNeighbor]) - roundedMinY), step));
+                AddLineCells(fromCell, toCell, cells);
+            }
+        }
+    }
+
+    private static void AddLineCells(
+        SfdpPackingCell start,
+        SfdpPackingCell end,
+        HashSet<long> cells)
+    {
+        var x = start.X;
+        var y = start.Y;
+        var dx = end.X - start.X;
+        var dy = end.Y - start.Y;
+        var sx = dx >= 0 ? 1 : -1;
+        var sy = dy >= 0 ? 1 : -1;
+        var ax = Math.Abs(dx) << 1;
+        var ay = Math.Abs(dy) << 1;
+
+        if (ax > ay)
+        {
+            var d = ay - (ax >> 1);
+            while (true)
+            {
+                cells.Add(ToCellKey(x, y));
+                if (x == end.X)
+                {
+                    return;
+                }
+
+                if (d >= 0)
+                {
+                    y += sy;
+                    d -= ax;
+                }
+
+                x += sx;
+                d += ay;
+            }
+        }
+
+        var error = ax - (ay >> 1);
+        while (true)
+        {
+            cells.Add(ToCellKey(x, y));
+            if (y == end.Y)
+            {
+                return;
+            }
+
+            if (error >= 0)
+            {
+                x += sx;
+                error -= ay;
+            }
+
+            y += sy;
+            error += ax;
+        }
+    }
+
+    private static int CellValue(int value, int step)
+        => value >= 0
+            ? value / step
+            : ((value + 1) / step) - 1;
+
     private static SfdpPackingResult CreatePackingResult(
         IReadOnlyList<PreparedComponentLayout> preparedLayouts,
         IReadOnlyList<SfdpPackedComponent> packedComponents,
@@ -507,4 +613,14 @@ public static class SfdpComponentPacker
         SfdpBoundingBox Bounds,
         double Width,
         double Height);
+
+    private readonly record struct SfdpPackingCell(int X, int Y);
+
+    private sealed record SfdpPackingShape(
+        SfdpPackingCell[] Cells,
+        int GridWidth,
+        int GridHeight,
+        int Perimeter,
+        double RoundedMinX,
+        double RoundedMinY);
 }

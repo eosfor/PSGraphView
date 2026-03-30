@@ -27,43 +27,60 @@ public sealed class SfdpComponentPackerTests
     [Fact]
     public void Pack_DominantComponent_DistributesSmallComponentsAroundIt()
     {
-        var dominantX = new double[100];
-        var dominantY = new double[100];
-        for (var i = 0; i < 50; i++)
-        {
-            dominantX[i] = 0.0;
-            dominantY[i] = 0.0;
-        }
-
-        for (var i = 50; i < 100; i++)
-        {
-            dominantX[i] = 100.0;
-            dominantY[i] = 100.0;
-        }
-
         var layouts = new List<SfdpComponentLayout>
         {
-            new(0, Enumerable.Range(0, 100).ToArray(), dominantX, dominantY)
+            new(0, [0, 1, 2, 3], [0.0, 0.0, 120.0, 120.0], [0.0, 120.0, 0.0, 120.0]),
+            new(1, [4, 5], [0.0, 8.0], [0.0, 0.0]),
+            new(2, [6, 7], [0.0, 8.0], [0.0, 0.0]),
+            new(3, [8, 9], [0.0, 8.0], [0.0, 0.0]),
+            new(4, [10, 11], [0.0, 8.0], [0.0, 0.0])
         };
 
-        for (var i = 1; i <= 20; i++)
-        {
-            layouts.Add(new SfdpComponentLayout(i, [0], [0.0], [0.0]));
-        }
+        var graph = new SfdpCsrGraph(
+            nodeCount: 12,
+            offsets:
+            [
+                0, 2, 4, 6, 8,
+                9, 10, 11, 12,
+                13, 14, 15, 16
+            ],
+            neighbors:
+            [
+                1, 2,
+                0, 3,
+                0, 3,
+                1, 2,
+                5,
+                4,
+                7,
+                6,
+                9,
+                8,
+                11,
+                10
+            ]);
 
-        var packed = SfdpComponentPacker.Pack(layouts, 5.0, new SfdpPackingOptions
+        var packedResult = SfdpComponentPacker.PackDetailed(layouts, graph, 5.0, new SfdpPackingOptions
         {
-            ComponentGap = 20.0,
+            ComponentGap = 16.0,
             MaxRowWidth = 500.0
         });
+        var packed = packedResult.Components.Select(static component => component.PackedComponent).ToArray();
 
         var dominant = Assert.Single(packed, static component => component.ComponentId == 0);
-        Assert.Contains(packed, component => component.ComponentId != 0 && component.Bounds.MaxX <= dominant.Bounds.MinX);
-        Assert.Contains(packed, component => component.ComponentId != 0 && component.Bounds.MinX >= dominant.Bounds.MaxX);
+        Assert.All(
+            packed.Where(static component => component.ComponentId != 0),
+            component =>
+            {
+                Assert.True(component.Bounds.MinX >= dominant.Bounds.MinX);
+                Assert.True(component.Bounds.MaxX <= dominant.Bounds.MaxX);
+                Assert.True(component.Bounds.MinY >= dominant.Bounds.MinY);
+                Assert.True(component.Bounds.MaxY <= dominant.Bounds.MaxY);
+            });
 
         var overallMinX = packed.Min(static component => component.Bounds.MinX);
         var overallMaxX = packed.Max(static component => component.Bounds.MaxX);
-        Assert.True(overallMaxX - overallMinX < 220.0);
+        Assert.True(overallMaxX - overallMinX <= dominant.Bounds.Width);
     }
 
     private static bool AreSeparatedByGap(SfdpBoundingBox first, SfdpBoundingBox second, double gap)

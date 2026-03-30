@@ -31,7 +31,7 @@ public sealed class SfdpOptions
     public double? OverlapRemovalHalfWidth { get; init; }
     public double? OverlapRemovalHalfHeight { get; init; }
     public double NodeRadius { get; init; } = 4.0;
-    public double ComponentGap { get; init; } = 40.0;
+    public double ComponentGap { get; init; } = 16.0;
     public double? Width { get; init; }
     public double? Height { get; init; }
     public string BackgroundColor { get; init; } = "#ffffff";
