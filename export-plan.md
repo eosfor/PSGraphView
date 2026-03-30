@@ -907,7 +907,7 @@
 
 Статус:
 
-- не сделано
+- сделано
 
 Зачем нужен follow-up:
 
@@ -930,6 +930,40 @@
    - packing / overlap-removal telemetry
 2. Не смешивать эту работу с `Patch 3` по SVG structure.
 3. Если устойчивого правила не найдётся, явно зафиксировать, что остаточный mismatch относится к layout scale, а не к viewport math.
+
+Результат:
+
+1. В export path добавлена подготовка для учёта routed edge geometry:
+   - `SfdpEdgeRouter.RoutedEdge` теперь хранит routed points
+   - добавлен cubic bezier bounds helper
+2. В tests добавлен regression test на routed self-loop bounds.
+3. По telemetry подтверждено:
+   - zero-based `viewBox` и `pageBoundingBox` уже не проблема
+   - residual large-graph mismatch не уходит через дополнительные viewport tweaks
+4. Вывод:
+   - остаточный `23 / 15` на `WikiVote 30 / 99` относится не к viewport math
+   - дальше это надо разбирать как:
+     - layout scale mismatch
+     - edge routing / curve style mismatch
+     - SVG transform / structure mismatch в следующих patch-ах
+
+Телеметрия:
+
+- test: `dotnet test tests/PSGraphView.Sfdp.Tests/PSGraphView.Sfdp.Tests.csproj --filter SfdpSvgExporterTests`
+- result: `9/9` passed
+- test: `dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --filter ExportGraphViewCmdletTests`
+- result: `10/10` passed
+- run: `pwsh -NoProfile -File demos/Compare-Export-SmallGraphs.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-small-compare-patch2a-final`
+- result: `6/6` cases completed successfully
+- result: on all `6` small-graph cases `ViewBoxMinXDelta = 0` and `ViewBoxMinYDelta = 0`
+- result: `single-edge` stayed at `OutputWidthDelta = 5`, `OutputHeightDelta = 1`
+- result: `self-loop` stayed at `OutputWidthDelta = -17`, `OutputHeightDelta = -12`
+- result: `triangle-cycle` stayed at `OutputWidthDelta = -27`, `OutputHeightDelta = -19`
+- run: `pwsh -NoProfile -File demos/Compare-WikiVote-Export.ps1 -UseLocalModules -UseSubgraph -SubgraphSeedCount 30 -SubgraphStartVertexCount 3 -OutputDir /tmp/psgraphview-export-wikivote-patch2a-final`
+- result: `Selection = ExpandedTopDegree`
+- result: `30 vertices / 99 edges`
+- result: `ViewBoxMinXDelta = 0`, `ViewBoxMinYDelta = 0`
+- result: `OutputWidthDelta = 23`, `OutputHeightDelta = 15`
 
 Критерий готовности:
 

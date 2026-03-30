@@ -290,3 +290,34 @@
 - result: `ViewBoxMinYDelta = 0`
 - result: `OutputWidthDelta` improved from `-95` to `23`
 - result: `OutputHeightDelta` improved from `-80` to `15`
+
+## 2026-03-30 01:09 PDT - Patch 2a подтвердил, что остаточный mismatch больше не сидит в viewport math
+
+Решение: считаем `Patch 2a` закрытым. Остаточный mismatch после `Patch 2` не пытаемся дальше чинить через `pageBoundingBox` / `dpi` / `translation`.
+
+Причины:
+
+- `Patch 2` уже посадил `viewBox` в zero-based coordinates и сделал graphviz-like `pad = 4`
+- дополнительные viewport-side правки не изменили residual deltas на cases, где mismatch связан с shape/layout behavior
+- значит следующий meaningful шаг должен идти не в viewport math, а в:
+  - edge routing / curve shape
+  - SVG transform structure
+  - или более глубокую layout-scale parity
+
+Телеметрия:
+
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.Sfdp/SfdpEdgeRouter.cs` now stores routed points and can compute cubic bezier bounds
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.Sfdp/SfdpRenderSceneBuilder.cs` can expand content bounds with edge geometry
+- test: `dotnet test tests/PSGraphView.Sfdp.Tests/PSGraphView.Sfdp.Tests.csproj --filter SfdpSvgExporterTests`
+- result: `9/9` passed
+- test: `dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --filter ExportGraphViewCmdletTests`
+- result: `10/10` passed
+- run: `pwsh -NoProfile -File demos/Compare-Export-SmallGraphs.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-small-compare-patch2a-final`
+- result: on all `6` small-graph cases `ViewBoxMinXDelta = 0` and `ViewBoxMinYDelta = 0`
+- result: `single-edge` remained `5 / 1`
+- result: `self-loop` remained `-17 / -12`
+- result: `triangle-cycle` remained `-27 / -19`
+- run: `pwsh -NoProfile -File demos/Compare-WikiVote-Export.ps1 -UseLocalModules -UseSubgraph -SubgraphSeedCount 30 -SubgraphStartVertexCount 3 -OutputDir /tmp/psgraphview-export-wikivote-patch2a-final`
+- result: `30 vertices / 99 edges`
+- result: `OutputWidthDelta = 23`
+- result: `OutputHeightDelta = 15`

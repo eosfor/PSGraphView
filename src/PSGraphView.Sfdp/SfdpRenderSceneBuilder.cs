@@ -45,6 +45,7 @@ internal static class SfdpRenderSceneBuilder
         ArgumentNullException.ThrowIfNull(options);
 
         var contentBounds = ExpandBoundsForLabels(nodeBounds, labelPlacements);
+        contentBounds = ExpandBoundsForEdges(contentBounds, routedEdges);
 
         var style = new GraphRenderStyle(
             ShowBackgroundRect: true,
@@ -122,6 +123,32 @@ internal static class SfdpRenderSceneBuilder
             minY = Math.Min(minY, label.Y);
             maxX = Math.Max(maxX, label.X + label.Width);
             maxY = Math.Max(maxY, label.Y + label.Height);
+        }
+
+        return new SfdpBoundingBox(minX, minY, maxX, maxY);
+    }
+
+    private static SfdpBoundingBox ExpandBoundsForEdges(
+        SfdpBoundingBox bounds,
+        IReadOnlyList<SfdpEdgeRouter.RoutedEdge> routedEdges)
+    {
+        if (routedEdges.Count == 0)
+        {
+            return bounds;
+        }
+
+        var minX = bounds.MinX;
+        var minY = bounds.MinY;
+        var maxX = bounds.MaxX;
+        var maxY = bounds.MaxY;
+
+        foreach (var routedEdge in routedEdges)
+        {
+            var edgeBounds = SfdpEdgeRouter.ComputeBounds(routedEdge.Points);
+            minX = Math.Min(minX, edgeBounds.MinX);
+            minY = Math.Min(minY, edgeBounds.MinY);
+            maxX = Math.Max(maxX, edgeBounds.MaxX);
+            maxY = Math.Max(maxY, edgeBounds.MaxY);
         }
 
         return new SfdpBoundingBox(minX, minY, maxX, maxY);

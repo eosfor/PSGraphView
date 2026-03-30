@@ -10,7 +10,8 @@ internal static class SfdpEdgeRouter
     internal sealed record RoutedEdge(
         int SourceIndex,
         int TargetIndex,
-        string PathData);
+        string PathData,
+        IReadOnlyList<RoutedPoint> Points);
 
     public static IReadOnlyList<RoutedEdge> RouteEdges(
         GraphView graph,
@@ -40,10 +41,28 @@ internal static class SfdpEdgeRouter
             var targetIndex = nodeIndexById[edge.TargetId];
             var hasReverse = edgeKeys.Contains((targetIndex, sourceIndex));
             var points = BuildRoutePoints(sourceIndex, targetIndex, hasReverse, x, y, options);
-            routed.Add(new RoutedEdge(sourceIndex, targetIndex, BuildPathData(points)));
+            routed.Add(new RoutedEdge(sourceIndex, targetIndex, BuildPathData(points), points));
         }
 
         return routed;
+    }
+
+    internal static SfdpBoundingBox ComputeBounds(IReadOnlyList<RoutedPoint> points)
+    {
+        ArgumentNullException.ThrowIfNull(points);
+        if (points.Count != 4)
+        {
+            throw new ArgumentException("Expected exactly four routed points.", nameof(points));
+        }
+
+        var xValues = GetCubicExtrema(points[0].X, points[1].X, points[2].X, points[3].X);
+        var yValues = GetCubicExtrema(points[0].Y, points[1].Y, points[2].Y, points[3].Y);
+
+        return new SfdpBoundingBox(
+            xValues.Min(),
+            yValues.Min(),
+            xValues.Max(),
+            yValues.Max());
     }
 
     internal static RoutedPoint[] BuildRoutePoints(
@@ -177,5 +196,71 @@ internal static class SfdpEdgeRouter
     private static string Invariant(FormattableString value)
     {
         return value.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private static IReadOnlyList<double> GetCubicExtrema(double p0, double p1, double p2, double p3)
+    {
+        var values = new List<double>(4)
+        {
+            EvaluateBezier(p0, p1, p2, p3, 0.0),
+            EvaluateBezier(p0, p1, p2, p3, 1.0)
+        };
+
+        foreach (var t in GetDerivativeRoots(p0, p1, p2, p3))
+        {
+            if (t > 0.0 && t < 1.0)
+            {
+                values.Add(EvaluateBezier(p0, p1, p2, p3, t));
+            }
+        }
+
+        return values;
+    }
+
+    private static IEnumerable<double> GetDerivativeRoots(double p0, double p1, double p2, double p3)
+    {
+        var a = -p0 + (3.0 * p1) - (3.0 * p2) + p3;
+        var b = (3.0 * p0) - (6.0 * p1) + (3.0 * p2);
+        var c = (-3.0 * p0) + (3.0 * p1);
+
+        var quadraticA = 3.0 * a;
+        var quadraticB = 2.0 * b;
+        var quadraticC = c;
+
+        if (Math.Abs(quadraticA) <= double.Epsilon)
+        {
+            if (Math.Abs(quadraticB) <= double.Epsilon)
+            {
+                yield break;
+            }
+
+            yield return -quadraticC / quadraticB;
+            yield break;
+        }
+
+        var discriminant = (quadraticB * quadraticB) - (4.0 * quadraticA * quadraticC);
+        if (discriminant < 0.0)
+        {
+            yield break;
+        }
+
+        if (Math.Abs(discriminant) <= double.Epsilon)
+        {
+            yield return -quadraticB / (2.0 * quadraticA);
+            yield break;
+        }
+
+        var sqrtDiscriminant = Math.Sqrt(discriminant);
+        yield return (-quadraticB + sqrtDiscriminant) / (2.0 * quadraticA);
+        yield return (-quadraticB - sqrtDiscriminant) / (2.0 * quadraticA);
+    }
+
+    private static double EvaluateBezier(double p0, double p1, double p2, double p3, double t)
+    {
+        var oneMinusT = 1.0 - t;
+        return (oneMinusT * oneMinusT * oneMinusT * p0) +
+               (3.0 * oneMinusT * oneMinusT * t * p1) +
+               (3.0 * oneMinusT * t * t * p2) +
+               (t * t * t * p3);
     }
 }

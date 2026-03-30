@@ -262,4 +262,23 @@ public sealed class SfdpSvgExporterTests
         Assert.Contains("width=\"", svg, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("height=\"", svg, StringComparison.OrdinalIgnoreCase);
     }
+
+    [Fact]
+    public void SelfLoopRoute_BoundsExtendBeyondNodeCircle()
+    {
+        var options = new SfdpOptions
+        {
+            NodeRadius = 0.72,
+            OverlapRemovalBoxUnits = SfdpOverlapRemovalBoxUnits.GraphvizPoints,
+            OverlapRemovalPadding = 4.0
+        };
+        var x = new[] { 4.72 };
+        var y = new[] { 4.72 };
+
+        var points = SfdpEdgeRouter.BuildRoutePoints(0, 0, hasReverse: false, x, y, options);
+        var bounds = SfdpEdgeRouter.ComputeBounds(points);
+
+        Assert.True(bounds.Width > options.NodeRadius * 2.0);
+        Assert.True(bounds.Height > options.NodeRadius * 2.0);
+    }
 }
