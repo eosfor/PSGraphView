@@ -91,16 +91,14 @@
 
 Не сделано:
 
-- optional fine-tuning после `Patch 14`
+- optional fine-tuning после `Patch 15`
   - основной full-graph mismatch уже практически закрыт:
     - Graphviz `MeanEdgeToDiagonal = 0.094565`
     - Managed `MeanEdgeToDiagonal = 0.093859`
     - Graphviz `EdgeLengthCv = 0.555466`
     - Managed `EdgeLengthCv = 0.555136`
-  - если добивать уже совсем остаток, следующий узкий шаг такой:
-    - сравнить equal-perimeter ordering внутри `packSubgraphs`
-    - убрать лишний deterministic tie-break там, где Graphviz полагается на `qsort(cmpf)` только по `perim`
-    - и посмотреть, нужен ли ещё один малый patch на exact placement order
+  - `Patch 15` уже проверил гипотезу про equal-perimeter ordering и не дал заметного сдвига
+  - если возвращаться сюда дальше, то только ради совсем педантичной parity
 - добивка quadtree parity по fine details
   - surface и основная `Normal`-траектория уже близки
   - если возвращаться сюда, то только ради более точного повторения Graphviz internals
@@ -2833,6 +2831,69 @@ diagnostics.Write(
 - причина была не только в routed-edge shape, а в graphviz-like семантике единиц для packing node boxes
 - если идти дальше, то это уже optional patch на остаточный tie-break / exact placement order, а не обязательный blocker
 
+### Patch 15. Добить equal-perimeter ordering для более буквального `1:1` в `packSubgraphs`
+
+Статус:
+
+- проверен
+- закрыт как no-op / диагностический patch
+- не является блокером для практической parity
+
+Цель:
+
+- проверить, даёт ли ещё заметный сдвиг последний remaining mismatch в placement order
+- убрать из managed тот deterministic tie-break, которого нет у Graphviz в `cmpf`
+
+Почему это следующий шаг:
+
+- после `Patch 14` full-graph packing уже почти совпадает с Graphviz:
+  - `step = 29` с обеих сторон
+  - `cellCount` для малых компонент совпадает (`6` и `8`)
+  - итоговая full-graph метрика отличается уже слабо
+- по коду всё ещё есть одно явное различие:
+  - в managed `OrderByDescending(...).ThenBy(ComponentId)`
+  - в Graphviz `qsort(cmpf)` сравнивает только `perim`
+
+Фокус:
+
+- `src/PSGraphView.Sfdp/SfdpComponentPacker.cs`
+- при необходимости `tests/PSGraphView.Sfdp.Tests/SfdpComponentPackerTests.cs`
+- для проверки `../graphviz/lib/pack/pack.c`
+
+План:
+
+1. Убрать или ослабить `ThenBy(ComponentId)` в сортировке packing shapes с одинаковым `Perimeter`.
+2. Сохранить детерминизм там, где это важно для тестов, но не тащить лишний tie-break в compare path.
+3. Прогнать полный `WikiVote` и сравнить:
+   - `pack placement order`
+   - final `MeanEdgeToDiagonal`
+   - final `EdgeLengthCv`
+4. Если заметного сдвига не будет, закрыть тему packing parity как практически завершённую.
+
+Критерий готовности:
+
+- либо метрики ещё немного сдвигаются к Graphviz без регрессий
+- либо подтверждается, что remaining delta уже не стоит отдельной algorithmic правки
+
+Что сделано:
+
+- в managed временно был убран `ThenBy(ComponentId)` и сортировка packing shapes была приближена к graphviz `qsort(cmpf)` только по `Perimeter`
+- гипотеза проверена полным `WikiVote` run:
+  - `/tmp/psgraphview-sfdp-full-patch15-localgv/wiki-vote-full-comparison.json`
+  - `/tmp/psgraphview-sfdp-full-patch15-localgv/wiki-vote-full-managed.diagnostics.jsonl`
+  - `/tmp/psgraphview-sfdp-full-patch15-localgv/wiki-vote-full-graphviz.verbose.log`
+- заметного сдвига не произошло:
+  - Graphviz `MeanEdgeToDiagonal = 0.094565`
+  - Managed `MeanEdgeToDiagonal = 0.093859`
+  - Graphviz `EdgeLengthCv = 0.555466`
+  - Managed `EdgeLengthCv = 0.555136`
+- после проверки кодовый эксперимент был откатан, чтобы не оставлять лишнюю algorithmic правку без эффекта
+
+Вывод:
+
+- гипотеза про equal-perimeter ordering не дала практического выигрыша
+- packing parity можно считать практически завершённой
+
 ---
 
 ## Порядок выполненных patch-ов и ближайшего следующего шага
@@ -2874,12 +2935,52 @@ diagnostics.Write(
 
 Следующий практический шаг после текущего состояния:
 
-- основной blocker по full-graph packing закрыт в `Patch 14`
-- если добивать уже только остаток до совсем буквального `1:1`, то следующий узкий шаг такой:
-  - сравнить equal-perimeter ordering у одинаковых polyomino
-  - убрать лишний `ThenBy(ComponentId)` там, где Graphviz сортирует только по `perim`
-  - отдельно проверить, даст ли это ещё небольшой сдвиг без ухудшения детерминизма
-- смотреть в:
-  - `src/PSGraphView.Sfdp/SfdpComponentPacker.cs`
-  - `../graphviz/lib/pack/pack.c`
-  - или нужен ещё один patch в `fits/placeGraph`, а не в shape generation
+- отдельного обязательного следующего патча сейчас уже нет
+- если продолжать, то это уже optional work:
+  - либо quadtree fine details
+  - либо smoothing / optional parity features
+  - либо финальная зачистка документации и summary по степени близости к Graphviz
+
+### Дальнейшие шаги после закрытия основных patch-ей
+
+Если цель практическая:
+
+- зафиксировать текущее состояние как baseline в этом плане
+- прогнать ещё несколько реальных графов помимо `WikiVote`
+- собрать короткий summary:
+  - что уже близко к `graphviz sfdp`
+  - что ещё отличается, но не даёт заметного эффекта
+- после этого перейти к cleanup:
+  - убрать лишние временные заметки
+  - обновить docs/help
+  - оставить полезные diagnostics, а временные исследовательские куски явно отметить
+
+Если цель максимально буквальная `1:1`:
+
+1. Вернуться к quadtree fine details.
+   Смотреть:
+   - `src/PSGraphView.Sfdp/SfdpSingleLevelLayouter.cs`
+   - `src/PSGraphView.Sfdp/SfdpQuadTree.cs`
+   Цель:
+   - добить мелкие внутренние отличия в `Normal` path
+
+2. Вернуться к optional smoothing parity.
+   Смотреть:
+   - `src/PSGraphView.Sfdp/SfdpPostProcessor.cs`
+   - `src/PSGraphView.Sfdp/SfdpStressMajorizationSmoother.cs`
+   Цель:
+   - приблизить режимы post-process, которые сейчас не являются главным compare-path
+
+3. Усилить differential tests.
+   Цель:
+   - закрепить текущее сближение не только на `WikiVote`, но и на нескольких фиксированных графах
+   Сравнивать:
+   - `MeanEdgeToDiagonal`
+   - `EdgeLengthCv`
+   - packing bounds
+   - ключевые diagnostics checkpoints
+
+4. Отдельно привести в порядок diagnostics и локальные graphviz-patches.
+   Цель:
+   - оставить полезные managed diagnostics
+   - временные verbose-правки в локальном `graphviz` либо задокументировать, либо держать как отдельный исследовательский patch-set
