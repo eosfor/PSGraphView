@@ -18,6 +18,13 @@ public sealed record GraphRenderStyle(
     string BackgroundColor,
     GraphRenderArrowStyle? ArrowStyle);
 
+public sealed record GraphRenderCanvas(
+    string GraphId,
+    string GraphClass,
+    string GraphTitle,
+    string Transform,
+    string BackgroundPolygonPoints);
+
 public sealed record GraphRenderLabel(
     string Text,
     double X,
@@ -32,7 +39,8 @@ public sealed record GraphRenderNode(
     string Title,
     double X,
     double Y,
-    double Radius,
+    double RadiusX,
+    double RadiusY,
     string Fill,
     string Stroke,
     double StrokeWidth,
@@ -50,5 +58,6 @@ public sealed record GraphRenderEdge(
 public sealed record GraphRenderScene(
     GraphRenderViewport Viewport,
     GraphRenderStyle Style,
+    GraphRenderCanvas Canvas,
     IReadOnlyList<GraphRenderEdge> Edges,
     IReadOnlyList<GraphRenderNode> Nodes);

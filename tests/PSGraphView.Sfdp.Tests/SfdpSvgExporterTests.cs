@@ -41,8 +41,8 @@ public sealed class SfdpSvgExporterTests
 
         var svg = _exporter.Export(graph, new SfdpOptions { Width = 300, Height = 200 });
 
-        Assert.Contains("width=\"300\"", svg, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("height=\"200\"", svg, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("width=\"300pt\"", svg, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("height=\"200pt\"", svg, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("viewBox=", svg, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -63,7 +63,7 @@ public sealed class SfdpSvgExporterTests
 
         Assert.Contains("<path", svg, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("marker-end=", svg, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains(" C ", svg, StringComparison.Ordinal);
+        Assert.Contains("C", svg, StringComparison.Ordinal);
         Assert.Contains("class=\"edge\"", svg, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -81,7 +81,7 @@ public sealed class SfdpSvgExporterTests
         var svg = _exporter.Export(graph, new SfdpOptions { ShowArrows = true });
 
         Assert.Contains("<path", svg, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains(" C ", svg, StringComparison.Ordinal);
+        Assert.Contains("C", svg, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -98,9 +98,12 @@ public sealed class SfdpSvgExporterTests
 
         var svg = _exporter.Export(graph, new SfdpOptions());
 
+        Assert.Contains("id=\"graph0\"", svg, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("class=\"graph\"", svg, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("class=\"node\"", svg, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("<title>A</title>", svg, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("<title>A-&gt;B</title>", svg, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("<title>G</title>", svg, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -198,7 +201,9 @@ public sealed class SfdpSvgExporterTests
                     svgStructureSeen = true;
                     Assert.Equal(2, data.GetProperty("nodeGroupCount").GetInt32());
                     Assert.Equal(1, data.GetProperty("edgeGroupCount").GetInt32());
-                    Assert.Equal(1, data.GetProperty("rectCount").GetInt32());
+                    Assert.True(data.GetProperty("graphGroupPresent").GetBoolean());
+                    Assert.Equal("graph0", data.GetProperty("graphGroupId").GetString());
+                    Assert.Equal(0, data.GetProperty("rectCount").GetInt32());
                     continue;
                 }
 
@@ -258,7 +263,7 @@ public sealed class SfdpSvgExporterTests
             OverlapRemovalPadding = 4.0
         });
 
-        Assert.Contains("viewBox=\"0 0", svg, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("viewBox=\"0.00 0.00", svg, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("width=\"", svg, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("height=\"", svg, StringComparison.OrdinalIgnoreCase);
     }

@@ -321,3 +321,52 @@
 - result: `30 vertices / 99 edges`
 - result: `OutputWidthDelta = 23`
 - result: `OutputHeightDelta = 15`
+
+## 2026-03-30 09:59 PDT - Patch 3 закрываем через graphviz-like SVG structure
+
+Решение: считаем `Patch 3` выполненным. Дальше `svg` надо сравнивать уже как graphviz-like output с остаточными геометрическими деталями, а не как другой exporter.
+
+Причины:
+
+- root `svg` теперь ближе к `graphviz` по единицам и структуре
+- появился graph-level container:
+  - `id=\"graph0\"`
+  - `class=\"graph\"`
+  - `transform=\"scale(...) rotate(...) translate(...)\"`
+- graph title и background теперь оформлены по graphviz-like схеме:
+  - `<title>G</title>`
+  - background polygon вместо background rect
+- node geometry переведена на `ellipse`, а не `circle`
+- после удаления лишних контейнеров `g#edges` / `g#nodes` структурный diff по числу групп ушёл в `0`
+
+Телеметрия:
+
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.GVExport/GraphRenderScene.cs` now models graph canvas metadata plus separate node radii
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.GVExport/GraphSvgRenderSceneWriter.cs` now writes:
+  - root `width/height` in `pt`
+  - graph-level `<g id=\"graph0\" class=\"graph\" ...>`
+  - graph title
+  - background polygon
+  - `ellipse` nodes
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.Sfdp/SfdpRenderSceneBuilder.cs` now emits graph-group coordinates and graph transform instead of fully flattened page coordinates
+- test: `dotnet test tests/PSGraphView.Sfdp.Tests/PSGraphView.Sfdp.Tests.csproj --filter SfdpSvgExporterTests`
+- result: passed
+- test: `dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --filter ExportGraphViewCmdletTests`
+- result: passed
+- run: `pwsh -NoProfile -File demos/Compare-Export-SmallGraphs.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-small-compare-patch3b`
+- result: `6/6` cases completed successfully
+- result: on all `6` small-graph cases `GroupCountDelta = 0`, `TitleDelta = 0`, `RectDelta = 0`
+- result: on all `6` small-graph cases `GraphGroupId = graph0`
+- run: `pwsh -NoProfile -File demos/Compare-WikiVote-Export.ps1 -UseLocalModules -UseSubgraph -SubgraphSeedCount 30 -SubgraphStartVertexCount 3 -OutputDir /tmp/psgraphview-export-wikivote-patch3b`
+- result: `30 vertices / 99 edges`
+- result: `GroupCountDelta = 0`, `TitleDelta = 0`, `RectDelta = 0`
+- result: `GraphGroupId = graph0`
+- result: `GraphGroupTransform = scale(1 1) rotate(0) translate(4 118.982)`
+- result: `WidthMatch = false`, `HeightMatch = false`, `ViewBoxMatch = false`
+
+Следствие:
+
+- остаточные `svg`-расхождения после `Patch 3` больше похожи на geometry / edge-shape / text details
+- это подтверждает порядок дальнейшей работы:
+  - `Patch 3a` по выбору raster backend
+  - затем `Patch 4+` по raster path

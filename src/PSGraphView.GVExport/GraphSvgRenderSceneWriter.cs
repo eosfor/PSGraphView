@@ -13,8 +13,9 @@ public static class GraphSvgRenderSceneWriter
         var viewport = scene.Viewport;
         var svg = new XElement(ns + "svg",
             new XAttribute("xmlns", ns.NamespaceName),
-            new XAttribute("width", Format(viewport.OutputWidth)),
-            new XAttribute("height", Format(viewport.OutputHeight)),
+            new XAttribute(XNamespace.Xmlns + "xlink", "http://www.w3.org/1999/xlink"),
+            new XAttribute("width", $"{Format(viewport.OutputWidth)}pt"),
+            new XAttribute("height", $"{Format(viewport.OutputHeight)}pt"),
             new XAttribute("viewBox", CreateViewBox(viewport)));
 
         if (scene.Style.ArrowStyle is not null)
@@ -22,17 +23,7 @@ public static class GraphSvgRenderSceneWriter
             svg.Add(BuildArrowDefinitions(ns, scene.Style.ArrowStyle));
         }
 
-        if (scene.Style.ShowBackgroundRect)
-        {
-            svg.Add(new XElement(ns + "rect",
-                new XAttribute("x", Format(viewport.ViewBoxMinX)),
-                new XAttribute("y", Format(viewport.ViewBoxMinY)),
-                new XAttribute("width", Format(viewport.ViewBoxWidth)),
-                new XAttribute("height", Format(viewport.ViewBoxHeight)),
-                new XAttribute("fill", scene.Style.BackgroundColor)));
-        }
-
-        var edgeContainer = new XElement(ns + "g", new XAttribute("id", "edges"));
+        var edgeElements = new List<XElement>(scene.Edges.Count);
         foreach (var edge in scene.Edges)
         {
             var path = new XElement(ns + "path",
@@ -47,14 +38,14 @@ public static class GraphSvgRenderSceneWriter
                 path.Add(new XAttribute("marker-end", edge.MarkerEnd));
             }
 
-            edgeContainer.Add(new XElement(ns + "g",
+            edgeElements.Add(new XElement(ns + "g",
                 new XAttribute("id", edge.Id),
                 new XAttribute("class", "edge"),
                 new XElement(ns + "title", edge.Title),
                 path));
         }
 
-        var nodeContainer = new XElement(ns + "g", new XAttribute("id", "nodes"));
+        var nodeElements = new List<XElement>(scene.Nodes.Count);
         foreach (var node in scene.Nodes)
         {
             var nodeElement = new XElement(ns + "g",
@@ -62,10 +53,11 @@ public static class GraphSvgRenderSceneWriter
                 new XAttribute("class", "node"),
                 new XAttribute("data-node-id", node.DataNodeId),
                 new XElement(ns + "title", node.Title),
-                new XElement(ns + "circle",
+                new XElement(ns + "ellipse",
                     new XAttribute("cx", Format(node.X)),
                     new XAttribute("cy", Format(node.Y)),
-                    new XAttribute("r", Format(node.Radius)),
+                    new XAttribute("rx", Format(node.RadiusX)),
+                    new XAttribute("ry", Format(node.RadiusY)),
                     new XAttribute("fill", node.Fill),
                     new XAttribute("stroke", node.Stroke),
                     new XAttribute("stroke-width", Format(node.StrokeWidth))));
@@ -81,11 +73,26 @@ public static class GraphSvgRenderSceneWriter
                     node.Label.Text));
             }
 
-            nodeContainer.Add(nodeElement);
+            nodeElements.Add(nodeElement);
         }
 
-        svg.Add(edgeContainer);
-        svg.Add(nodeContainer);
+        var graphGroup = new XElement(ns + "g",
+            new XAttribute("id", scene.Canvas.GraphId),
+            new XAttribute("class", scene.Canvas.GraphClass),
+            new XAttribute("transform", scene.Canvas.Transform),
+            new XElement(ns + "title", scene.Canvas.GraphTitle));
+
+        if (scene.Style.ShowBackgroundRect)
+        {
+            graphGroup.Add(new XElement(ns + "polygon",
+                new XAttribute("fill", scene.Style.BackgroundColor),
+                new XAttribute("stroke", "none"),
+                new XAttribute("points", scene.Canvas.BackgroundPolygonPoints)));
+        }
+
+        graphGroup.Add(edgeElements);
+        graphGroup.Add(nodeElements);
+        svg.Add(graphGroup);
         return new XDocument(new XDeclaration("1.0", "utf-8", null), svg);
     }
 
@@ -123,11 +130,16 @@ public static class GraphSvgRenderSceneWriter
     {
         return string.Create(
             CultureInfo.InvariantCulture,
-            $"{Format(viewport.ViewBoxMinX)} {Format(viewport.ViewBoxMinY)} {Format(viewport.ViewBoxWidth)} {Format(viewport.ViewBoxHeight)}");
+            $"{FormatViewBoxValue(viewport.ViewBoxMinX)} {FormatViewBoxValue(viewport.ViewBoxMinY)} {FormatViewBoxValue(viewport.ViewBoxWidth)} {FormatViewBoxValue(viewport.ViewBoxHeight)}");
     }
 
     private static string Format(double value)
     {
         return value.ToString("0.###", CultureInfo.InvariantCulture);
+    }
+
+    private static string FormatViewBoxValue(double value)
+    {
+        return value.ToString("0.00", CultureInfo.InvariantCulture);
     }
 }

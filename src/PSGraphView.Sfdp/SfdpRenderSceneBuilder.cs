@@ -46,6 +46,13 @@ internal static class SfdpRenderSceneBuilder
 
         var contentBounds = ExpandBoundsForLabels(nodeBounds, labelPlacements);
         contentBounds = ExpandBoundsForEdges(contentBounds, routedEdges);
+        var graphTranslateY = contentBounds.MaxY;
+        var canvas = new GraphRenderCanvas(
+            GraphId: "graph0",
+            GraphClass: "graph",
+            GraphTitle: "G",
+            Transform: BuildGraphTransform(viewportMetrics.PaddingX, graphTranslateY),
+            BackgroundPolygonPoints: BuildBackgroundPolygonPoints(contentBounds, viewportMetrics.PaddingX, viewportMetrics.PaddingY));
 
         var style = new GraphRenderStyle(
             ShowBackgroundRect: true,
@@ -63,7 +70,7 @@ internal static class SfdpRenderSceneBuilder
             edges[edgeIndex] = new GraphRenderEdge(
                 Id: $"edge{edgeIndex + 1}",
                 Title: $"{sourceNode.Id}->{targetNode.Id}",
-                PathData: edge.PathData,
+                PathData: BuildGraphvizPathData(edge.Points, viewportMetrics.PaddingX, graphTranslateY),
                 Stroke: options.EdgeColor,
                 StrokeWidth: options.EdgeLineWidth,
                 StrokeLineCap: "round",
@@ -77,8 +84,8 @@ internal static class SfdpRenderSceneBuilder
             var label = options.ShowLabels
                 ? new GraphRenderLabel(
                     Text: node.Label,
-                    X: labelPlacements[index].X,
-                    BaselineY: labelPlacements[index].Y + (options.LabelFontSize * 0.8),
+                    X: labelPlacements[index].X - viewportMetrics.PaddingX,
+                    BaselineY: -((labelPlacements[index].Y + (options.LabelFontSize * 0.8)) - graphTranslateY),
                     FontSize: options.LabelFontSize,
                     FontFamily: DefaultLabelFontFamily,
                     Fill: DefaultLabelFill)
@@ -88,9 +95,10 @@ internal static class SfdpRenderSceneBuilder
                 Id: $"node{index + 1}",
                 DataNodeId: node.Id,
                 Title: node.Id,
-                X: x[index],
-                Y: y[index],
-                Radius: options.NodeRadius,
+                X: x[index] - viewportMetrics.PaddingX,
+                Y: -(y[index] - graphTranslateY),
+                RadiusX: options.NodeRadius,
+                RadiusY: options.NodeRadius,
                 Fill: ResolveFill(node, options),
                 Stroke: DefaultNodeStroke,
                 StrokeWidth: 1.0,
@@ -98,7 +106,7 @@ internal static class SfdpRenderSceneBuilder
         }
 
         return new SfdpRenderSceneData(
-            new GraphRenderScene(viewportMetrics.Viewport, style, edges, nodes),
+            new GraphRenderScene(viewportMetrics.Viewport, style, canvas, edges, nodes),
             contentBounds,
             viewportMetrics);
     }
@@ -152,6 +160,35 @@ internal static class SfdpRenderSceneBuilder
         }
 
         return new SfdpBoundingBox(minX, minY, maxX, maxY);
+    }
+
+    private static string BuildGraphTransform(double translateX, double translateY)
+    {
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"scale(1 1) rotate(0) translate({Format(translateX)} {Format(translateY)})");
+    }
+
+    private static string BuildBackgroundPolygonPoints(SfdpBoundingBox contentBounds, double paddingX, double paddingY)
+    {
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"{Format(-paddingX)},{Format(paddingY)} {Format(-paddingX)},{Format(-contentBounds.MaxY)} {Format(contentBounds.MaxX - paddingX)},{Format(-contentBounds.MaxY)} {Format(contentBounds.MaxX - paddingX)},{Format(paddingY)}");
+    }
+
+    private static string BuildGraphvizPathData(
+        IReadOnlyList<SfdpEdgeRouter.RoutedPoint> points,
+        double translateX,
+        double translateY)
+    {
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"M{Format(points[0].X - translateX)},{Format(-(points[0].Y - translateY))}C{Format(points[1].X - translateX)},{Format(-(points[1].Y - translateY))} {Format(points[2].X - translateX)},{Format(-(points[2].Y - translateY))} {Format(points[3].X - translateX)},{Format(-(points[3].Y - translateY))}");
+    }
+
+    private static string Format(double value)
+    {
+        return value.ToString("0.###", CultureInfo.InvariantCulture);
     }
 
     private static string ResolveFill(GraphViewNode node, SfdpOptions options)

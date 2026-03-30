@@ -974,7 +974,7 @@
 
 Статус:
 
-- не сделано
+- сделано
 
 Цель:
 
@@ -982,7 +982,8 @@
 
 Фокус:
 
-- `src/PSGraphView.Sfdp/SfdpSvgExporter.cs`
+- `src/PSGraphView.GVExport/GraphSvgRenderSceneWriter.cs`
+- `src/PSGraphView.Sfdp/SfdpRenderSceneBuilder.cs`
 - тесты:
   - `tests/PSGraphView.Sfdp.Tests/SfdpSvgExporterTests.cs`
 
@@ -1000,6 +1001,38 @@
    - classes / ids
 4. Убрать явную ручную геометрию там, где graphviz полагается на group transform.
 5. Добавить недостающие SVG-структурные тесты.
+
+Результат:
+
+1. Root `<svg>` теперь ближе к `graphviz svg`:
+   - `width` и `height` пишутся в `pt`
+   - `viewBox` пишется в zero-based graphviz-like формате
+   - добавлен `xmlns:xlink`
+2. Граф теперь оборачивается в graphviz-like group:
+   - `<g id="graph0" class="graph" transform="...">`
+   - `<title>G</title>`
+   - background рисуется через `<polygon>`, а не через `<rect>`
+3. Node shape переведён на `<ellipse rx="..." ry="...">`, чтобы форма была ближе к `graphviz`.
+4. Scene builder теперь готовит graph-group coordinates и graph-group transform вместо полностью "развёрнутой" page-space геометрии.
+5. Убраны лишние контейнеры `g#edges` / `g#nodes`, из-за которых было расхождение по `GroupCount`.
+
+Телеметрия:
+
+- test: `dotnet test tests/PSGraphView.Sfdp.Tests/PSGraphView.Sfdp.Tests.csproj --filter SfdpSvgExporterTests`
+- result: passed
+- test: `dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --filter ExportGraphViewCmdletTests`
+- result: passed
+- run: `pwsh -NoProfile -File demos/Compare-Export-SmallGraphs.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-small-compare-patch3b`
+- result: `6/6` cases completed successfully
+- result: on all `6` small-graph cases `GroupCountDelta = 0`, `TitleDelta = 0`, `RectDelta = 0`
+- result: on all `6` small-graph cases `GraphGroupId = graph0`
+- run: `pwsh -NoProfile -File demos/Compare-WikiVote-Export.ps1 -UseLocalModules -UseSubgraph -SubgraphSeedCount 30 -SubgraphStartVertexCount 3 -OutputDir /tmp/psgraphview-export-wikivote-patch3b`
+- result: `Selection = ExpandedTopDegree`
+- result: `30 vertices / 99 edges`
+- result: `GroupCountDelta = 0`, `TitleDelta = 0`, `RectDelta = 0`
+- result: `GraphGroupId = graph0`
+- result: `GraphGroupTransform = scale(1 1) rotate(0) translate(4 118.982)`
+- result: `WidthMatch = false`, `HeightMatch = false`, `ViewBoxMatch = false`
 
 Критерий готовности:
 
