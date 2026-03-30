@@ -91,16 +91,19 @@
 
 Не сделано:
 
-- добить остаточный full-graph mismatch после `Patch 12`
-  - `Patch 12` уже убрал разъезд по packing scale / step:
-    - Graphviz `step size = 29`
-    - Managed `step = 35`
-  - но на full `WikiVote` ещё остаётся остаточный разъезд:
+- добить остаточный full-graph mismatch после `Patch 13`
+  - `Patch 13` подтвердил, что финальный `normalize/shift` не меняет масштаб:
+    - `rawPackedWidth = packedWidth = 24.811667`
+    - `rawPackedHeight = packedHeight = 23.801111`
+    - `normalizeOffsetX = 11.176667`, `normalizeOffsetY = 11.664444`
+  - при этом full `WikiVote` не изменился:
     - Graphviz `MeanEdgeToDiagonal = 0.094565`
     - Managed `MeanEdgeToDiagonal = 0.077753`
+  - значит remaining mismatch сидит не в `dotneato_postprocess`-style shift, а раньше:
+    - в том, как `SfdpComponentPacker` размещает мелкие компоненты вокруг главной
   - следующий конкретный шаг:
-    - проверить финальный shift / normalize path после packing
-    - при необходимости сравнить managed post-pack handoff с Graphviz `dotneato_postprocess`
+    - оформить это как `Patch 14`
+    - сравнить component placement / cavity placement parity с Graphviz `packSubgraphs`
 - добивка quadtree parity по fine details
   - surface и основная `Normal`-траектория уже близки
   - если возвращаться сюда, то только ради более точного повторения Graphviz internals
@@ -2693,8 +2696,9 @@ diagnostics.Write(
 
 Статус:
 
-- не начат
-- это следующий практический patch после `Patch 12`
+- сделан
+- закрыт как диагностический patch
+- отдельный коммит: `feat(sfdp): trace packing normalization and shift path`
 
 Цель:
 
@@ -2703,6 +2707,64 @@ diagnostics.Write(
   - final component offsets
   - root bounds normalize
   - финальный post-pack handoff относительно Graphviz `dotneato_postprocess`
+
+Что сделано:
+
+- в `SfdpComponentPacker` добавлены:
+  - `NormalizationApplied`
+  - `NormalizeOffsetX/NormalizeOffsetY`
+  - `RawPackedBounds`
+- в `SfdpLayoutEngine` packing diagnostics теперь пишут:
+  - `rawPackedWidth/rawPackedHeight`
+  - `normalizationApplied`
+  - `normalizeOffsetX/normalizeOffsetY`
+- в `SfdpLayoutEngineTests` добавлена регрессия:
+  - `rawPackedWidth == packedWidth`
+  - `rawPackedHeight == packedHeight`
+
+Что показал full `WikiVote`:
+
+- артефакты:
+  - `/tmp/psgraphview-sfdp-full-patch13-localgv/wiki-vote-full-comparison.json`
+  - `/tmp/psgraphview-sfdp-full-patch13-localgv/wiki-vote-full-managed.diagnostics.jsonl`
+  - `/tmp/psgraphview-sfdp-full-patch13-localgv/wiki-vote-full-graphviz.verbose.log`
+- full-метрика не изменилась:
+  - Graphviz `MeanEdgeToDiagonal = 0.094565`
+  - Managed `MeanEdgeToDiagonal = 0.077753`
+- diagnostics показали:
+  - `rawPackedWidth = packedWidth = 24.811667`
+  - `rawPackedHeight = packedHeight = 23.801111`
+  - `normalizationApplied = true`
+  - `normalizeOffsetX = 11.176667`, `normalizeOffsetY = 11.664444`
+
+Вывод:
+
+- финальный `normalize/shift` делает только перенос к началу координат
+- он не объясняет оставшийся full-graph mismatch
+- следующий шаг надо переносить обратно в `SfdpComponentPacker`, а не в `dotneato_postprocess`
+
+### Patch 14. Сблизить placement мелких компонент с Graphviz `packSubgraphs`
+
+Статус:
+
+- не начат
+- это следующий практический patch после `Patch 13`
+
+Цель:
+
+- понять, почему у Graphviz full bounds почти совпадают с bounds главной компоненты,
+  а у managed мелкие компоненты всё ещё расширяют общий bbox
+- сравнить:
+  - порядок размещения после dominant component
+  - попадание маленьких компонент в внутренние пустоты polyomino
+  - component offsets и bbox growth на каждой постановке
+
+Фокус:
+
+- `src/PSGraphView.Sfdp/SfdpComponentPacker.cs`
+- `src/PSGraphView.Sfdp/SfdpLayoutEngine.cs`
+- `demos/Compare-WikiVote-Sfdp.ps1`
+- при необходимости `../graphviz/lib/pack/pack.c`
 
 ---
 
@@ -2728,6 +2790,7 @@ diagnostics.Write(
 16. Patch 11
 17. Patch 12
 18. Patch 13
+19. Patch 14
 
 Именно в таком порядке, потому что:
 
@@ -2742,7 +2805,7 @@ diagnostics.Write(
   - затем proximity / triangulation path
 - и только потом переходить к quadtree mode и его внутренностям
 
-Следующий практический шаг после `Patch 12`:
+Следующий практический шаг после `Patch 13`:
 
   - перед compare для `PSGraphView` больше не нужно полагаться на `tests/.../bin`
   - `-UseLocalModules` сам делает fresh `dotnet publish` и берёт модуль из publish output
@@ -2758,21 +2821,24 @@ diagnostics.Write(
   - `step = 35` у managed против Graphviz `29`
   - full `MeanEdgeToDiagonal = 0.016874 -> 0.077753`
   - `after_packing width = 110.524444 -> 24.811667`
+- `Patch 13` показал, что `normalize/shift` не меняет размеры:
+  - `rawPackedWidth = packedWidth`
+  - `rawPackedHeight = packedHeight`
 - при этом main component по-прежнему близка к Graphviz
 - значит следующий наиболее оправданный шаг по цене/эффекту:
   - остаться в packing path
-  - сравнить и выровнять финальный shift / normalize path
-  - при необходимости сравнить managed post-pack handoff с Graphviz `dotneato_postprocess`
+  - сравнить placement мелких компонент вокруг dominant component
+  - смотреть, почему у Graphviz full bounds почти совпадают с main component bounds
   - смотреть в:
-    - `src/PSGraphView.Sfdp/SfdpLayoutEngine.cs`
     - `src/PSGraphView.Sfdp/SfdpComponentPacker.cs`
-    - `../graphviz/lib/common/postproc.c`
+    - `src/PSGraphView.Sfdp/SfdpLayoutEngine.cs`
+    - `../graphviz/lib/pack/pack.c`
 
 Следующий практический шаг после текущего состояния:
 
-- оформить это как `Patch 13`
+- оформить это как `Patch 14`
 - сначала проверить:
-  - final component offsets
-  - packed bounds normalize
-  - root bounds после packing
-- и только потом решать, нужен ли буквальный `dotneato_postprocess`-style shift
+  - placement order после dominant component
+  - рост общего bbox после постановки каждой маленькой компоненты
+  - почему Graphviz удерживает full bounds почти на уровне main component
+- и только потом решать, нужен ли ещё один packing-algorithm patch

@@ -52,6 +52,10 @@ internal sealed record SfdpPackingResult(
     double Scale,
     double MaxRowWidth,
     int Step,
+    bool NormalizationApplied,
+    double NormalizeOffsetX,
+    double NormalizeOffsetY,
+    SfdpBoundingBox RawPackedBounds,
     SfdpBoundingBox PackedBounds,
     IReadOnlyList<SfdpPackingComponentPlacement> Components);
 
@@ -138,6 +142,10 @@ public static class SfdpComponentPacker
                 PackingScale,
                 options.MaxRowWidth,
                 0,
+                false,
+                0.0,
+                0.0,
+                new SfdpBoundingBox(0.0, 0.0, 0.0, 0.0),
                 new SfdpBoundingBox(0.0, 0.0, 0.0, 0.0),
                 []);
         }
@@ -157,7 +165,13 @@ public static class SfdpComponentPacker
 
             return CreatePackingResult(
                 preparedLayouts,
-                packedComponents,
+                new SfdpPackingNormalizationResult(
+                    packedComponents,
+                    ComputePackedBounds(packedComponents),
+                    ComputePackedBounds(packedComponents),
+                    false,
+                    0.0,
+                    0.0),
                 shapes: null,
                 SfdpPackingStrategy.SingleComponent,
                 options.ComponentGap,
@@ -393,14 +407,21 @@ public static class SfdpComponentPacker
         return Math.Max(1, (int)root);
     }
 
-    private static IReadOnlyList<SfdpPackedComponent> NormalizePackedBounds(IReadOnlyList<SfdpPackedComponent> packed)
+    private static SfdpPackingNormalizationResult NormalizePackedBounds(IReadOnlyList<SfdpPackedComponent> packed)
     {
         var minX = packed.Min(static component => component.Bounds.MinX);
         var minY = packed.Min(static component => component.Bounds.MinY);
+        var rawBounds = ComputePackedBounds(packed);
 
         if (minX >= 0.0 && minY >= 0.0)
         {
-            return packed;
+            return new SfdpPackingNormalizationResult(
+                packed,
+                rawBounds,
+                rawBounds,
+                false,
+                0.0,
+                0.0);
         }
 
         var normalized = new List<SfdpPackedComponent>(packed.Count);
@@ -415,7 +436,13 @@ public static class SfdpComponentPacker
                 ShiftBounds(component.Bounds, -minX, -minY)));
         }
 
-        return normalized;
+        return new SfdpPackingNormalizationResult(
+            normalized,
+            rawBounds,
+            ComputePackedBounds(normalized),
+            true,
+            -minX,
+            -minY);
     }
 
     private static SfdpBoundingBox ShiftBounds(SfdpBoundingBox bounds, double offsetX, double offsetY)
@@ -584,7 +611,7 @@ public static class SfdpComponentPacker
 
     private static SfdpPackingResult CreatePackingResult(
         IReadOnlyList<PreparedComponentLayout> preparedLayouts,
-        IReadOnlyList<SfdpPackedComponent> packedComponents,
+        SfdpPackingNormalizationResult normalization,
         IReadOnlyDictionary<int, SfdpPackingShape>? shapes,
         SfdpPackingStrategy strategy,
         double gap,
@@ -594,6 +621,7 @@ public static class SfdpComponentPacker
         int step)
     {
         var preparedByComponentId = preparedLayouts.ToDictionary(static layout => layout.Layout.ComponentId);
+        var packedComponents = normalization.Components;
         var placements = new List<SfdpPackingComponentPlacement>(packedComponents.Count);
         for (var i = 0; i < packedComponents.Count; i++)
         {
@@ -634,7 +662,11 @@ public static class SfdpComponentPacker
             scale,
             maxRowWidth,
             step,
-            ComputePackedBounds(packedComponents),
+            normalization.NormalizationApplied,
+            normalization.NormalizeOffsetX,
+            normalization.NormalizeOffsetY,
+            normalization.RawPackedBounds,
+            normalization.PackedBounds,
             placements);
     }
 
@@ -670,4 +702,12 @@ public static class SfdpComponentPacker
         double Scale,
         double ScaledWidth,
         double ScaledHeight);
+
+    private sealed record SfdpPackingNormalizationResult(
+        IReadOnlyList<SfdpPackedComponent> Components,
+        SfdpBoundingBox RawPackedBounds,
+        SfdpBoundingBox PackedBounds,
+        bool NormalizationApplied,
+        double NormalizeOffsetX,
+        double NormalizeOffsetY);
 }

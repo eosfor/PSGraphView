@@ -185,6 +185,8 @@ public sealed class SfdpLayoutEngineTests
                         Assert.Equal(2, root.GetProperty("Data").GetProperty("componentCount").GetInt32());
                         Assert.True(root.GetProperty("Data").GetProperty("scale").GetDouble() > 1.0);
                         Assert.True(root.GetProperty("Data").GetProperty("step").GetInt32() > 0);
+                        Assert.True(root.GetProperty("Data").GetProperty("rawPackedWidth").GetDouble() > 0.0);
+                        Assert.True(root.GetProperty("Data").GetProperty("rawPackedHeight").GetDouble() > 0.0);
                         break;
                     case "component":
                         componentEvents++;
@@ -198,8 +200,18 @@ public sealed class SfdpLayoutEngineTests
                     case "finish":
                         packingFinishSeen = true;
                         Assert.True(root.GetProperty("Data").GetProperty("scale").GetDouble() > 1.0);
+                        Assert.True(root.GetProperty("Data").GetProperty("rawPackedWidth").GetDouble() > 0.0);
+                        Assert.True(root.GetProperty("Data").GetProperty("rawPackedHeight").GetDouble() > 0.0);
                         Assert.True(root.GetProperty("Data").GetProperty("packedWidth").GetDouble() > 0.0);
                         Assert.True(root.GetProperty("Data").GetProperty("packedHeight").GetDouble() > 0.0);
+                        Assert.Equal(
+                            root.GetProperty("Data").GetProperty("rawPackedWidth").GetDouble(),
+                            root.GetProperty("Data").GetProperty("packedWidth").GetDouble(),
+                            precision: 12);
+                        Assert.Equal(
+                            root.GetProperty("Data").GetProperty("rawPackedHeight").GetDouble(),
+                            root.GetProperty("Data").GetProperty("packedHeight").GetDouble(),
+                            precision: 12);
                         break;
                 }
             }
