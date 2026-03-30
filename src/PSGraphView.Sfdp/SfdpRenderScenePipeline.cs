@@ -37,6 +37,7 @@ internal static class SfdpRenderScenePipeline
 
         SfdpRenderDiagnostics.WriteScene(diagnostics, graph, renderScene.Scene, options);
         SfdpRenderDiagnostics.WriteViewport(diagnostics, renderScene.ContentBounds, renderScene.ViewportMetrics, options);
+        SfdpRenderDiagnostics.WriteLabels(diagnostics, renderScene.Scene);
 
         return new SfdpPreparedRenderScene(
             renderScene.Scene,

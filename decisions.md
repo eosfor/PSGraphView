@@ -775,3 +775,59 @@
 - следующие export patch-и нужно выбирать по тем case-ам, где classification остаётся `mixed` или `export_limited`
 - если понадобится чистый export experiment без layout noise, следующий правильный шаг:
   - fixed-geometry / scene-dump compare mode
+
+## 2026-03-30 16:58 PDT - Patch 7a зафиксировал text baseline до реального font/label fix
+
+Решение: считаем `Patch 7a` выполненным как baseline-патч для text/font/label parity. Содержимое label-ов между `graphviz` и managed уже совпадает, но основной remaining text mismatch теперь измерен явно: font family, font size, anchor и relative label placement.
+
+Причины:
+
+- до этого compare harness вообще не имел отдельного labelled mode, поэтому text parity обсуждалась в основном на глаз
+- без отдельного `Text` summary было трудно отличить:
+  - mismatch по содержимому label-ов
+  - mismatch по font family / size
+  - mismatch по anchor и размещению относительно node center
+- перед реальным text fix нужен был repeatable baseline, как раньше для viewport и raster
+
+Телеметрия:
+
+- code change: `/Users/andrei/repo/PSGraphView/demos/Compare-Export.Common.ps1`
+- code change: `/Users/andrei/repo/PSGraphView/demos/Compare-Export-LabeledGraphs.ps1`
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.Sfdp/SfdpRenderDiagnostics.cs`
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.Sfdp/SfdpRenderScenePipeline.cs`
+- code change: `/Users/andrei/repo/PSGraphView/tests/PSGraphView.Sfdp.Tests/SfdpSvgExporterTests.cs`
+- test: `dotnet test tests/PSGraphView.Sfdp.Tests/PSGraphView.Sfdp.Tests.csproj --filter SfdpSvgExporterTests`
+- result: `12/12` passed
+- test: `dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --filter ExportGraphViewCmdletTests`
+- result: `13/13` passed
+- run: `pwsh -NoProfile -File demos/Compare-Export-LabeledGraphs.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-labeled-compare-patch7a`
+- result: `3/3` labeled cases completed successfully
+- result: for all labeled cases:
+  - `NodeLabelCountDelta = 0`
+  - `MissingNodeLabelsInManaged = []`
+  - `UnexpectedNodeLabelsInManaged = []`
+- result: for all labeled cases:
+  - `GraphvizFontFamilies = ["Times,serif"]`
+  - `ManagedFontFamilies = ["sans-serif"]`
+  - `GraphvizTextAnchors = ["middle"]`
+  - `ManagedTextAnchors = []`
+  - `AverageFontSizeDelta = -6.0`
+- result: `triangle-cycle-labeled`:
+  - `AverageOffsetXDelta = 8.93`
+  - `AverageBaselineOffsetYDelta = -3.65`
+  - managed diagnostics `render.labels.averageOffsetX = 8.93`
+- result: `single-edge-labeled`:
+  - `AverageOffsetXDelta = -9.42`
+  - `AverageBaselineOffsetYDelta = 3.57`
+- result: `star-labeled`:
+  - `AverageOffsetXDelta = 2.04`
+  - `AverageBaselineOffsetYDelta = 1.13`
+
+Следствие:
+
+- проблема text parity теперь локализована не в потере label-ов, а именно в semantics:
+  - graphviz рендерит node labels centered with `text-anchor="middle"`
+  - managed сейчас рисует внешний label placement c `sans-serif` и `8pt`
+- следующий правильный шаг внутри `Patch 7`:
+  - `Patch 7b`
+  - править label placement, font defaults и `svg` text attributes уже под измеримый baseline

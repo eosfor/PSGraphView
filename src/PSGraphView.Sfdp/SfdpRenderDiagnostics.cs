@@ -70,6 +70,63 @@ internal static class SfdpRenderDiagnostics
         ]);
     }
 
+    public static void WriteLabels(
+        SfdpDiagnosticsWriter diagnostics,
+        GraphRenderScene scene)
+    {
+        ArgumentNullException.ThrowIfNull(diagnostics);
+        ArgumentNullException.ThrowIfNull(scene);
+
+        var labeledNodes = scene.Nodes
+            .Where(static node => node.Label is not null)
+            .ToArray();
+
+        double? averageWidth = null;
+        double? averageHeight = null;
+        double? averageOffsetX = null;
+        double? averageBaselineOffsetY = null;
+        double? averageFontSize = null;
+        double? maxWidth = null;
+        double? maxHeight = null;
+        double? maxAbsOffsetX = null;
+        double? maxAbsBaselineOffsetY = null;
+        string? fontFamilies = null;
+
+        if (labeledNodes.Length > 0)
+        {
+            averageWidth = labeledNodes.Average(node => GetApproximateLabelWidth(node.Label!));
+            averageHeight = labeledNodes.Average(node => GetApproximateLabelHeight(node.Label!));
+            averageOffsetX = labeledNodes.Average(node => node.Label!.X - node.X);
+            averageBaselineOffsetY = labeledNodes.Average(node => node.Label!.BaselineY - node.Y);
+            averageFontSize = labeledNodes.Average(node => node.Label!.FontSize);
+            maxWidth = labeledNodes.Max(node => GetApproximateLabelWidth(node.Label!));
+            maxHeight = labeledNodes.Max(node => GetApproximateLabelHeight(node.Label!));
+            maxAbsOffsetX = labeledNodes.Max(node => Math.Abs(node.Label!.X - node.X));
+            maxAbsBaselineOffsetY = labeledNodes.Max(node => Math.Abs(node.Label!.BaselineY - node.Y));
+            fontFamilies = string.Join(
+                ",",
+                labeledNodes
+                    .Select(node => node.Label!.FontFamily)
+                    .Distinct(StringComparer.Ordinal)
+                    .OrderBy(static family => family, StringComparer.Ordinal));
+        }
+
+        diagnostics.Write("render", "labels",
+        [
+            ("count", labeledNodes.Length),
+            ("averageWidth", averageWidth),
+            ("averageHeight", averageHeight),
+            ("averageOffsetX", averageOffsetX),
+            ("averageBaselineOffsetY", averageBaselineOffsetY),
+            ("averageFontSize", averageFontSize),
+            ("maxWidth", maxWidth),
+            ("maxHeight", maxHeight),
+            ("maxAbsOffsetX", maxAbsOffsetX),
+            ("maxAbsBaselineOffsetY", maxAbsBaselineOffsetY),
+            ("fontFamilies", fontFamilies)
+        ]);
+    }
+
     public static void WriteSvgStructure(
         SfdpDiagnosticsWriter diagnostics,
         XElement svg)
@@ -132,6 +189,12 @@ internal static class SfdpRenderDiagnostics
 
     private static int CountElements(XElement root, string localName)
         => root.Descendants().Count(element => string.Equals(element.Name.LocalName, localName, StringComparison.Ordinal));
+
+    private static double GetApproximateLabelWidth(GraphRenderLabel label)
+        => Math.Max(6.0, label.Text.Length * label.FontSize * 0.56);
+
+    private static double GetApproximateLabelHeight(GraphRenderLabel label)
+        => Math.Max(6.0, label.FontSize + 2.0);
 
     private static bool HasClass(XElement element, string className)
     {

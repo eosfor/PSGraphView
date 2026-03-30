@@ -249,6 +249,68 @@ public sealed class SfdpSvgExporterTests
     }
 
     [Fact]
+    public void Export_WithDiagnostics_WritesLabelSummaryWhenLabelsEnabled()
+    {
+        var graph = new GraphView(
+            [
+                new GraphViewNode("Alpha", "Alpha", null, new Dictionary<string, object?>()),
+                new GraphViewNode("Beta", "Beta", null, new Dictionary<string, object?>())
+            ],
+            [
+                new GraphViewEdge("Alpha", "Beta", null, 1)
+            ]);
+        var diagnosticsPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}-svg-labels.jsonl");
+
+        try
+        {
+            _exporter.Export(graph, new SfdpOptions
+            {
+                ShowLabels = true,
+                Diagnostics = new SfdpDiagnosticsOptions
+                {
+                    Path = diagnosticsPath,
+                    IncludeIterations = false
+                }
+            });
+
+            var labelSummarySeen = false;
+            foreach (var line in File.ReadLines(diagnosticsPath))
+            {
+                using var document = JsonDocument.Parse(line);
+                var root = document.RootElement;
+                if (!root.TryGetProperty("Phase", out var phase) ||
+                    !root.TryGetProperty("Name", out var name))
+                {
+                    continue;
+                }
+
+                if (!string.Equals(phase.GetString(), "render", StringComparison.Ordinal) ||
+                    !string.Equals(name.GetString(), "labels", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                var data = root.GetProperty("Data");
+                labelSummarySeen = true;
+                Assert.Equal(2, data.GetProperty("count").GetInt32());
+                Assert.True(data.GetProperty("averageWidth").GetDouble() > 0.0);
+                Assert.True(data.GetProperty("averageHeight").GetDouble() > 0.0);
+                Assert.True(data.GetProperty("averageFontSize").GetDouble() > 0.0);
+                Assert.Equal("sans-serif", data.GetProperty("fontFamilies").GetString());
+            }
+
+            Assert.True(labelSummarySeen);
+        }
+        finally
+        {
+            if (File.Exists(diagnosticsPath))
+            {
+                File.Delete(diagnosticsPath);
+            }
+        }
+    }
+
+    [Fact]
     public void Export_WithGraphvizPointViewport_UsesZeroBasedViewBox()
     {
         var graph = new GraphView(

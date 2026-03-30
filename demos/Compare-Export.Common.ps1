@@ -94,8 +94,12 @@ function Get-SvgStructureSummary {
     $anchors = $document.SelectNodes("//*[local-name()='a']")
     $rectangles = $document.SelectNodes("//*[local-name()='rect']")
     $graphTransformValue = $null
+    $graphGroupIdValue = $null
     if ($null -ne $graphGroup -and $null -ne $graphGroup.Attributes['transform']) {
         $graphTransformValue = [string]$graphGroup.Attributes['transform'].Value
+    }
+    if ($null -ne $graphGroup -and $null -ne $graphGroup.Attributes['id']) {
+        $graphGroupIdValue = [string]$graphGroup.Attributes['id'].Value
     }
 
     $viewBoxRect = Get-SvgViewBoxRect -ViewBox ([string]$svg.GetAttribute('viewBox'))
@@ -104,6 +108,7 @@ function Get-SvgStructureSummary {
     $visibleEdgeTitles = New-Object System.Collections.Generic.List[string]
     $presentNodeIds = New-Object System.Collections.Generic.List[string]
     $presentEdgeTitles = New-Object System.Collections.Generic.List[string]
+    $nodeLabelEntries = New-Object System.Collections.Generic.List[object]
 
     foreach ($nodeGroup in $nodeGroups) {
         $titleNode = $nodeGroup.SelectSingleNode("./*[local-name()='title']")
@@ -120,6 +125,11 @@ function Get-SvgStructureSummary {
             if ($null -ne $bounds -and (Test-SvgRectIntersection -Left $bounds.MinX -Top $bounds.MinY -Right $bounds.MaxX -Bottom $bounds.MaxY -ViewBoxRect $viewBoxRect)) {
                 $visibleNodeIds.Add($title)
             }
+        }
+
+        $textNode = $nodeGroup.SelectSingleNode("./*[local-name()='text']")
+        if ($null -ne $textNode) {
+            $nodeLabelEntries.Add((Get-SvgNodeLabelEntry -NodeTitle $title -EllipseNode $ellipseNode -TextNode $textNode))
         }
     }
 
@@ -141,31 +151,122 @@ function Get-SvgStructureSummary {
         }
     }
 
+    $labelTexts = @($nodeLabelEntries | ForEach-Object { [string]$_['Text'] })
+    $fontFamilies = @($nodeLabelEntries | ForEach-Object { [string]$_['FontFamily'] } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+    $textAnchors = @($nodeLabelEntries | ForEach-Object { [string]$_['TextAnchor'] } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+    $averageNodeLabelOffsetX = Get-AverageOrNull -Values @($nodeLabelEntries | ForEach-Object { $_['OffsetX'] })
+    $averageNodeLabelBaselineOffsetY = Get-AverageOrNull -Values @($nodeLabelEntries | ForEach-Object { $_['BaselineOffsetY'] })
+    $averageNodeLabelFontSize = Get-AverageOrNull -Values @($nodeLabelEntries | ForEach-Object { $_['FontSize'] })
+    $centeredNodeLabelCount = @($nodeLabelEntries | Where-Object {
+            $offsetX = $_['OffsetX']
+            $offsetY = $_['BaselineOffsetY']
+            $offsetX -is [double] -and
+            $offsetY -is [double] -and
+            [Math]::Abs([double]$offsetX) -le 1.0 -and
+            [Math]::Abs([double]$offsetY) -le 1.5
+        }).Count
+
+    $summary = [ordered]@{}
+    $summary['Width'] = [string]$svg.GetAttribute('width')
+    $summary['Height'] = [string]$svg.GetAttribute('height')
+    $summary['ViewBox'] = [string]$svg.GetAttribute('viewBox')
+    $summary['GraphGroupId'] = $graphGroupIdValue
+    $summary['GraphGroupTransform'] = $graphTransformValue
+    $summary['GroupCount'] = $groups.Count
+    $summary['NodeGroupCount'] = $nodeGroups.Count
+    $summary['EdgeGroupCount'] = $edgeGroups.Count
+    $summary['ClusterGroupCount'] = $clusterGroups.Count
+    $summary['TitleCount'] = $titles.Count
+    $summary['PathCount'] = $edgePaths.Count
+    $summary['CircleCount'] = $circles.Count
+    $summary['EllipseCount'] = $ellipses.Count
+    $summary['TextCount'] = $texts.Count
+    $summary['AnchorCount'] = $anchors.Count
+    $summary['RectCount'] = $rectangles.Count
+    $summary['PresentNodeCount'] = $presentNodeIds.Count
+    $summary['PresentEdgeCount'] = $presentEdgeTitles.Count
+    $summary['VisibleNodeCount'] = $visibleNodeIds.Count
+    $summary['VisibleEdgeCount'] = $visibleEdgeTitles.Count
+    $summary['NodeLabelCount'] = $nodeLabelEntries.Count
+    $summary['NodeLabelTexts'] = $labelTexts
+    $summary['FontFamilies'] = $fontFamilies
+    $summary['TextAnchors'] = $textAnchors
+    $summary['AverageNodeLabelOffsetX'] = $averageNodeLabelOffsetX
+    $summary['AverageNodeLabelBaselineOffsetY'] = $averageNodeLabelBaselineOffsetY
+    $summary['AverageNodeLabelFontSize'] = $averageNodeLabelFontSize
+    $summary['CenteredNodeLabelCount'] = $centeredNodeLabelCount
+    $summary['PresentNodeIds'] = @($presentNodeIds)
+    $summary['PresentEdgeTitles'] = @($presentEdgeTitles)
+    $summary['VisibleNodeIds'] = @($visibleNodeIds)
+    $summary['VisibleEdgeTitles'] = @($visibleEdgeTitles)
+    return $summary
+}
+
+function Get-AverageOrNull {
+    param([Parameter(Mandatory)][object[]]$Values)
+
+    $numbers = @($Values | Where-Object { $_ -is [double] -or $_ -is [float] -or $_ -is [int] -or $_ -is [long] } | ForEach-Object { [double]$_ })
+    if ($numbers.Count -eq 0) {
+        return $null
+    }
+
+    return ($numbers | Measure-Object -Average).Average
+}
+
+function Get-SvgAttributeDouble {
+    param(
+        [Parameter(Mandatory)]$Node,
+        [Parameter(Mandatory)][string]$AttributeName
+    )
+
+    $attribute = $Node.Attributes[$AttributeName]
+    if ($null -eq $attribute -or [string]::IsNullOrWhiteSpace([string]$attribute.Value)) {
+        return $null
+    }
+
+    return [double]::Parse([string]$attribute.Value, [System.Globalization.CultureInfo]::InvariantCulture)
+}
+
+function Get-SvgFontSizeValue {
+    param([string]$Value)
+
+    if ([string]::IsNullOrWhiteSpace($Value)) {
+        return $null
+    }
+
+    $match = [regex]::Match($Value, '-?\d+(?:\.\d+)?', [System.Text.RegularExpressions.RegexOptions]::CultureInvariant)
+    if (-not $match.Success) {
+        return $null
+    }
+
+    return [double]::Parse($match.Value, [System.Globalization.CultureInfo]::InvariantCulture)
+}
+
+function Get-SvgNodeLabelEntry {
+    param(
+        [Parameter(Mandatory)][string]$NodeTitle,
+        [Parameter(Mandatory)]$EllipseNode,
+        [Parameter(Mandatory)]$TextNode
+    )
+
+    $cx = Get-SvgAttributeDouble -Node $EllipseNode -AttributeName 'cx'
+    $cy = Get-SvgAttributeDouble -Node $EllipseNode -AttributeName 'cy'
+    $x = Get-SvgAttributeDouble -Node $TextNode -AttributeName 'x'
+    $y = Get-SvgAttributeDouble -Node $TextNode -AttributeName 'y'
+    $fontSize = Get-SvgFontSizeValue -Value ([string]$TextNode.Attributes['font-size']?.Value)
+    $fontFamily = [string]$TextNode.Attributes['font-family']?.Value
+    $textAnchor = [string]$TextNode.Attributes['text-anchor']?.Value
+
     return [ordered]@{
-        Width = [string]$svg.GetAttribute('width')
-        Height = [string]$svg.GetAttribute('height')
-        ViewBox = [string]$svg.GetAttribute('viewBox')
-        GraphGroupId = if ($null -ne $graphGroup) { [string]$graphGroup.Attributes['id'].Value } else { $null }
-        GraphGroupTransform = if ($null -ne $graphGroup) { [string]$graphGroup.Attributes['transform'].Value } else { $null }
-        GroupCount = $groups.Count
-        NodeGroupCount = $nodeGroups.Count
-        EdgeGroupCount = $edgeGroups.Count
-        ClusterGroupCount = $clusterGroups.Count
-        TitleCount = $titles.Count
-        PathCount = $edgePaths.Count
-        CircleCount = $circles.Count
-        EllipseCount = $ellipses.Count
-        TextCount = $texts.Count
-        AnchorCount = $anchors.Count
-        RectCount = $rectangles.Count
-        PresentNodeCount = $presentNodeIds.Count
-        PresentEdgeCount = $presentEdgeTitles.Count
-        VisibleNodeCount = $visibleNodeIds.Count
-        VisibleEdgeCount = $visibleEdgeTitles.Count
-        PresentNodeIds = @($presentNodeIds)
-        PresentEdgeTitles = @($presentEdgeTitles)
-        VisibleNodeIds = @($visibleNodeIds)
-        VisibleEdgeTitles = @($visibleEdgeTitles)
+        NodeTitle = $NodeTitle
+        Text = [string]$TextNode.InnerText
+        X = $x
+        Y = $y
+        FontSize = $fontSize
+        FontFamily = $fontFamily
+        TextAnchor = $textAnchor
+        OffsetX = if ($x -is [double] -and $cx -is [double]) { [double]$x - [double]$cx } else { $null }
+        BaselineOffsetY = if ($y -is [double] -and $cy -is [double]) { [double]$y - [double]$cy } else { $null }
     }
 }
 
@@ -721,6 +822,7 @@ function Get-ManagedDiagnosticsSummary {
     $summary = [ordered]@{
         Scene = $null
         Viewport = $null
+        Labels = $null
         SvgStructure = $null
         Raster = @()
         SvgGeometry = @()
@@ -747,6 +849,11 @@ function Get-ManagedDiagnosticsSummary {
 
         if ($phase -eq 'render' -and $name -eq 'viewport') {
             $summary.Viewport = $data
+            continue
+        }
+
+        if ($phase -eq 'render' -and $name -eq 'labels') {
+            $summary.Labels = $data
             continue
         }
 
@@ -1018,6 +1125,7 @@ function Get-DiagnosticsComparisonSummary {
     $managedViewport = $managedDiagnostics.Viewport
     $graphvizScene = $graphvizVerbose.Scene
     $managedScene = $managedDiagnostics.Scene
+    $managedLabels = $managedDiagnostics.Labels
     $graphvizSvg = $graphvizVerbose.Svg
     $managedSvg = $managedDiagnostics.SvgStructure
     $graphvizStructure = $GraphvizResult.Summary
@@ -1041,6 +1149,10 @@ function Get-DiagnosticsComparisonSummary {
             EdgeCountDelta = if ($null -ne $graphvizScene -and $null -ne $managedScene) { [long]$managedScene['edgeCount'] - [long]$graphvizScene['edges'] } else { $null }
             Graphviz = $graphvizScene
             Managed = $managedScene
+        }
+        Labels = [ordered]@{
+            Available = ($null -ne $managedLabels)
+            Managed = $managedLabels
         }
         SvgStructure = [ordered]@{
             Available = ($null -ne $graphvizStructure -and $null -ne $managedSvg)
@@ -1116,6 +1228,8 @@ function Invoke-ManagedExport {
         [Parameter(Mandatory)][string]$DiagnosticsPath,
         [Parameter(Mandatory)][int]$SfdpSeed,
         [Parameter(Mandatory)][int]$SfdpOverlapRemovalIterations,
+        [switch]$IncludeLabels,
+        [double]$LabelFontSize = 8.0,
         [switch]$AllowPartial
     )
 
@@ -1130,6 +1244,8 @@ function Invoke-ManagedExport {
             NodeRadius = 0.72
             EdgeLineWidth = 0.2
             EdgeColor = '#00000018'
+            ShowLabels = $IncludeLabels.IsPresent
+            LabelFontSize = $LabelFontSize
             ShowArrows = $true
             ArrowSize = 0.08
             SfdpSeed = $SfdpSeed
@@ -1214,6 +1330,56 @@ function Get-SvgComparisonSummary {
     }
 }
 
+function Get-TextComparisonSummary {
+    param(
+        [object]$GraphvizResult,
+        [object]$ManagedResult
+    )
+
+    if (-not $GraphvizResult.Supported -or -not $ManagedResult.Supported) {
+        return [ordered]@{
+            Available = $false
+            Reason = 'One side did not produce SVG output for text comparison.'
+        }
+    }
+
+    $graphvizSummary = $GraphvizResult.Summary
+    $managedSummary = $ManagedResult.Summary
+    $missingNodeLabelsInManaged = @($graphvizSummary.NodeLabelTexts | Where-Object { $_ -notin $managedSummary.NodeLabelTexts })
+    $unexpectedNodeLabelsInManaged = @($managedSummary.NodeLabelTexts | Where-Object { $_ -notin $graphvizSummary.NodeLabelTexts })
+
+    return [ordered]@{
+        Available = $true
+        NodeLabelCountDelta = $managedSummary.NodeLabelCount - $graphvizSummary.NodeLabelCount
+        MissingNodeLabelsInManaged = $missingNodeLabelsInManaged
+        UnexpectedNodeLabelsInManaged = $unexpectedNodeLabelsInManaged
+        GraphvizFontFamilies = $graphvizSummary.FontFamilies
+        ManagedFontFamilies = $managedSummary.FontFamilies
+        GraphvizTextAnchors = $graphvizSummary.TextAnchors
+        ManagedTextAnchors = $managedSummary.TextAnchors
+        AverageFontSizeDelta = if ($null -ne $graphvizSummary.AverageNodeLabelFontSize -and $null -ne $managedSummary.AverageNodeLabelFontSize) { [double]$managedSummary.AverageNodeLabelFontSize - [double]$graphvizSummary.AverageNodeLabelFontSize } else { $null }
+        AverageOffsetXDelta = if ($null -ne $graphvizSummary.AverageNodeLabelOffsetX -and $null -ne $managedSummary.AverageNodeLabelOffsetX) { [double]$managedSummary.AverageNodeLabelOffsetX - [double]$graphvizSummary.AverageNodeLabelOffsetX } else { $null }
+        AverageBaselineOffsetYDelta = if ($null -ne $graphvizSummary.AverageNodeLabelBaselineOffsetY -and $null -ne $managedSummary.AverageNodeLabelBaselineOffsetY) { [double]$managedSummary.AverageNodeLabelBaselineOffsetY - [double]$graphvizSummary.AverageNodeLabelBaselineOffsetY } else { $null }
+        CenteredNodeLabelCountDelta = $managedSummary.CenteredNodeLabelCount - $graphvizSummary.CenteredNodeLabelCount
+        Graphviz = [ordered]@{
+            NodeLabelCount = $graphvizSummary.NodeLabelCount
+            AverageNodeLabelOffsetX = $graphvizSummary.AverageNodeLabelOffsetX
+            AverageNodeLabelBaselineOffsetY = $graphvizSummary.AverageNodeLabelBaselineOffsetY
+            AverageNodeLabelFontSize = $graphvizSummary.AverageNodeLabelFontSize
+            CenteredNodeLabelCount = $graphvizSummary.CenteredNodeLabelCount
+            NodeLabelTexts = $graphvizSummary.NodeLabelTexts
+        }
+        Managed = [ordered]@{
+            NodeLabelCount = $managedSummary.NodeLabelCount
+            AverageNodeLabelOffsetX = $managedSummary.AverageNodeLabelOffsetX
+            AverageNodeLabelBaselineOffsetY = $managedSummary.AverageNodeLabelBaselineOffsetY
+            AverageNodeLabelFontSize = $managedSummary.AverageNodeLabelFontSize
+            CenteredNodeLabelCount = $managedSummary.CenteredNodeLabelCount
+            NodeLabelTexts = $managedSummary.NodeLabelTexts
+        }
+    }
+}
+
 function Get-RasterComparisonSummary {
     param(
         [Parameter(Mandatory)][string]$FormatName,
@@ -1257,6 +1423,8 @@ function Invoke-ExportComparisonRun {
         [Parameter(Mandatory)][string]$GraphvizSfdpPath,
         [Parameter(Mandatory)][int]$SfdpSeed,
         [Parameter(Mandatory)][int]$SfdpOverlapRemovalIterations,
+        [switch]$IncludeLabels,
+        [double]$LabelFontSize = 8.0,
         [switch]$AllowPartial
     )
 
@@ -1277,21 +1445,23 @@ function Invoke-ExportComparisonRun {
     Export-Graph -Graph $Graph -Format Graphviz -Path $dotPath
 
     $graphvizNodeIdMap = Get-DotNodeIdMap -Path $dotPath
-    Set-DotNodeLabelsEmpty -Path $dotPath
+    $managedGraph = $Graph
+    if (-not $IncludeLabels.IsPresent) {
+        Set-DotNodeLabelsEmpty -Path $dotPath
 
-    $originalToGraphvizNodeIdMap = @{}
-    foreach ($entry in $graphvizNodeIdMap.GetEnumerator()) {
-        $originalToGraphvizNodeIdMap[$entry.Value] = $entry.Key
+        $originalToGraphvizNodeIdMap = @{}
+        foreach ($entry in $graphvizNodeIdMap.GetEnumerator()) {
+            $originalToGraphvizNodeIdMap[$entry.Value] = $entry.Key
+        }
+
+        $managedGraph = New-GraphWithRemappedIds -Graph $Graph -OriginalIdToRemappedId $originalToGraphvizNodeIdMap
     }
-
-    $managedGraph = New-GraphWithRemappedIds -Graph $Graph -OriginalIdToRemappedId $originalToGraphvizNodeIdMap
 
     $graphvizArgs = @(
         '-Nshape=circle',
         '-Nfixedsize=true',
         '-Nwidth=0.02',
         '-Nheight=0.02',
-        '-Nlabel=',
         '-Earrowsize=0.08',
         '-Epenwidth=0.2',
         '-Ecolor=#00000018',
@@ -1300,6 +1470,9 @@ function Invoke-ExportComparisonRun {
         '-Gsep=+4',
         '-Goutputorder=edgesfirst'
     )
+    if (-not $IncludeLabels.IsPresent) {
+        $graphvizArgs = @('-Nlabel=') + $graphvizArgs
+    }
 
     $graphvizResults = [ordered]@{
         Svg = Invoke-GraphvizExport `
@@ -1339,6 +1512,8 @@ function Invoke-ExportComparisonRun {
             -DiagnosticsPath (Join-Path $logDir "$GraphLabel-managed-svg.diagnostics.jsonl") `
             -SfdpSeed $SfdpSeed `
             -SfdpOverlapRemovalIterations $SfdpOverlapRemovalIterations `
+            -IncludeLabels:$IncludeLabels `
+            -LabelFontSize $LabelFontSize `
             -AllowPartial:$AllowPartial
         Png = Invoke-ManagedExport `
             -Graph $managedGraph `
@@ -1347,6 +1522,8 @@ function Invoke-ExportComparisonRun {
             -DiagnosticsPath (Join-Path $logDir "$GraphLabel-managed-png.diagnostics.jsonl") `
             -SfdpSeed $SfdpSeed `
             -SfdpOverlapRemovalIterations $SfdpOverlapRemovalIterations `
+            -IncludeLabels:$IncludeLabels `
+            -LabelFontSize $LabelFontSize `
             -AllowPartial:$AllowPartial
         Jpg = Invoke-ManagedExport `
             -Graph $managedGraph `
@@ -1355,6 +1532,8 @@ function Invoke-ExportComparisonRun {
             -DiagnosticsPath (Join-Path $logDir "$GraphLabel-managed-jpg.diagnostics.jsonl") `
             -SfdpSeed $SfdpSeed `
             -SfdpOverlapRemovalIterations $SfdpOverlapRemovalIterations `
+            -IncludeLabels:$IncludeLabels `
+            -LabelFontSize $LabelFontSize `
             -AllowPartial:$AllowPartial
     }
 
@@ -1378,6 +1557,7 @@ function Invoke-ExportComparisonRun {
         }
         Comparisons = [ordered]@{
             Svg = Get-SvgComparisonSummary -GraphvizResult $graphvizResults.Svg -ManagedResult $managedResults.Svg
+            Text = Get-TextComparisonSummary -GraphvizResult $graphvizResults.Svg -ManagedResult $managedResults.Svg
             Diagnostics = Get-DiagnosticsComparisonSummary -GraphvizResult $graphvizResults.Svg -ManagedResult $managedResults.Svg
             Png = Get-RasterComparisonSummary -FormatName 'PNG' -GraphvizResult $graphvizResults.Png -ManagedResult $managedResults.Png
             Jpg = Get-RasterComparisonSummary -FormatName 'JPG' -GraphvizResult $graphvizResults.Jpg -ManagedResult $managedResults.Jpg

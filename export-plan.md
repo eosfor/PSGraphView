@@ -1810,7 +1810,7 @@
 
 Статус:
 
-- не сделано
+- сделано частично
 
 Цель:
 
@@ -1827,6 +1827,54 @@
 - `src/PSGraphView.Sfdp/SfdpLabelLayouter.cs`
 - managed raster text path
 - `svg` text attributes
+
+Patch 7a:
+
+- сделать baseline и telemetry до реального text-fix:
+  - labelled compare harness
+  - text/font summary в `svg` compare
+  - managed label diagnostics
+
+Сделано в Patch 7a:
+
+- добавлен labelled compare script:
+  - `demos/Compare-Export-LabeledGraphs.ps1`
+- compare harness теперь умеет отдельный `Comparisons.Text` блок:
+  - `NodeLabelCountDelta`
+  - `GraphvizFontFamilies` / `ManagedFontFamilies`
+  - `GraphvizTextAnchors` / `ManagedTextAnchors`
+  - `AverageFontSizeDelta`
+  - `AverageOffsetXDelta`
+  - `AverageBaselineOffsetYDelta`
+- managed diagnostics теперь пишут `render.labels`
+
+Телеметрия Patch 7a:
+
+- test: `dotnet test tests/PSGraphView.Sfdp.Tests/PSGraphView.Sfdp.Tests.csproj --filter SfdpSvgExporterTests`
+- result: `12/12` passed
+- test: `dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --filter ExportGraphViewCmdletTests`
+- result: `13/13` passed
+- run: `pwsh -NoProfile -File demos/Compare-Export-LabeledGraphs.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-labeled-compare-patch7a`
+- result: `3/3` labeled cases completed successfully
+- result: text content already совпадает:
+  - `NodeLabelCountDelta = 0`
+  - `MissingNodeLabelsInManaged = []`
+- result: главные remaining text mismatches теперь измерены явно:
+  - `GraphvizFontFamilies = ["Times,serif"]`
+  - `ManagedFontFamilies = ["sans-serif"]`
+  - `GraphvizTextAnchors = ["middle"]`
+  - `ManagedTextAnchors = []`
+  - `AverageFontSizeDelta = -6.0` на всех labeled cases
+- result: `triangle-cycle-labeled`:
+  - `AverageOffsetXDelta = 8.93`
+  - `AverageBaselineOffsetYDelta = -3.65`
+- result: `single-edge-labeled`:
+  - `AverageOffsetXDelta = -9.42`
+  - `AverageBaselineOffsetYDelta = 3.57`
+
+Следующий шаг внутри Patch 7:
+
+- `Patch 7b`: реальная правка label placement / font defaults / `svg` text attributes под graphviz-like baseline
 
 Критерий готовности:
 
