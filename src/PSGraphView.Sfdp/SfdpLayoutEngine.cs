@@ -126,6 +126,7 @@ public sealed class SfdpLayoutEngine
             ("strategy", packingResult.Strategy),
             ("gap", packingResult.Gap),
             ("margin", packingResult.Margin),
+            ("scale", packingResult.Scale),
             ("step", packingResult.Step),
             ("maxRowWidth", packingResult.MaxRowWidth)
         ]);
@@ -138,6 +139,14 @@ public sealed class SfdpLayoutEngine
                 ("componentNodeCount", packedComponent.NodeCount),
                 ("componentWidth", packedComponent.SourceBounds.Width),
                 ("componentHeight", packedComponent.SourceBounds.Height),
+                ("componentWidthScaled", packedComponent.SourceWidthScaled),
+                ("componentHeightScaled", packedComponent.SourceHeightScaled),
+                ("roundedMinXScaled", packedComponent.RoundedMinXScaled),
+                ("roundedMinYScaled", packedComponent.RoundedMinYScaled),
+                ("cellCount", packedComponent.CellCount),
+                ("gridWidth", packedComponent.GridWidth),
+                ("gridHeight", packedComponent.GridHeight),
+                ("perimeter", packedComponent.Perimeter),
                 ("offsetX", packedComponent.PackedComponent.OffsetX),
                 ("offsetY", packedComponent.PackedComponent.OffsetY),
                 ("packedMinX", packedComponent.PackedComponent.Bounds.MinX),
@@ -157,6 +166,7 @@ public sealed class SfdpLayoutEngine
             ("step", packingResult.Step),
             ("gap", packingResult.Gap),
             ("margin", packingResult.Margin),
+            ("scale", packingResult.Scale),
             ("packedWidth", packingResult.PackedBounds.Width),
             ("packedHeight", packingResult.PackedBounds.Height)
         ]);

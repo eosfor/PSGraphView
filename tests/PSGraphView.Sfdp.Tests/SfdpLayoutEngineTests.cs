@@ -183,14 +183,21 @@ public sealed class SfdpLayoutEngineTests
                     case "start":
                         packingStartSeen = true;
                         Assert.Equal(2, root.GetProperty("Data").GetProperty("componentCount").GetInt32());
+                        Assert.True(root.GetProperty("Data").GetProperty("scale").GetDouble() > 1.0);
+                        Assert.True(root.GetProperty("Data").GetProperty("step").GetInt32() > 0);
                         break;
                     case "component":
                         componentEvents++;
                         Assert.True(root.GetProperty("Data").GetProperty("componentNodeCount").GetInt32() > 0);
+                        Assert.True(root.GetProperty("Data").GetProperty("cellCount").GetInt32() > 0);
+                        Assert.True(root.GetProperty("Data").GetProperty("gridWidth").GetInt32() > 0);
+                        Assert.True(root.GetProperty("Data").GetProperty("gridHeight").GetInt32() > 0);
+                        Assert.True(root.GetProperty("Data").GetProperty("perimeter").GetInt32() > 0);
                         Assert.True(root.GetProperty("Data").GetProperty("packedWidth").GetDouble() > 0.0);
                         break;
                     case "finish":
                         packingFinishSeen = true;
+                        Assert.True(root.GetProperty("Data").GetProperty("scale").GetDouble() > 1.0);
                         Assert.True(root.GetProperty("Data").GetProperty("packedWidth").GetDouble() > 0.0);
                         Assert.True(root.GetProperty("Data").GetProperty("packedHeight").GetDouble() > 0.0);
                         break;

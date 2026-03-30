@@ -35,12 +35,21 @@ internal sealed record SfdpPackingComponentPlacement(
     int PlacementIndex,
     int NodeCount,
     SfdpBoundingBox SourceBounds,
+    double SourceWidthScaled,
+    double SourceHeightScaled,
+    double RoundedMinXScaled,
+    double RoundedMinYScaled,
+    int CellCount,
+    int GridWidth,
+    int GridHeight,
+    int Perimeter,
     SfdpPackedComponent PackedComponent);
 
 internal sealed record SfdpPackingResult(
     SfdpPackingStrategy Strategy,
     double Gap,
     double Margin,
+    double Scale,
     double MaxRowWidth,
     int Step,
     SfdpBoundingBox PackedBounds,
@@ -48,12 +57,14 @@ internal sealed record SfdpPackingResult(
 
 public sealed class SfdpPackingOptions
 {
-    public double ComponentGap { get; init; } = 16.0;
+    public double ComponentGap { get; init; } = 16.0 / 72.0;
     public double MaxRowWidth { get; init; } = 1600.0;
 }
 
 public static class SfdpComponentPacker
 {
+    private const double PackingScale = 72.0;
+
     public static SfdpBoundingBox ComputeBounds(
         double[] x,
         double[] y,
@@ -124,6 +135,7 @@ public static class SfdpComponentPacker
                 SfdpPackingStrategy.Empty,
                 options.ComponentGap,
                 0.0,
+                PackingScale,
                 options.MaxRowWidth,
                 0,
                 new SfdpBoundingBox(0.0, 0.0, 0.0, 0.0),
@@ -146,9 +158,11 @@ public static class SfdpComponentPacker
             return CreatePackingResult(
                 preparedLayouts,
                 packedComponents,
+                shapes: null,
                 SfdpPackingStrategy.SingleComponent,
                 options.ComponentGap,
                 0.0,
+                PackingScale,
                 options.MaxRowWidth,
                 0);
         }
@@ -174,13 +188,13 @@ public static class SfdpComponentPacker
         double nodeRadius,
         SfdpPackingOptions options)
     {
-        var margin = Math.Max(options.ComponentGap / 2.0, 0.0);
-        var step = ComputeStep(layouts, margin);
+        var margin = Math.Max((options.ComponentGap * PackingScale) / 2.0, 0.0);
+        var step = ComputeStep(layouts, margin, PackingScale);
         var occupiedCells = new HashSet<long>();
         var packed = new List<SfdpPackedComponent>(layouts.Count);
         var shapes = layouts.ToDictionary(
             static layout => layout.Layout.ComponentId,
-            layout => BuildPackingShape(layout, graph, nodeRadius, step, margin));
+            layout => BuildPackingShape(layout, graph, nodeRadius, step, margin, PackingScale));
         var orderedLayouts = layouts
             .OrderByDescending(layout => shapes[layout.Layout.ComponentId].Perimeter)
             .ThenBy(static layout => layout.Layout.ComponentId)
@@ -196,11 +210,13 @@ public static class SfdpComponentPacker
         return CreatePackingResult(
             layouts,
             NormalizePackedBounds(packed),
+            shapes,
             ShouldPackAroundDominantComponent(layouts)
                 ? SfdpPackingStrategy.DominantComponent
                 : SfdpPackingStrategy.SpiralGrid,
             options.ComponentGap,
             margin,
+            PackingScale,
             options.MaxRowWidth,
             step);
     }
@@ -344,8 +360,8 @@ public static class SfdpComponentPacker
             occupiedCells.Add(ToCellKey(gridX + cell.X, gridY + cell.Y));
         }
 
-        var offsetX = step * gridX - shape.RoundedMinX;
-        var offsetY = step * gridY - shape.RoundedMinY;
+        var offsetX = ((step * gridX) - shape.RoundedMinXScaled) / shape.Scale;
+        var offsetY = ((step * gridY) - shape.RoundedMinYScaled) / shape.Scale;
         placement = new SfdpPackedComponent(
             layout.Layout.ComponentId,
             offsetX,
@@ -357,7 +373,7 @@ public static class SfdpComponentPacker
     private static int Grid(double size, int step)
         => Math.Max(1, (int)Math.Ceiling(size / step));
 
-    private static int ComputeStep(IReadOnlyList<PreparedComponentLayout> layouts, double margin)
+    private static int ComputeStep(IReadOnlyList<PreparedComponentLayout> layouts, double margin, double scale)
     {
         const double c = 100.0;
         var a = c * layouts.Count - 1.0;
@@ -366,8 +382,8 @@ public static class SfdpComponentPacker
 
         foreach (var layout in layouts)
         {
-            var width = layout.Bounds.Width + 2.0 * margin;
-            var height = layout.Bounds.Height + 2.0 * margin;
+            var width = (layout.Bounds.Width * scale) + (2.0 * margin);
+            var height = (layout.Bounds.Height * scale) + (2.0 * margin);
             b -= width + height;
             quadraticC -= width * height;
         }
@@ -417,17 +433,18 @@ public static class SfdpComponentPacker
         SfdpCsrGraph? graph,
         double nodeRadius,
         int step,
-        double margin)
+        double margin,
+        double scale)
     {
-        var roundedMinX = Math.Round(layout.Bounds.MinX);
-        var roundedMinY = Math.Round(layout.Bounds.MinY);
-        var nodeHalfSize = Math.Max(0, (int)Math.Round(nodeRadius + margin));
+        var roundedMinXScaled = Math.Round(layout.Bounds.MinX * scale);
+        var roundedMinYScaled = Math.Round(layout.Bounds.MinY * scale);
+        var nodeHalfSize = Math.Max(0, (int)Math.Round((nodeRadius * scale) + margin));
         var cells = new HashSet<long>();
 
         for (var i = 0; i < layout.Layout.NodeIndices.Length; i++)
         {
-            var centerX = (int)(Math.Round(layout.Layout.X[i]) - roundedMinX);
-            var centerY = (int)(Math.Round(layout.Layout.Y[i]) - roundedMinY);
+            var centerX = (int)(Math.Round(layout.Layout.X[i] * scale) - roundedMinXScaled);
+            var centerY = (int)(Math.Round(layout.Layout.Y[i] * scale) - roundedMinYScaled);
             var minCellX = CellValue(centerX - nodeHalfSize, step);
             var minCellY = CellValue(centerY - nodeHalfSize, step);
             var maxCellX = CellValue(centerX + nodeHalfSize, step);
@@ -444,7 +461,7 @@ public static class SfdpComponentPacker
 
         if (graph is not null)
         {
-            AddEdgeCells(layout, graph, roundedMinX, roundedMinY, step, cells);
+            AddEdgeCells(layout, graph, roundedMinXScaled, roundedMinYScaled, step, scale, cells);
         }
 
         if (cells.Count == 0)
@@ -454,19 +471,23 @@ public static class SfdpComponentPacker
 
         return new SfdpPackingShape(
             Cells: cells.Select(static key => new SfdpPackingCell((int)(key >> 32), (int)key)).ToArray(),
-            GridWidth: Grid(layout.Bounds.Width + (2.0 * margin), step),
-            GridHeight: Grid(layout.Bounds.Height + (2.0 * margin), step),
-            Perimeter: Grid(layout.Bounds.Width + (2.0 * margin), step) + Grid(layout.Bounds.Height + (2.0 * margin), step),
-            RoundedMinX: roundedMinX,
-            RoundedMinY: roundedMinY);
+            GridWidth: Grid((layout.Bounds.Width * scale) + (2.0 * margin), step),
+            GridHeight: Grid((layout.Bounds.Height * scale) + (2.0 * margin), step),
+            Perimeter: Grid((layout.Bounds.Width * scale) + (2.0 * margin), step) + Grid((layout.Bounds.Height * scale) + (2.0 * margin), step),
+            RoundedMinXScaled: roundedMinXScaled,
+            RoundedMinYScaled: roundedMinYScaled,
+            Scale: scale,
+            ScaledWidth: (layout.Bounds.Width * scale) + (2.0 * margin),
+            ScaledHeight: (layout.Bounds.Height * scale) + (2.0 * margin));
     }
 
     private static void AddEdgeCells(
         PreparedComponentLayout layout,
         SfdpCsrGraph graph,
-        double roundedMinX,
-        double roundedMinY,
+        double roundedMinXScaled,
+        double roundedMinYScaled,
         int step,
+        double scale,
         HashSet<long> cells)
     {
         var localIndexByGlobal = new Dictionary<int, int>(layout.Layout.NodeIndices.Length);
@@ -481,8 +502,8 @@ public static class SfdpComponentPacker
             var start = graph.Offsets[globalIndex];
             var end = graph.Offsets[globalIndex + 1];
             var fromCell = new SfdpPackingCell(
-                CellValue((int)(Math.Round(layout.Layout.X[localIndex]) - roundedMinX), step),
-                CellValue((int)(Math.Round(layout.Layout.Y[localIndex]) - roundedMinY), step));
+                CellValue((int)(Math.Round(layout.Layout.X[localIndex] * scale) - roundedMinXScaled), step),
+                CellValue((int)(Math.Round(layout.Layout.Y[localIndex] * scale) - roundedMinYScaled), step));
 
             for (var offset = start; offset < end; offset++)
             {
@@ -493,8 +514,8 @@ public static class SfdpComponentPacker
                 }
 
                 var toCell = new SfdpPackingCell(
-                    CellValue((int)(Math.Round(layout.Layout.X[localNeighbor]) - roundedMinX), step),
-                    CellValue((int)(Math.Round(layout.Layout.Y[localNeighbor]) - roundedMinY), step));
+                    CellValue((int)(Math.Round(layout.Layout.X[localNeighbor] * scale) - roundedMinXScaled), step),
+                    CellValue((int)(Math.Round(layout.Layout.Y[localNeighbor] * scale) - roundedMinYScaled), step));
                 AddLineCells(fromCell, toCell, cells);
             }
         }
@@ -564,9 +585,11 @@ public static class SfdpComponentPacker
     private static SfdpPackingResult CreatePackingResult(
         IReadOnlyList<PreparedComponentLayout> preparedLayouts,
         IReadOnlyList<SfdpPackedComponent> packedComponents,
+        IReadOnlyDictionary<int, SfdpPackingShape>? shapes,
         SfdpPackingStrategy strategy,
         double gap,
         double margin,
+        double scale,
         double maxRowWidth,
         int step)
     {
@@ -576,11 +599,31 @@ public static class SfdpComponentPacker
         {
             var packedComponent = packedComponents[i];
             var prepared = preparedByComponentId[packedComponent.ComponentId];
+            var shape = shapes is not null
+                ? shapes[packedComponent.ComponentId]
+                : new SfdpPackingShape(
+                    Cells: [new SfdpPackingCell(0, 0)],
+                    GridWidth: 1,
+                    GridHeight: 1,
+                    Perimeter: 2,
+                    RoundedMinXScaled: 0.0,
+                    RoundedMinYScaled: 0.0,
+                    Scale: scale,
+                    ScaledWidth: prepared.Bounds.Width * scale,
+                    ScaledHeight: prepared.Bounds.Height * scale);
             placements.Add(new SfdpPackingComponentPlacement(
                 packedComponent.ComponentId,
                 i,
                 prepared.Layout.NodeIndices.Length,
                 prepared.Bounds,
+                shape.ScaledWidth,
+                shape.ScaledHeight,
+                shape.RoundedMinXScaled,
+                shape.RoundedMinYScaled,
+                shape.Cells.Length,
+                shape.GridWidth,
+                shape.GridHeight,
+                shape.Perimeter,
                 packedComponent));
         }
 
@@ -588,6 +631,7 @@ public static class SfdpComponentPacker
             strategy,
             gap,
             margin,
+            scale,
             maxRowWidth,
             step,
             ComputePackedBounds(packedComponents),
@@ -621,6 +665,9 @@ public static class SfdpComponentPacker
         int GridWidth,
         int GridHeight,
         int Perimeter,
-        double RoundedMinX,
-        double RoundedMinY);
+        double RoundedMinXScaled,
+        double RoundedMinYScaled,
+        double Scale,
+        double ScaledWidth,
+        double ScaledHeight);
 }

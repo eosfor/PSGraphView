@@ -30,26 +30,26 @@
   - `seed` и overlap budget в compare harness выровнены
   - `K`, component-level `p`, `max_depth` и default `threshold` доведены до близкой к Graphviz семантики
   - canonical triangulation parity улучшена на `Patch 6b`
-- Текущее состояние после `Patch 11` на full `WikiVote`:
+- Текущее состояние после `Patch 12` на full `WikiVote`:
   - full graph:
     - Graphviz `MeanEdgeToDiagonal = 0.094565`
-    - Managed `MeanEdgeToDiagonal = 0.016874`
+    - Managed `MeanEdgeToDiagonal = 0.077753`
     - Graphviz `EdgeLengthCv = 0.555466`
     - Managed `EdgeLengthCv = 0.555135`
   - main component:
     - Graphviz `MeanEdgeToDiagonal = 0.094585`
-    - Managed `MeanEdgeToDiagonal = 0.093883`
+    - Managed `MeanEdgeToDiagonal = 0.093877`
     - Graphviz `EdgeLengthCv = 0.555271`
     - Managed `EdgeLengthCv = 0.554953`
   - handoff checkpoints:
     - `component.geometry stage=layout_component_return`: width `20.099584`
-    - `layout.geometry stage=after_packing`: width `110.524444`
-    - `svg.geometry stage=export_input`: width `110.524444`
+    - `layout.geometry stage=after_packing`: width `24.811667`
+    - `svg.geometry stage=export_input`: width `24.811667`
   - вывод:
     - main component уже близок к Graphviz
     - renderer / `SfdpSvgExporter` не даёт главный разъезд
-    - `Patch 11` уже заметно уменьшил full-graph разъезд
-    - remaining mismatch всё ещё сидит в full-graph packing / component-gap semantics
+    - `Patch 12` закрыл главный mismatch по packing scale / step
+    - remaining mismatch уже не выглядит как грубая проблема единиц или cell scale
 - `Patch 7` реализован:
   - в managed добавлен явный `SfdpQuadtreeMode` с режимами `None/Normal/Fast/Hybrid`
   - default path теперь явно соответствует Graphviz `NORMAL`
@@ -73,20 +73,34 @@
     - `Managed MeanEdgeToDiagonal = 0.008147 -> 0.016874`
     - `after_packing width = 220.524444 -> 110.524444`
   - main component при этом осталась близкой к Graphviz
+- `Patch 12` реализован:
+  - packing переведён на отдельную point-scale семантику с `scale = 72`
+  - `ComponentGap` снова трактуется в layout units, а packing margin вычисляется в Graphviz-like point space
+  - в diagnostics добавлены shape-level packing поля:
+    - `scale`
+    - `cellCount`
+    - `gridWidth/gridHeight`
+    - `perimeter`
+    - `componentWidthScaled/componentHeightScaled`
+    - `roundedMinXScaled/roundedMinYScaled`
+  - полный `WikiVote` показал:
+    - `step = 35` у managed против Graphviz `29`
+    - `after_packing width = 24.811667`
+    - `Managed MeanEdgeToDiagonal = 0.077753`
+  - main component по-прежнему близка к Graphviz
 
 Не сделано:
 
-- добить full-graph packing parity после `Patch 11`
-  - `Patch 11` уже убрал главный прямоугольный over-pack и сильно сократил full bounds
-  - но на full `WikiVote` ещё остаётся заметный разъезд:
+- добить остаточный full-graph mismatch после `Patch 12`
+  - `Patch 12` уже убрал разъезд по packing scale / step:
+    - Graphviz `step size = 29`
+    - Managed `step = 35`
+  - но на full `WikiVote` ещё остаётся остаточный разъезд:
     - Graphviz `MeanEdgeToDiagonal = 0.094565`
-    - Managed `MeanEdgeToDiagonal = 0.016874`
-  - по логам следующий remaining mismatch теперь выглядит уже уже:
-    - Graphviz `margin = 8`, `step size = 29`
-    - Managed `gap = 16`, `margin = 8`, `step = 2`
+    - Managed `MeanEdgeToDiagonal = 0.077753`
   - следующий конкретный шаг:
-    - выровнять packing unit / cell scale semantics ближе к Graphviz `packSubgraphs`
-    - отдельно проверить, не нужен ли ещё более буквальный `dotneato_postprocess`-style shift / normalize path
+    - проверить финальный shift / normalize path после packing
+    - при необходимости сравнить managed post-pack handoff с Graphviz `dotneato_postprocess`
 - добивка quadtree parity по fine details
   - surface и основная `Normal`-траектория уже близки
   - если возвращаться сюда, то только ради более точного повторения Graphviz internals
@@ -2529,6 +2543,167 @@ diagnostics.Write(
   - не возвращаться в `prism`
   - добивать packing units / grid step parity уже ближе к Graphviz `packSubgraphs`
 
+### Patch 12. Сблизить packing units / grid step semantics с Graphviz `packSubgraphs`
+
+Статус:
+
+- реализован
+- задачу по packing scale / step можно считать закрытой
+
+Почему это следующий шаг:
+
+- `Patch 11` уже убрал главный прямоугольный over-pack
+- после этого remaining mismatch стал намного уже и теперь выглядит как mismatch единиц packing-а:
+  - Graphviz verbose: `margin = 8`, `step size = 29`
+  - Managed diagnostics: `gap = 16`, `margin = 8`, `step = 2`
+- main component уже близка к Graphviz, значит:
+  - не надо возвращаться в `prism`
+  - не надо трогать renderer
+  - надо добивать именно packing scale / cell semantics
+
+Цель:
+
+- понять, в каких единицах Graphviz реально считает `packSubgraphs` для `sfdp`
+- привести managed packing к той же шкале:
+  - `source bounds`
+  - `polyomino cells`
+  - `perimeter`
+  - `step size`
+- после этого ещё раз проверить, нужен ли отдельный patch на `dotneato_postprocess`-style normalize/shift
+
+Файлы:
+
+- `src/PSGraphView.Sfdp/SfdpComponentPacker.cs`
+- `src/PSGraphView.Sfdp/SfdpLayoutEngine.cs`
+- `tests/PSGraphView.Sfdp.Tests/SfdpComponentPackerTests.cs`
+- `demos/Compare-WikiVote-Sfdp.ps1`
+- при необходимости:
+  - `../graphviz/lib/pack/pack.c`
+  - `../graphviz/lib/common/postproc.c`
+
+Что делать:
+
+1. Расширить managed diagnostics вокруг packing shape.
+   Добавить поля:
+   - `sourceWidth`
+   - `sourceHeight`
+   - `roundedMinX`
+   - `roundedMinY`
+   - `cellCount`
+   - `perimeter`
+   - `gridWidth`
+   - `gridHeight`
+   - `step`
+   - `margin`
+   Для `packing.start` и `packing.component`.
+
+2. На одном full run сравнить не только `packedWidth`, но и shape-level данные largest component.
+   Сравнить:
+   - `sourceWidth/sourceHeight`
+   - `cellCount`
+   - `perimeter`
+   - `step`
+   - `offset`
+
+3. Если подтвердится, что Graphviz pack делает расчёт в другой шкале:
+   - ввести отдельную packing-scale семантику в managed
+   - не менять layout coordinates глобально
+   - масштабировать только packing shape и offsets, а потом возвращать результат в layout units
+
+4. После этого снова прогнать full `WikiVote`.
+   Смотреть:
+   - `layout.geometry stage=after_packing`
+   - `Managed.Packing.Start/Finish`
+   - full `MeanEdgeToDiagonal`
+   - main component метрики
+
+5. Только если packing units уже будут близки, а full bounds всё ещё заметно расходятся:
+   - идти в отдельный подпатч на финальный normalize/shift path
+   - сравнивать это уже с `dotneato_postprocess`
+
+Что должно измениться в логах после patch:
+
+- managed `step` должен стать хотя бы одного порядка с Graphviz, а не `2` против `29`
+- `cellCount` / `perimeter` largest component должны стать сравнимыми по масштабу
+- `after_packing width` должен ещё заметно снизиться относительно `110.524444`
+- при этом `MainComponentMeanEdgeToDiagonal` должен остаться близким к Graphviz
+
+Критерий готовности:
+
+- есть понятный ответ, в чём именно remaining mismatch:
+  - в packing unit scale
+  - или уже в финальном shift/normalize path
+- после patch-а следующий шаг можно формулировать уже узко:
+  - либо `Patch 12a` про normalize/shift
+  - либо считать full-graph packing parity в основном закрытой
+
+Что сделано:
+
+1. В `src/PSGraphView.Sfdp/SfdpComponentPacker.cs` введена отдельная packing scale:
+   - `scale = 72`
+   - packing shape строится в point-like пространстве
+   - итоговые offsets возвращаются обратно в layout units
+
+2. `ComponentGap` снова трактуется в layout units, а packing margin вычисляется отдельно:
+   - default стал `16 / 72`
+   - при этом в diagnostics managed margin теперь сравним с Graphviz `margin = 8`
+
+3. В diagnostics добавлены shape-level поля для packing:
+   - `scale`
+   - `cellCount`
+   - `gridWidth/gridHeight`
+   - `perimeter`
+   - `componentWidthScaled/componentHeightScaled`
+   - `roundedMinXScaled/roundedMinYScaled`
+
+4. Обновлены тесты:
+   - `tests/PSGraphView.Sfdp.Tests/SfdpComponentPackerTests.cs`
+   - `tests/PSGraphView.Sfdp.Tests/SfdpLayoutEngineTests.cs`
+
+5. Проверка:
+   - `dotnet test tests/PSGraphView.Sfdp.Tests/PSGraphView.Sfdp.Tests.csproj --no-restore`
+   - `dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --no-restore`
+   - full run:
+     - `/tmp/psgraphview-sfdp-full-patch12-localgv/wiki-vote-full-comparison.json`
+     - `/tmp/psgraphview-sfdp-full-patch12-localgv/wiki-vote-full-managed.diagnostics.jsonl`
+     - `/tmp/psgraphview-sfdp-full-patch12-localgv/wiki-vote-full-graphviz.verbose.log`
+
+Что показал patch:
+
+- `step` у managed стал того же порядка, что и у Graphviz:
+  - Graphviz `29`
+  - Managed `35`
+- full-graph packing резко приблизился к Graphviz:
+  - `layout.geometry stage=after_packing`: width `110.524444 -> 24.811667`
+  - Graphviz `MeanEdgeToDiagonal = 0.094565`
+  - Managed `MeanEdgeToDiagonal = 0.077753`
+- main component осталась почти без изменений:
+  - Graphviz `MainComponentMeanEdgeToDiagonal = 0.094585`
+  - Managed `MainComponentMeanEdgeToDiagonal = 0.093877`
+
+Вывод:
+
+- `Patch 12` закрыл главную проблему по packing scale / cell step
+- full-graph mismatch теперь уже не похож на грубый scale bug
+- следующий шаг надо формулировать уже уже:
+  - сравнить финальный shift / normalize path
+  - и при необходимости смотреть в сторону `dotneato_postprocess`
+
+### Patch 13. Проверить и при необходимости сблизить финальный shift / normalize path после packing
+
+Статус:
+
+- не начат
+- это следующий практический patch после `Patch 12`
+
+Цель:
+
+- понять, остаётся ли разъезд после того, как packing scale уже выровнен
+- если да, проверить:
+  - final component offsets
+  - root bounds normalize
+  - финальный post-pack handoff относительно Graphviz `dotneato_postprocess`
+
 ---
 
 ## Порядок выполненных patch-ов и ближайшего следующего шага
@@ -2551,6 +2726,8 @@ diagnostics.Write(
 14. Patch 9
 15. Patch 10
 16. Patch 11
+17. Patch 12
+18. Patch 13
 
 Именно в таком порядке, потому что:
 
@@ -2565,7 +2742,7 @@ diagnostics.Write(
   - затем proximity / triangulation path
 - и только потом переходить к quadtree mode и его внутренностям
 
-Следующий практический шаг после `Patch 11`:
+Следующий практический шаг после `Patch 12`:
 
   - перед compare для `PSGraphView` больше не нужно полагаться на `tests/.../bin`
   - `-UseLocalModules` сам делает fresh `dotnet publish` и берёт модуль из publish output
@@ -2577,20 +2754,25 @@ diagnostics.Write(
   - compare-скрипт пишет эти checkpoint-ы в `comparison.json` автоматически
 - `Patch 8b.3` дал важный сдвиг на главной компоненте:
   - `pre-overlap box/unit semantics` действительно были реальным разъездом
-- `Patch 11` уже дал первый algorithmic сдвиг по full-graph packing:
-  - packing по polyomino cells вместо rectangle occupancy
-  - full `MeanEdgeToDiagonal = 0.008147 -> 0.016874`
-  - `after_packing width = 220.524444 -> 110.524444`
+- `Patch 12` закрыл главный mismatch по packing scale:
+  - `step = 35` у managed против Graphviz `29`
+  - full `MeanEdgeToDiagonal = 0.016874 -> 0.077753`
+  - `after_packing width = 110.524444 -> 24.811667`
 - при этом main component по-прежнему близка к Graphviz
 - значит следующий наиболее оправданный шаг по цене/эффекту:
   - остаться в packing path
-  - сравнить и выровнять:
-    - packing unit semantics
-    - `step size`
-    - grid/cell scale в `SfdpComponentPacker`
-    - при необходимости финальный shift/normalize path относительно Graphviz `dotneato_postprocess`
+  - сравнить и выровнять финальный shift / normalize path
+  - при необходимости сравнить managed post-pack handoff с Graphviz `dotneato_postprocess`
   - смотреть в:
-    - `src/PSGraphView.Sfdp/SfdpComponentPacker.cs`
     - `src/PSGraphView.Sfdp/SfdpLayoutEngine.cs`
-    - `../graphviz/lib/pack/pack.c`
-    - при необходимости `../graphviz/lib/common/postproc.c`
+    - `src/PSGraphView.Sfdp/SfdpComponentPacker.cs`
+    - `../graphviz/lib/common/postproc.c`
+
+Следующий практический шаг после текущего состояния:
+
+- оформить это как `Patch 13`
+- сначала проверить:
+  - final component offsets
+  - packed bounds normalize
+  - root bounds после packing
+- и только потом решать, нужен ли буквальный `dotneato_postprocess`-style shift
