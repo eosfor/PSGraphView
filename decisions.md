@@ -456,3 +456,46 @@
 - `Patch 5` и `Patch 6` теперь можно делать уже на реальном managed raster output
 - текущие raster deltas пока естественно наследуют ещё не закрытую parity-разницу по geometry/viewport/text
 - это уже не проблема "нет raster surface", а именно следующий слой parity-работы
+
+## 2026-03-30 12:37 PDT - Patch 5 закрываем после выравнивания PNG clear policy и raw raster sizing
+
+Решение: считаем `Patch 5` выполненным. `png` теперь сравнивается не только по размерам, но и по базовым pixel-metrics, а transparent-background mismatch для основного сценария больше не маскирует остальные расхождения.
+
+Причины:
+
+- raster pixel size теперь считается из raw page size, а не из уже округлённого `svg` размера
+- `png` surface при включённом background теперь очищается сразу в цвет фона, а не в transparent black
+- из-за этого `TransparentPixelDelta` ушёл в `0` и больше не искажает итоговую картину
+- после этого оставшийся mismatch уже читается как:
+  - geometry / viewport difference, унаследованная от ещё не закрытой `svg` parity
+  - density / dark-pixel coverage difference
+
+Телеметрия:
+
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.GVExport/GraphRenderScene.cs` now stores raw raster page size in viewport
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.Sfdp/SfdpViewportCalculator.cs` now preserves raw raster width/height before `svg` rounding
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.GVExport/GraphRasterRenderSceneWriter.cs` now:
+  - computes pixel size from raw raster page size
+  - clears PNG to graph background color when background is enabled
+- code change: `/Users/andrei/repo/PSGraphView/demos/Compare-Export.Common.ps1` now loads `SkiaSharp.dll` early enough to decode both graphviz and managed raster outputs and compute pixel metrics
+- test: `dotnet test tests/PSGraphView.GVExport.Tests/PSGraphView.GVExport.Tests.csproj`
+- result: `4/4` passed
+- test: `dotnet test tests/PSGraphView.Sfdp.Tests/PSGraphView.Sfdp.Tests.csproj --filter SfdpRasterExporterTests`
+- result: `2/2` passed
+- test: `dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --filter ExportGraphViewCmdletTests`
+- result: `13/13` passed
+- run: `pwsh -NoProfile -File demos/Compare-Export-SmallGraphs.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-small-compare-patch5c`
+- result: on all `6` small-graph cases `PngTransparentPixelDelta = 0`
+- run: `pwsh -NoProfile -File demos/Compare-WikiVote-Export.ps1 -UseLocalModules -UseSubgraph -SubgraphSeedCount 30 -SubgraphStartVertexCount 3 -OutputDir /tmp/psgraphview-export-wikivote-patch5c`
+- result: `30 vertices / 99 edges`
+- result: `PngWidthDelta = 30`
+- result: `PngHeightDelta = 21`
+- result: `PngTransparentPixelDelta = 0`
+- result: `PngDarkPixelDelta = -3008`
+- result: `PngNonWhitePixelDelta = -3008`
+
+Следствие:
+
+- `Patch 6` теперь можно делать уже на фоне более честной PNG telemetry
+- оставшийся крупный raster mismatch уже нельзя списать на transparent clear policy
+- следующий meaningful шаг для raster parity идёт в JPEG flatten policy и дальше в общую geometry/text parity

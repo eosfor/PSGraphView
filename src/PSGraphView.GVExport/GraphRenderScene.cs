@@ -6,7 +6,9 @@ public sealed record GraphRenderViewport(
     double ViewBoxWidth,
     double ViewBoxHeight,
     double OutputWidth,
-    double OutputHeight);
+    double OutputHeight,
+    double RasterWidthPoints,
+    double RasterHeightPoints);
 
 public sealed record GraphRenderArrowStyle(
     string MarkerId,

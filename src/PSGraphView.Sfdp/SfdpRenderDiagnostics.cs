@@ -120,7 +120,9 @@ internal static class SfdpRenderDiagnostics
             ("viewBoxWidth", scene.Viewport.ViewBoxWidth),
             ("viewBoxHeight", scene.Viewport.ViewBoxHeight),
             ("outputWidth", scene.Viewport.OutputWidth),
-            ("outputHeight", scene.Viewport.OutputHeight)
+            ("outputHeight", scene.Viewport.OutputHeight),
+            ("rasterWidthPoints", scene.Viewport.RasterWidthPoints),
+            ("rasterHeightPoints", scene.Viewport.RasterHeightPoints)
         ]);
     }
 

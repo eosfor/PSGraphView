@@ -87,7 +87,9 @@ internal static class SfdpViewportCalculator
                 ViewBoxWidth: Math.Ceiling(pageWidth),
                 ViewBoxHeight: Math.Ceiling(pageHeight),
                 OutputWidth: outputWidth,
-                OutputHeight: outputHeight));
+                OutputHeight: outputHeight,
+                RasterWidthPoints: options.Width ?? pageWidth,
+                RasterHeightPoints: options.Height ?? pageHeight));
     }
 }
 

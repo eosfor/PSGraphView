@@ -41,7 +41,7 @@ public sealed class GraphRasterRenderSceneWriterTests
 
     private static GraphRenderScene CreateScene()
     {
-        var viewport = new GraphRenderViewport(0.0, 0.0, 48.0, 24.0, 48.0, 24.0);
+        var viewport = new GraphRenderViewport(0.0, 0.0, 48.0, 24.0, 48.0, 24.0, 48.0, 24.0);
         var style = new GraphRenderStyle(true, "#ffffff", new GraphRenderArrowStyle("arrowhead", "#000000", 1.0));
         var canvas = new GraphRenderCanvas("graph0", "graph", "G", "scale(1 1) rotate(0) translate(4 20)", "-4,4 -4,-20 44,-20 44,4");
         var edges = new[]

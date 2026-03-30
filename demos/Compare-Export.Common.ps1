@@ -212,14 +212,138 @@ function Get-FormatSummary {
             return $summary
         }
         'Png' {
-            return Get-PngMetadata -Path $Path
+            $summary = Get-PngMetadata -Path $Path
+            $pixels = Get-RasterPixelSummary -Path $Path
+            if ($null -ne $pixels) {
+                foreach ($entry in $pixels.GetEnumerator()) {
+                    $summary[$entry.Key] = $entry.Value
+                }
+            }
+
+            return $summary
         }
         'Jpg' {
-            return Get-JpegMetadata -Path $Path
+            $summary = Get-JpegMetadata -Path $Path
+            $pixels = Get-RasterPixelSummary -Path $Path
+            if ($null -ne $pixels) {
+                foreach ($entry in $pixels.GetEnumerator()) {
+                    $summary[$entry.Key] = $entry.Value
+                }
+            }
+
+            return $summary
         }
         default {
             throw "Unsupported format '$Format'."
         }
+    }
+}
+
+function Get-RasterPixelSummary {
+    param([Parameter(Mandatory)][string]$Path)
+
+    if (-not (Test-Path $Path)) {
+        return $null
+    }
+
+    Ensure-SkiaSharpAssemblyLoaded
+
+    $skDataType = 'SkiaSharp.SKData' -as [type]
+    $skImageType = 'SkiaSharp.SKImage' -as [type]
+    $skBitmapType = 'SkiaSharp.SKBitmap' -as [type]
+    $skImageInfoType = 'SkiaSharp.SKImageInfo' -as [type]
+    if ($null -eq $skDataType -or $null -eq $skImageType -or $null -eq $skBitmapType -or $null -eq $skImageInfoType) {
+        return $null
+    }
+
+    $bytes = [System.IO.File]::ReadAllBytes($Path)
+    $data = [SkiaSharp.SKData]::CreateCopy($bytes)
+    try {
+        $image = [SkiaSharp.SKImage]::FromEncodedData($data)
+        if ($null -eq $image) {
+            return $null
+        }
+
+        try {
+            $info = [SkiaSharp.SKImageInfo]::new(
+                $image.Width,
+                $image.Height,
+                [SkiaSharp.SKColorType]::Rgba8888,
+                [SkiaSharp.SKAlphaType]::Unpremul)
+            $bitmap = [SkiaSharp.SKBitmap]::new($info)
+            try {
+                $ok = $image.ReadPixels($info, $bitmap.GetPixels(), $info.RowBytes, 0, 0)
+                if (-not $ok) {
+                    return $null
+                }
+
+                $pixels = New-Object byte[] ($info.RowBytes * $info.Height)
+                [System.Runtime.InteropServices.Marshal]::Copy($bitmap.GetPixels(), $pixels, 0, $pixels.Length)
+
+                $opaquePixelCount = 0
+                $transparentPixelCount = 0
+                $darkPixelCount = 0
+                $nonWhitePixelCount = 0
+
+                for ($index = 0; $index -lt $pixels.Length; $index += 4) {
+                    $r = [int]$pixels[$index]
+                    $g = [int]$pixels[$index + 1]
+                    $b = [int]$pixels[$index + 2]
+                    $a = [int]$pixels[$index + 3]
+
+                    if ($a -eq 255) {
+                        $opaquePixelCount++
+                    }
+                    elseif ($a -eq 0) {
+                        $transparentPixelCount++
+                    }
+
+                    if ($r -lt 250 -or $g -lt 250 -or $b -lt 250) {
+                        $nonWhitePixelCount++
+                    }
+
+                    if ((($r + $g + $b) / 3.0) -lt 250) {
+                        $darkPixelCount++
+                    }
+                }
+
+                return [ordered]@{
+                    OpaquePixelCount = $opaquePixelCount
+                    TransparentPixelCount = $transparentPixelCount
+                    DarkPixelCount = $darkPixelCount
+                    NonWhitePixelCount = $nonWhitePixelCount
+                }
+            }
+            finally {
+                if ($null -ne $bitmap) {
+                    $bitmap.Dispose()
+                }
+            }
+        }
+        finally {
+            $image.Dispose()
+        }
+    }
+    finally {
+        $data.Dispose()
+    }
+}
+
+function Ensure-SkiaSharpAssemblyLoaded {
+    $loaded = [AppDomain]::CurrentDomain.GetAssemblies() | Where-Object { $_.GetName().Name -eq 'SkiaSharp' } | Select-Object -First 1
+    if ($null -ne $loaded) {
+        return
+    }
+
+    $psGraphViewModule = Get-Module PSGraphView | Select-Object -First 1
+    if ($null -eq $psGraphViewModule) {
+        return
+    }
+
+    $moduleDir = Split-Path -Parent $psGraphViewModule.Path
+    $candidate = Join-Path $moduleDir 'SkiaSharp.dll'
+    if (Test-Path $candidate) {
+        [System.Reflection.Assembly]::LoadFrom($candidate) | Out-Null
     }
 }
 
@@ -604,6 +728,10 @@ function Get-RasterComparisonSummary {
         WidthDelta = $managedSummary.Width - $graphvizSummary.Width
         HeightDelta = $managedSummary.Height - $graphvizSummary.Height
         ByteCountDelta = $managedSummary.ByteCount - $graphvizSummary.ByteCount
+        OpaquePixelDelta = if ($graphvizSummary.Contains('OpaquePixelCount') -and $managedSummary.Contains('OpaquePixelCount')) { $managedSummary.OpaquePixelCount - $graphvizSummary.OpaquePixelCount } else { $null }
+        TransparentPixelDelta = if ($graphvizSummary.Contains('TransparentPixelCount') -and $managedSummary.Contains('TransparentPixelCount')) { $managedSummary.TransparentPixelCount - $graphvizSummary.TransparentPixelCount } else { $null }
+        DarkPixelDelta = if ($graphvizSummary.Contains('DarkPixelCount') -and $managedSummary.Contains('DarkPixelCount')) { $managedSummary.DarkPixelCount - $graphvizSummary.DarkPixelCount } else { $null }
+        NonWhitePixelDelta = if ($graphvizSummary.Contains('NonWhitePixelCount') -and $managedSummary.Contains('NonWhitePixelCount')) { $managedSummary.NonWhitePixelCount - $graphvizSummary.NonWhitePixelCount } else { $null }
         Graphviz = $graphvizSummary
         Managed = $managedSummary
         ManagedDiagnostics = if ($ManagedResult.DiagnosticsSummary.Raster.Count -gt 0) { $ManagedResult.DiagnosticsSummary.Raster[-1] } else { $null }

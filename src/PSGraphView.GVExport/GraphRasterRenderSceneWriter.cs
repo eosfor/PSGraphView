@@ -23,17 +23,25 @@ public static class GraphRasterRenderSceneWriter
     {
         ArgumentNullException.ThrowIfNull(scene);
 
-        var pixelWidth = Math.Max(1, (int)Math.Round(scene.Viewport.OutputWidth * RasterDpi / SvgDpi));
-        var pixelHeight = Math.Max(1, (int)Math.Round(scene.Viewport.OutputHeight * RasterDpi / SvgDpi));
-        var scaleX = pixelWidth / Math.Max(scene.Viewport.ViewBoxWidth, 1.0);
-        var scaleY = pixelHeight / Math.Max(scene.Viewport.ViewBoxHeight, 1.0);
+        var rasterWidthPoints = Math.Max(scene.Viewport.RasterWidthPoints, 1.0);
+        var rasterHeightPoints = Math.Max(scene.Viewport.RasterHeightPoints, 1.0);
+        var pixelWidth = Math.Max(1, (int)Math.Round(rasterWidthPoints * RasterDpi / SvgDpi));
+        var pixelHeight = Math.Max(1, (int)Math.Round(rasterHeightPoints * RasterDpi / SvgDpi));
+        var scaleX = pixelWidth / rasterWidthPoints;
+        var scaleY = pixelHeight / rasterHeightPoints;
         var info = new SKImageInfo(pixelWidth, pixelHeight, SKColorType.Rgba8888, SKAlphaType.Premul);
 
         using SKSurface surface = SKSurface.Create(info)
             ?? throw new InvalidOperationException("Failed to create Skia raster surface.");
 
         var canvas = surface.Canvas;
-        canvas.Clear(format == GraphRasterImageFormat.Png ? SKColors.Transparent : GetJpegFallbackBackground());
+        var clearColor = format switch
+        {
+            GraphRasterImageFormat.Png when scene.Style.ShowBackgroundRect => ParseColor(scene.Style.BackgroundColor),
+            GraphRasterImageFormat.Png => SKColors.Transparent,
+            _ => GetJpegFallbackBackground()
+        };
+        canvas.Clear(clearColor);
         canvas.Scale((float)scaleX, (float)scaleY);
 
         var transform = ParseTransform(scene.Canvas.Transform);

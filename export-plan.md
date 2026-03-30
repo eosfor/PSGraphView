@@ -1287,7 +1287,7 @@
 
 Статус:
 
-- не сделано
+- сделано
 
 Цель:
 
@@ -1307,6 +1307,46 @@
    - `raster.surface`
    - `raster.encode`
 4. Добавить raster compare в script.
+
+Результат:
+
+1. Raster sizing теперь считает `png` из raw page size, а не из уже округлённого `svg width/height`.
+2. `png` clear policy приведена ближе к `png:cairo`:
+   - если graph background включён, surface сразу очищается в background color
+   - из-за этого ушёл artificial transparent halo по краям
+3. Compare harness теперь умеет для `png`:
+   - width/height deltas
+   - byte delta
+   - `DarkPixelDelta`
+   - `NonWhitePixelDelta`
+   - `TransparentPixelDelta`
+4. Через telemetry стало видно, что текущий крупный `png` mismatch уже сидит не в transparent background policy, а в:
+   - общей geometry/viewBox разнице
+   - density / coverage разнице
+
+Телеметрия:
+
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.GVExport/GraphRenderScene.cs` now carries raw raster page size in viewport
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.GVExport/GraphRasterRenderSceneWriter.cs` now:
+  - uses raw raster page size for pixel dimensions
+  - clears PNG surface to background color when background is enabled
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.Sfdp/SfdpViewportCalculator.cs` now keeps raw raster page width/height
+- code change: `/Users/andrei/repo/PSGraphView/demos/Compare-Export.Common.ps1` now computes raster pixel metrics via `SkiaSharp`
+- test: `dotnet test tests/PSGraphView.GVExport.Tests/PSGraphView.GVExport.Tests.csproj`
+- result: `4/4` passed
+- test: `dotnet test tests/PSGraphView.Sfdp.Tests/PSGraphView.Sfdp.Tests.csproj --filter SfdpRasterExporterTests`
+- result: `2/2` passed
+- test: `dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --filter ExportGraphViewCmdletTests`
+- result: `13/13` passed
+- run: `pwsh -NoProfile -File demos/Compare-Export-SmallGraphs.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-small-compare-patch5c`
+- result: `6/6` cases completed successfully
+- result: on all `6` small-graph cases `PngTransparentPixelDelta = 0`
+- run: `pwsh -NoProfile -File demos/Compare-WikiVote-Export.ps1 -UseLocalModules -UseSubgraph -SubgraphSeedCount 30 -SubgraphStartVertexCount 3 -OutputDir /tmp/psgraphview-export-wikivote-patch5c`
+- result: `30 vertices / 99 edges`
+- result: `PngWidthDelta = 30`, `PngHeightDelta = 21`
+- result: `PngTransparentPixelDelta = 0`
+- result: `PngDarkPixelDelta = -3008`
+- result: `PngNonWhitePixelDelta = -3008`
 
 Критерий готовности:
 
