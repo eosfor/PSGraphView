@@ -1166,7 +1166,7 @@
 
 Статус:
 
-- не сделано
+- сделано
 
 Цель:
 
@@ -1190,6 +1190,49 @@
    - `.jpeg`
 3. Добавить internal ARGB surface renderer.
 4. Подключить backend, который выбран и зафиксирован на `Patch 3a`.
+
+Результат:
+
+1. В `PSGraphView.GVExport` добавлен прямой scene-to-raster path на `SkiaSharp`:
+   - без rasterize собственного `svg`
+   - с отдельными выходами для `png` и `jpg`
+2. В `Sfdp` добавлен отдельный `SfdpRasterExporter`, который использует тот же render-scene, что и `svg`.
+3. `Export-GraphView` теперь умеет:
+   - `-As Png`
+   - `-As Jpg`
+   - inference по `.png/.jpg/.jpeg`
+4. `CmdletOutputHelpers` теперь умеет писать как text, так и binary output.
+5. В diagnostics добавлено событие `render.raster`.
+6. Compare harness теперь не пишет placeholder для `png/jpg`, а даёт базовую summary по width/height/bytes.
+7. Отдельно закрыт packaging-аспект:
+   - published `PSGraphView.PowerShell` теперь копирует `libSkiaSharp*` в корень модуля
+   - из-за этого `png/jpg` работают не только в unit tests, но и в `-UseLocalModules` publish path
+
+Телеметрия:
+
+- code change: added `/Users/andrei/repo/PSGraphView/src/PSGraphView.GVExport/GraphRasterRenderSceneWriter.cs`
+- code change: added `/Users/andrei/repo/PSGraphView/src/PSGraphView.Sfdp/SfdpRasterExporter.cs`
+- code change: added `/Users/andrei/repo/PSGraphView/src/PSGraphView.Sfdp/SfdpRenderScenePipeline.cs`
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.PowerShell/ViewOutputKind.cs` now includes `Png` and `Jpg`
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.PowerShell/CmdletOutputHelpers.cs` now infers `.png/.jpg/.jpeg` and writes binary results
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.PowerShell/PSGraphView.PowerShell.csproj` now copies `libSkiaSharp*` to module root on build/publish
+- code change: `/Users/andrei/repo/PSGraphView/demos/Compare-Export.Common.ps1` now reports raster compare summary
+- test: `dotnet test tests/PSGraphView.GVExport.Tests/PSGraphView.GVExport.Tests.csproj`
+- result: `4/4` passed
+- test: `dotnet test tests/PSGraphView.Sfdp.Tests/PSGraphView.Sfdp.Tests.csproj --filter "SfdpSvgExporterTests|SfdpRasterExporterTests"`
+- result: `11/11` passed
+- test: `dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --filter ExportGraphViewCmdletTests`
+- result: `13/13` passed
+- run: `pwsh -NoProfile -Command '. ./demos/Import-DemoModules.ps1; Import-PSGraphViewDemoModules -UseLocalModules; ... Export-GraphView -As Png ...'`
+- result: published module returned PNG bytes successfully
+- run: `pwsh -NoProfile -File demos/Compare-Export-SmallGraphs.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-small-compare-patch4b`
+- result: `6/6` cases completed successfully with managed `svg/png/jpg`
+- result: on all `6` small-graph cases `RasterBackend = SkiaSharp`
+- run: `pwsh -NoProfile -File demos/Compare-WikiVote-Export.ps1 -UseLocalModules -UseSubgraph -SubgraphSeedCount 30 -SubgraphStartVertexCount 3 -OutputDir /tmp/psgraphview-export-wikivote-patch4b`
+- result: `Selection = ExpandedTopDegree`
+- result: `30 vertices / 99 edges`
+- result: managed `svg/png/jpg` all produced successfully
+- result: `WikiVote` raster deltas are currently `Png/Jpg WidthDelta = 31`, `HeightDelta = 21`
 
 Предпочтительный вариант:
 

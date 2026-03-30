@@ -327,6 +327,7 @@ function Get-ManagedDiagnosticsSummary {
         Scene = $null
         Viewport = $null
         SvgStructure = $null
+        Raster = @()
         SvgGeometry = @()
     }
 
@@ -357,6 +358,11 @@ function Get-ManagedDiagnosticsSummary {
 
         if ($phase -eq 'svg' -and $name -eq 'geometry') {
             $summary.SvgGeometry += $data
+            continue
+        }
+
+        if ($phase -eq 'render' -and $name -eq 'raster') {
+            $summary.Raster += $data
         }
     }
 
@@ -574,6 +580,36 @@ function Get-SvgComparisonSummary {
     }
 }
 
+function Get-RasterComparisonSummary {
+    param(
+        [Parameter(Mandatory)][string]$FormatName,
+        [object]$GraphvizResult,
+        [object]$ManagedResult
+    )
+
+    if (-not $GraphvizResult.Supported -or -not $ManagedResult.Supported) {
+        return [ordered]@{
+            Available = $false
+            Reason = "One side did not produce $FormatName output."
+        }
+    }
+
+    $graphvizSummary = $GraphvizResult.Summary
+    $managedSummary = $ManagedResult.Summary
+
+    return [ordered]@{
+        Available = $true
+        WidthMatch = $graphvizSummary.Width -eq $managedSummary.Width
+        HeightMatch = $graphvizSummary.Height -eq $managedSummary.Height
+        WidthDelta = $managedSummary.Width - $graphvizSummary.Width
+        HeightDelta = $managedSummary.Height - $graphvizSummary.Height
+        ByteCountDelta = $managedSummary.ByteCount - $graphvizSummary.ByteCount
+        Graphviz = $graphvizSummary
+        Managed = $managedSummary
+        ManagedDiagnostics = if ($ManagedResult.DiagnosticsSummary.Raster.Count -gt 0) { $ManagedResult.DiagnosticsSummary.Raster[-1] } else { $null }
+    }
+}
+
 function Invoke-ExportComparisonRun {
     param(
         [Parameter(Mandatory)]$Graph,
@@ -704,14 +740,8 @@ function Invoke-ExportComparisonRun {
         Comparisons = [ordered]@{
             Svg = Get-SvgComparisonSummary -GraphvizResult $graphvizResults.Svg -ManagedResult $managedResults.Svg
             Diagnostics = Get-DiagnosticsComparisonSummary -GraphvizResult $graphvizResults.Svg -ManagedResult $managedResults.Svg
-            Png = [ordered]@{
-                Available = $false
-                Reason = 'Pixel diff will be added after managed PNG support exists.'
-            }
-            Jpg = [ordered]@{
-                Available = $false
-                Reason = 'Pixel diff will be added after managed JPG support exists.'
-            }
+            Png = Get-RasterComparisonSummary -FormatName 'PNG' -GraphvizResult $graphvizResults.Png -ManagedResult $managedResults.Png
+            Jpg = Get-RasterComparisonSummary -FormatName 'JPG' -GraphvizResult $graphvizResults.Jpg -ManagedResult $managedResults.Jpg
         }
         OutputDirectories = [ordered]@{
             Root = $OutputDir

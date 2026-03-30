@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>PSGraphView.PowerShell</RootNamespace>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
   <ItemGroup>
@@ -31,5 +32,14 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
+
+  <Target Name="CopySkiaNativeLibrariesToModuleRoot" AfterTargets="Build;Publish">
+    <ItemGroup>
+      <BuildSkiaNativeLibrary Include="$(TargetDir)runtimes/*/native/*SkiaSharp*" />
+      <PublishSkiaNativeLibrary Include="$(PublishDir)runtimes/*/native/*SkiaSharp*" Condition="'$(PublishDir)' != ''" />
+    </ItemGroup>
+    <Copy SourceFiles="@(BuildSkiaNativeLibrary)" DestinationFolder="$(TargetDir)" SkipUnchangedFiles="true" Condition="'@(BuildSkiaNativeLibrary)' != ''" />
+    <Copy SourceFiles="@(PublishSkiaNativeLibrary)" DestinationFolder="$(PublishDir)" SkipUnchangedFiles="true" Condition="'$(PublishDir)' != '' and '@(PublishSkiaNativeLibrary)' != ''" />
+  </Target>
 
 </Project>

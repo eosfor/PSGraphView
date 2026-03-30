@@ -54,7 +54,7 @@ internal static class CmdletOutputHelpers
         };
     }
 
-    public static void WriteResult(PSCmdlet cmdlet, string result, string? path)
+    public static void WriteResult(PSCmdlet cmdlet, object result, string? path)
     {
         if (string.IsNullOrWhiteSpace(path))
         {
@@ -62,7 +62,17 @@ internal static class CmdletOutputHelpers
             return;
         }
 
-        File.WriteAllText(path, result);
+        switch (result)
+        {
+            case string text:
+                File.WriteAllText(path, text);
+                break;
+            case byte[] bytes:
+                File.WriteAllBytes(path, bytes);
+                break;
+            default:
+                throw new NotSupportedException($"Result type '{result.GetType().FullName}' is not supported for file output.");
+        }
     }
 
     private static bool TryResolveFromPath(string? path, out ViewOutputKind outputKind)
@@ -80,9 +90,12 @@ internal static class CmdletOutputHelpers
             ".html" => ViewOutputKind.Html,
             ".htm" => ViewOutputKind.Html,
             ".svg" => ViewOutputKind.Svg,
+            ".png" => ViewOutputKind.Png,
+            ".jpg" => ViewOutputKind.Jpg,
+            ".jpeg" => ViewOutputKind.Jpg,
             _ => default
         };
 
-        return extension is ".json" or ".html" or ".htm" or ".svg";
+        return extension is ".json" or ".html" or ".htm" or ".svg" or ".png" or ".jpg" or ".jpeg";
     }
 }

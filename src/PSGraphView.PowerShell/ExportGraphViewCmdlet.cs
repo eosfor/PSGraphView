@@ -24,6 +24,7 @@ public sealed class ExportGraphViewCmdlet : PSCmdlet
     private readonly VegaAdjacencyMatrixExporter _vegaAdjacencyMatrixExporter = new();
     private readonly VegaTreeLayoutExporter _vegaTreeLayoutExporter = new();
     private readonly SfdpSvgExporter _sfdpSvgExporter = new();
+    private readonly SfdpRasterExporter _sfdpRasterExporter = new();
     private readonly MsaglMdsExporter _msaglMdsExporter = new();
     private readonly MsaglFastIncrementalExporter _msaglFastIncrementalExporter = new();
     private readonly MsaglSugiyamaExporter _msaglSugiyamaExporter = new();
@@ -242,7 +243,7 @@ public sealed class ExportGraphViewCmdlet : PSCmdlet
                     ? ViewOutputKind.Svg
                     : ViewOutputKind.Json);
 
-            var result = Renderer switch
+            object result = Renderer switch
             {
                 GraphViewRenderer.VegaForceDirected => ExportVegaForceDirected(graphView, outputKind),
                 GraphViewRenderer.VegaAdjacencyMatrix => ExportVegaAdjacencyMatrix(graphView, outputKind),
@@ -329,15 +330,15 @@ public sealed class ExportGraphViewCmdlet : PSCmdlet
         return _msaglMdsExporter.Export(graph, Width, Height, _cancelToken);
     }
 
-    private string ExportSfdp(GraphView graph, ViewOutputKind outputKind)
+    private object ExportSfdp(GraphView graph, ViewOutputKind outputKind)
     {
-        CmdletOutputHelpers.ValidateSupportedOutputs(this, Renderer.ToString(), outputKind, ViewOutputKind.Svg);
+        CmdletOutputHelpers.ValidateSupportedOutputs(this, Renderer.ToString(), outputKind, ViewOutputKind.Svg, ViewOutputKind.Png, ViewOutputKind.Jpg);
         if (_cancelToken.Canceled)
         {
             throw new OperationCanceledException();
         }
 
-        return _sfdpSvgExporter.Export(graph, new SfdpOptions
+        var options = new SfdpOptions
         {
             Seed = SfdpSeed,
             MaxIterations = SfdpMaxIterations,
@@ -389,7 +390,15 @@ public sealed class ExportGraphViewCmdlet : PSCmdlet
                     IncludeIterations = !DisableSfdpDiagnosticsIterations.IsPresent,
                     IncludeCoordinates = SfdpDiagnosticsIncludeCoordinates.IsPresent
                 }
-        });
+        };
+
+        return outputKind switch
+        {
+            ViewOutputKind.Svg => _sfdpSvgExporter.Export(graph, options),
+            ViewOutputKind.Png => _sfdpRasterExporter.ExportPng(graph, options),
+            ViewOutputKind.Jpg => _sfdpRasterExporter.ExportJpg(graph, options),
+            _ => throw new NotSupportedException($"Output kind '{outputKind}' is not supported by renderer '{Renderer}'.")
+        };
     }
 
     private string ExportMsaglFastIncremental(GraphView graph, ViewOutputKind outputKind)

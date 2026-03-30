@@ -102,6 +102,72 @@ public sealed class ExportGraphViewCmdletTests : IDisposable
     }
 
     [Fact]
+    public void ExportGraphView_SfdpPng_ReturnsBytes()
+    {
+        var graph = BuildGraph(("A", "B"), ("B", "C"));
+
+        _powerShell.AddCommand("Export-GraphView")
+            .AddParameter("Graph", graph)
+            .AddParameter("Renderer", GraphViewRenderer.Sfdp)
+            .AddParameter("As", ViewOutputKind.Png);
+
+        var result = _powerShell.Invoke();
+
+        Assert.Single(result);
+        var bytes = Assert.IsType<byte[]>(result[0].BaseObject);
+        Assert.True(bytes.Length > 8);
+        Assert.Equal(0x89, bytes[0]);
+        Assert.Equal((byte)'P', bytes[1]);
+        Assert.Equal((byte)'N', bytes[2]);
+        Assert.Equal((byte)'G', bytes[3]);
+    }
+
+    [Fact]
+    public void ExportGraphView_SfdpPath_InfersPngOutput()
+    {
+        var graph = BuildGraph(("A", "B"), ("B", "C"));
+        var path = System.IO.Path.Combine(_tempDirectory, "graph.png");
+
+        _powerShell.AddCommand("Export-GraphView")
+            .AddParameter("Graph", graph)
+            .AddParameter("Renderer", GraphViewRenderer.Sfdp)
+            .AddParameter("Path", path);
+
+        var result = _powerShell.Invoke();
+
+        Assert.Empty(result);
+        Assert.True(File.Exists(path));
+        var bytes = File.ReadAllBytes(path);
+        Assert.True(bytes.Length > 8);
+        Assert.Equal(0x89, bytes[0]);
+        Assert.Equal((byte)'P', bytes[1]);
+        Assert.Equal((byte)'N', bytes[2]);
+        Assert.Equal((byte)'G', bytes[3]);
+    }
+
+    [Fact]
+    public void ExportGraphView_SfdpJpgPath_WritesJpeg()
+    {
+        var graph = BuildGraph(("A", "B"), ("B", "C"));
+        var path = System.IO.Path.Combine(_tempDirectory, "graph.jpg");
+
+        _powerShell.AddCommand("Export-GraphView")
+            .AddParameter("Graph", graph)
+            .AddParameter("Renderer", GraphViewRenderer.Sfdp)
+            .AddParameter("As", ViewOutputKind.Jpg)
+            .AddParameter("Path", path);
+
+        var result = _powerShell.Invoke();
+
+        Assert.Empty(result);
+        Assert.True(File.Exists(path));
+        var bytes = File.ReadAllBytes(path);
+        Assert.True(bytes.Length > 4);
+        Assert.Equal(0xFF, bytes[0]);
+        Assert.Equal(0xD8, bytes[1]);
+    }
+
+    [Fact]
     public void ExportGraphView_SfdpSvg_AcceptsAlgorithmParameters()
     {
         var graph = BuildGraph(("A", "B"), ("B", "C"), ("C", "D"), ("D", "A"));

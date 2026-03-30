@@ -102,6 +102,28 @@ internal static class SfdpRenderDiagnostics
         ]);
     }
 
+    public static void WriteRasterSurface(
+        SfdpDiagnosticsWriter diagnostics,
+        GraphRenderScene scene,
+        GraphRasterRenderResult result)
+    {
+        diagnostics.Write("render", "raster",
+        [
+            ("format", result.Format),
+            ("backend", result.Backend),
+            ("pixelWidth", result.PixelWidth),
+            ("pixelHeight", result.PixelHeight),
+            ("scaleX", result.ScaleX),
+            ("scaleY", result.ScaleY),
+            ("flattenedForOpaqueOutput", result.FlattenedForOpaqueOutput),
+            ("byteCount", result.Bytes.Length),
+            ("viewBoxWidth", scene.Viewport.ViewBoxWidth),
+            ("viewBoxHeight", scene.Viewport.ViewBoxHeight),
+            ("outputWidth", scene.Viewport.OutputWidth),
+            ("outputHeight", scene.Viewport.OutputHeight)
+        ]);
+    }
+
     private static int CountElements(XElement root, string localName)
         => root.Descendants().Count(element => string.Equals(element.Name.LocalName, localName, StringComparison.Ordinal));
 

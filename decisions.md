@@ -413,3 +413,46 @@
 - этот patch не закрывает text parity
 - этот patch не означает, что мы принимаем Skia drawing quirks как эталон
 - точная policy для JPEG background будет ещё отдельно зафиксирована на `Patch 6`
+
+## 2026-03-30 10:36 PDT - Patch 4 закрываем первым working raster path на общей scene
+
+Решение: считаем `Patch 4` выполненным. В репе теперь есть первый production-like managed raster path для `png/jpg`, построенный поверх той же scene, что и `svg`.
+
+Причины:
+
+- `png/jpg` теперь реально выдаются из `Export-GraphView`, а не остаются unsupported
+- raster renderer рисует scene напрямую через `SkiaSharp`, без rasterize собственного `svg`
+- `Sfdp` теперь использует общий render-scene и для `svg`, и для raster path
+- packaging-блокер для published module закрыт:
+  - `libSkiaSharp*` копируется в корень `PSGraphView.PowerShell`
+  - значит `-UseLocalModules` сценарий совпадает с unit/in-proc сценариями
+- compare harness теперь видит managed `png/jpg` как реальные outputs и может сравнивать хотя бы размеры и bytes
+
+Телеметрия:
+
+- code change: added `/Users/andrei/repo/PSGraphView/src/PSGraphView.GVExport/GraphRasterRenderSceneWriter.cs`
+- code change: added `/Users/andrei/repo/PSGraphView/src/PSGraphView.Sfdp/SfdpRasterExporter.cs`
+- code change: added `/Users/andrei/repo/PSGraphView/src/PSGraphView.Sfdp/SfdpRenderScenePipeline.cs`
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.PowerShell/ViewOutputKind.cs` now exposes `Png` and `Jpg`
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.PowerShell/PSGraphView.PowerShell.csproj` now copies `libSkiaSharp*` to module root during build/publish
+- code change: `/Users/andrei/repo/PSGraphView/demos/Compare-Export.Common.ps1` now reports raster compare summary instead of unsupported placeholder
+- test: `dotnet test tests/PSGraphView.GVExport.Tests/PSGraphView.GVExport.Tests.csproj`
+- result: `4/4` passed
+- test: `dotnet test tests/PSGraphView.Sfdp.Tests/PSGraphView.Sfdp.Tests.csproj --filter "SfdpSvgExporterTests|SfdpRasterExporterTests"`
+- result: `11/11` passed
+- test: `dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --filter ExportGraphViewCmdletTests`
+- result: `13/13` passed
+- smoke: published-module `Export-GraphView -Renderer Sfdp -As Png` returned `PNG_BYTES=894`
+- run: `pwsh -NoProfile -File demos/Compare-Export-SmallGraphs.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-small-compare-patch4b`
+- result: `6/6` cases completed successfully with managed `svg/png/jpg`
+- result: on all `6` small-graph cases `RasterBackend = SkiaSharp`
+- run: `pwsh -NoProfile -File demos/Compare-WikiVote-Export.ps1 -UseLocalModules -UseSubgraph -SubgraphSeedCount 30 -SubgraphStartVertexCount 3 -OutputDir /tmp/psgraphview-export-wikivote-patch4b`
+- result: `30 vertices / 99 edges`
+- result: managed `png/jpg` both produced successfully
+- result: `WikiVote` raster deltas are currently `WidthDelta = 31`, `HeightDelta = 21` for both `png` and `jpg`
+
+Следствие:
+
+- `Patch 5` и `Patch 6` теперь можно делать уже на реальном managed raster output
+- текущие raster deltas пока естественно наследуют ещё не закрытую parity-разницу по geometry/viewport/text
+- это уже не проблема "нет raster surface", а именно следующий слой parity-работы
