@@ -43,6 +43,9 @@ internal sealed record SfdpPackingComponentPlacement(
     int GridWidth,
     int GridHeight,
     int Perimeter,
+    int GridX,
+    int GridY,
+    SfdpBoundingBox AggregateBounds,
     SfdpPackedComponent PackedComponent);
 
 internal sealed record SfdpPackingResult(
@@ -113,7 +116,9 @@ public static class SfdpComponentPacker
         IReadOnlyList<SfdpComponentLayout> componentLayouts,
         SfdpCsrGraph? graph,
         double nodeRadius,
-        SfdpPackingOptions? options = null)
+        SfdpPackingOptions? options = null,
+        SfdpIndexedGraph? indexedGraph = null,
+        SfdpOptions? layoutOptions = null)
     {
         ArgumentNullException.ThrowIfNull(componentLayouts);
         options ??= new SfdpPackingOptions();
@@ -123,13 +128,13 @@ public static class SfdpComponentPacker
             .ThenBy(static layout => layout.ComponentId)
             .Select(layout =>
             {
-                var localIndices = Enumerable.Range(0, layout.NodeIndices.Length).ToArray();
-                var bounds = ComputeBounds(layout.X, layout.Y, localIndices, nodeRadius);
+                var bounds = ComputePackingBounds(layout, nodeRadius, indexedGraph, layoutOptions);
+                var packingNodeRadius = GetPackingNodeRadius(nodeRadius, layoutOptions);
                 return new PreparedComponentLayout(
                     layout,
                     bounds,
-                    Math.Max(bounds.Width, nodeRadius * 2.0),
-                    Math.Max(bounds.Height, nodeRadius * 2.0));
+                    Math.Max(bounds.Width, packingNodeRadius * 2.0),
+                    Math.Max(bounds.Height, packingNodeRadius * 2.0));
             })
             .ToArray();
 
@@ -181,7 +186,40 @@ public static class SfdpComponentPacker
                 0);
         }
 
-        return PackByPolyomino(preparedLayouts, graph, nodeRadius, options);
+        return PackByPolyomino(preparedLayouts, graph, indexedGraph, nodeRadius, options, layoutOptions);
+    }
+
+    private static SfdpBoundingBox ComputePackingBounds(
+        SfdpComponentLayout layout,
+        double nodeRadius,
+        SfdpIndexedGraph? indexedGraph,
+        SfdpOptions? layoutOptions)
+    {
+        var localIndices = Enumerable.Range(0, layout.NodeIndices.Length).ToArray();
+        var packingNodeRadius = GetPackingNodeRadius(nodeRadius, layoutOptions);
+        var bounds = ComputeBounds(layout.X, layout.Y, localIndices, packingNodeRadius);
+        if (indexedGraph is null || layoutOptions is null)
+        {
+            return bounds;
+        }
+
+        var minX = bounds.MinX;
+        var minY = bounds.MinY;
+        var maxX = bounds.MaxX;
+        var maxY = bounds.MaxY;
+
+        foreach (var points in EnumerateDirectedEdgeRoutes(layout, indexedGraph, layoutOptions))
+        {
+            foreach (var point in points)
+            {
+                minX = Math.Min(minX, point.X);
+                minY = Math.Min(minY, point.Y);
+                maxX = Math.Max(maxX, point.X);
+                maxY = Math.Max(maxY, point.Y);
+            }
+        }
+
+        return new SfdpBoundingBox(minX, minY, maxX, maxY);
     }
 
     private static bool ShouldPackAroundDominantComponent(IReadOnlyList<PreparedComponentLayout> layouts)
@@ -199,8 +237,10 @@ public static class SfdpComponentPacker
     private static SfdpPackingResult PackByPolyomino(
         IReadOnlyList<PreparedComponentLayout> layouts,
         SfdpCsrGraph? graph,
+        SfdpIndexedGraph? indexedGraph,
         double nodeRadius,
-        SfdpPackingOptions options)
+        SfdpPackingOptions options,
+        SfdpOptions? layoutOptions)
     {
         var margin = Math.Max((options.ComponentGap * PackingScale) / 2.0, 0.0);
         var step = ComputeStep(layouts, margin, PackingScale);
@@ -208,7 +248,7 @@ public static class SfdpComponentPacker
         var packed = new List<SfdpPackedComponent>(layouts.Count);
         var shapes = layouts.ToDictionary(
             static layout => layout.Layout.ComponentId,
-            layout => BuildPackingShape(layout, graph, nodeRadius, step, margin, PackingScale));
+            layout => BuildPackingShape(layout, graph, indexedGraph, nodeRadius, step, margin, PackingScale, layoutOptions));
         var orderedLayouts = layouts
             .OrderByDescending(layout => shapes[layout.Layout.ComponentId].Perimeter)
             .ThenBy(static layout => layout.Layout.ComponentId)
@@ -458,14 +498,17 @@ public static class SfdpComponentPacker
     private static SfdpPackingShape BuildPackingShape(
         PreparedComponentLayout layout,
         SfdpCsrGraph? graph,
+        SfdpIndexedGraph? indexedGraph,
         double nodeRadius,
         int step,
         double margin,
-        double scale)
+        double scale,
+        SfdpOptions? layoutOptions)
     {
         var roundedMinXScaled = Math.Round(layout.Bounds.MinX * scale);
         var roundedMinYScaled = Math.Round(layout.Bounds.MinY * scale);
-        var nodeHalfSize = Math.Max(0, (int)Math.Round((nodeRadius * scale) + margin));
+        var packingNodeRadius = GetPackingNodeRadius(nodeRadius, layoutOptions);
+        var nodeHalfSize = Math.Max(0, (int)Math.Round((packingNodeRadius * scale) + margin));
         var cells = new HashSet<long>();
 
         for (var i = 0; i < layout.Layout.NodeIndices.Length; i++)
@@ -486,7 +529,11 @@ public static class SfdpComponentPacker
             }
         }
 
-        if (graph is not null)
+        if (indexedGraph is not null && layoutOptions is not null)
+        {
+            AddRoutedEdgeCells(layout, indexedGraph, roundedMinXScaled, roundedMinYScaled, step, scale, cells, layoutOptions);
+        }
+        else if (graph is not null)
         {
             AddEdgeCells(layout, graph, roundedMinXScaled, roundedMinYScaled, step, scale, cells);
         }
@@ -545,6 +592,76 @@ public static class SfdpComponentPacker
                     CellValue((int)(Math.Round(layout.Layout.Y[localNeighbor] * scale) - roundedMinYScaled), step));
                 AddLineCells(fromCell, toCell, cells);
             }
+        }
+    }
+
+    private static void AddRoutedEdgeCells(
+        PreparedComponentLayout layout,
+        SfdpIndexedGraph indexedGraph,
+        double roundedMinXScaled,
+        double roundedMinYScaled,
+        int step,
+        double scale,
+        HashSet<long> cells,
+        SfdpOptions layoutOptions)
+    {
+        foreach (var points in EnumerateDirectedEdgeRoutes(layout.Layout, indexedGraph, layoutOptions))
+        {
+            for (var i = 0; i < points.Length - 1; i++)
+            {
+                var fromCell = new SfdpPackingCell(
+                    CellValue((int)(Math.Round(points[i].X * scale) - roundedMinXScaled), step),
+                    CellValue((int)(Math.Round(points[i].Y * scale) - roundedMinYScaled), step));
+                var toCell = new SfdpPackingCell(
+                    CellValue((int)(Math.Round(points[i + 1].X * scale) - roundedMinXScaled), step),
+                    CellValue((int)(Math.Round(points[i + 1].Y * scale) - roundedMinYScaled), step));
+                AddLineCells(fromCell, toCell, cells);
+            }
+        }
+    }
+
+    private static IEnumerable<SfdpEdgeRouter.RoutedPoint[]> EnumerateDirectedEdgeRoutes(
+        SfdpComponentLayout layout,
+        SfdpIndexedGraph indexedGraph,
+        SfdpOptions layoutOptions)
+    {
+        var localIndexByGlobal = new Dictionary<int, int>(layout.NodeIndices.Length);
+        for (var i = 0; i < layout.NodeIndices.Length; i++)
+        {
+            localIndexByGlobal[layout.NodeIndices[i]] = i;
+        }
+
+        var directedEdges = new List<(int Source, int Target)>();
+        foreach (var edge in indexedGraph.DirectedEdges)
+        {
+            if (localIndexByGlobal.TryGetValue(edge.Source, out var localSource) &&
+                localIndexByGlobal.TryGetValue(edge.Target, out var localTarget))
+            {
+                directedEdges.Add((localSource, localTarget));
+            }
+        }
+
+        if (directedEdges.Count == 0)
+        {
+            yield break;
+        }
+
+        var edgeSet = directedEdges.ToHashSet();
+        var packingRouteOptions = new SfdpOptions
+        {
+            NodeRadius = layoutOptions.NodeRadius,
+            ShowArrows = false
+        };
+
+        foreach (var (source, target) in directedEdges)
+        {
+            yield return SfdpEdgeRouter.BuildRoutePoints(
+                source,
+                target,
+                edgeSet.Contains((target, source)),
+                layout.X,
+                layout.Y,
+                packingRouteOptions);
         }
     }
 
@@ -609,6 +726,11 @@ public static class SfdpComponentPacker
             ? value / step
             : ((value + 1) / step) - 1;
 
+    private static double GetPackingNodeRadius(double nodeRadius, SfdpOptions? layoutOptions)
+        => layoutOptions?.OverlapRemovalBoxUnits == SfdpOverlapRemovalBoxUnits.GraphvizPoints
+            ? nodeRadius / PackingScale
+            : nodeRadius;
+
     private static SfdpPackingResult CreatePackingResult(
         IReadOnlyList<PreparedComponentLayout> preparedLayouts,
         SfdpPackingNormalizationResult normalization,
@@ -623,6 +745,10 @@ public static class SfdpComponentPacker
         var preparedByComponentId = preparedLayouts.ToDictionary(static layout => layout.Layout.ComponentId);
         var packedComponents = normalization.Components;
         var placements = new List<SfdpPackingComponentPlacement>(packedComponents.Count);
+        var aggregateMinX = double.PositiveInfinity;
+        var aggregateMinY = double.PositiveInfinity;
+        var aggregateMaxX = double.NegativeInfinity;
+        var aggregateMaxY = double.NegativeInfinity;
         for (var i = 0; i < packedComponents.Count; i++)
         {
             var packedComponent = packedComponents[i];
@@ -639,6 +765,16 @@ public static class SfdpComponentPacker
                     Scale: scale,
                     ScaledWidth: prepared.Bounds.Width * scale,
                     ScaledHeight: prepared.Bounds.Height * scale);
+            var gridX = step > 0
+                ? (int)Math.Round(((packedComponent.OffsetX * shape.Scale) + shape.RoundedMinXScaled) / step, MidpointRounding.AwayFromZero)
+                : 0;
+            var gridY = step > 0
+                ? (int)Math.Round(((packedComponent.OffsetY * shape.Scale) + shape.RoundedMinYScaled) / step, MidpointRounding.AwayFromZero)
+                : 0;
+            aggregateMinX = Math.Min(aggregateMinX, packedComponent.Bounds.MinX);
+            aggregateMinY = Math.Min(aggregateMinY, packedComponent.Bounds.MinY);
+            aggregateMaxX = Math.Max(aggregateMaxX, packedComponent.Bounds.MaxX);
+            aggregateMaxY = Math.Max(aggregateMaxY, packedComponent.Bounds.MaxY);
             placements.Add(new SfdpPackingComponentPlacement(
                 packedComponent.ComponentId,
                 i,
@@ -652,6 +788,9 @@ public static class SfdpComponentPacker
                 shape.GridWidth,
                 shape.GridHeight,
                 shape.Perimeter,
+                gridX,
+                gridY,
+                new SfdpBoundingBox(aggregateMinX, aggregateMinY, aggregateMaxX, aggregateMaxY),
                 packedComponent));
         }
 

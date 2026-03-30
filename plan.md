@@ -91,19 +91,16 @@
 
 Не сделано:
 
-- добить остаточный full-graph mismatch после `Patch 13`
-  - `Patch 13` подтвердил, что финальный `normalize/shift` не меняет масштаб:
-    - `rawPackedWidth = packedWidth = 24.811667`
-    - `rawPackedHeight = packedHeight = 23.801111`
-    - `normalizeOffsetX = 11.176667`, `normalizeOffsetY = 11.664444`
-  - при этом full `WikiVote` не изменился:
+- optional fine-tuning после `Patch 14`
+  - основной full-graph mismatch уже практически закрыт:
     - Graphviz `MeanEdgeToDiagonal = 0.094565`
-    - Managed `MeanEdgeToDiagonal = 0.077753`
-  - значит remaining mismatch сидит не в `dotneato_postprocess`-style shift, а раньше:
-    - в том, как `SfdpComponentPacker` размещает мелкие компоненты вокруг главной
-  - следующий конкретный шаг:
-    - оформить это как `Patch 14`
-    - сравнить component placement / cavity placement parity с Graphviz `packSubgraphs`
+    - Managed `MeanEdgeToDiagonal = 0.093859`
+    - Graphviz `EdgeLengthCv = 0.555466`
+    - Managed `EdgeLengthCv = 0.555136`
+  - если добивать уже совсем остаток, следующий узкий шаг такой:
+    - сравнить equal-perimeter ordering внутри `packSubgraphs`
+    - убрать лишний deterministic tie-break там, где Graphviz полагается на `qsort(cmpf)` только по `perim`
+    - и посмотреть, нужен ли ещё один малый patch на exact placement order
 - добивка quadtree parity по fine details
   - surface и основная `Normal`-траектория уже близки
   - если возвращаться сюда, то только ради более точного повторения Graphviz internals
@@ -2747,8 +2744,9 @@ diagnostics.Write(
 
 Статус:
 
-- не начат
-- это следующий практический patch после `Patch 13`
+- сделан
+- основной full-graph blocker закрыт
+- остаток уже выглядит как optional fine-tuning, а не как крупный mismatch
 
 Цель:
 
@@ -2765,6 +2763,75 @@ diagnostics.Write(
 - `src/PSGraphView.Sfdp/SfdpLayoutEngine.cs`
 - `demos/Compare-WikiVote-Sfdp.ps1`
 - при необходимости `../graphviz/lib/pack/pack.c`
+
+Что уже сделано:
+
+- в `SfdpComponentPacker` добавлен routed-edge path для packing shape вместо одного только undirected line fallback
+- туда же добавлен учёт routed edge geometry в component bounds перед packing
+- в `SfdpEdgeRouter` вынесены routed control points, чтобы packer мог использовать ту же геометрию, что и SVG exporter
+- добавлена регрессия в `SfdpComponentPackerTests` на routed packing bounds
+- в `SfdpComponentPacker` и `SfdpLayoutEngine` добавлены placement diagnostics:
+  - `gridX/gridY`
+  - `aggregateMinX/MinY/MaxX/MaxY`
+  - `aggregateWidth/aggregateHeight`
+- в локальном `graphviz/lib/pack/pack.c` добавлен verbose для:
+  - `pack placement order=...`
+  - `cc (n cells) at ...`
+- после сравнения placement trace исправлена семантика единиц для packing node boxes:
+  - при `OverlapRemovalBoxUnits = GraphvizPoints` packer теперь использует graphviz-sized node radius
+  - это правится и в `ComputePackingBounds`, и в `BuildPackingShape`
+- добавлена регрессия в `SfdpComponentPackerTests` на `GraphvizPoints` packing bounds
+
+Что показал full `WikiVote` после первого захода:
+
+- артефакты:
+  - `/tmp/psgraphview-sfdp-full-patch14b-localgv/wiki-vote-full-comparison.json`
+  - `/tmp/psgraphview-sfdp-full-patch14b-localgv/wiki-vote-full-managed.diagnostics.jsonl`
+  - `/tmp/psgraphview-sfdp-full-patch14b-localgv/wiki-vote-full-graphviz.verbose.log`
+- итог не изменился относительно `Patch 13`:
+  - Graphviz `MeanEdgeToDiagonal = 0.094565`
+  - Managed `MeanEdgeToDiagonal = 0.077753`
+  - `rawPackedWidth = 24.811667`
+- packing placements и offsets для full `WikiVote` остались теми же
+
+Вывод после первого захода:
+
+- одной только spline-like shape/bounds parity недостаточно
+- следующий шаг внутри `Patch 14` уже не shape generation, а:
+  - сравнить placement order мелких компонент
+  - снять рост общего bbox после каждой постановки
+  - сравнить это с Graphviz `pack.c` verbose (`pos[i]`, `cc (...) at ...`)
+
+Что показал `Patch 14` после правки packing node-box units:
+
+- артефакты:
+  - `/tmp/psgraphview-sfdp-full-patch14d-localgv/wiki-vote-full-comparison.json`
+  - `/tmp/psgraphview-sfdp-full-patch14d-localgv/wiki-vote-full-managed.diagnostics.jsonl`
+  - `/tmp/psgraphview-sfdp-full-patch14d-localgv/wiki-vote-full-graphviz.verbose.log`
+  - `/tmp/psgraphview-sfdp-full-patch14c-localgv/wiki-vote-full-graphviz-v2.verbose.log`
+- packing trace стал почти graphviz-like:
+  - Graphviz `step size = 29`
+  - Managed `step = 29`
+  - Graphviz main component `cc (1655 cells)`
+  - Managed main component `cellCount = 1661`
+  - Graphviz 3-node component `cc (8 cells)`
+  - Managed 3-node component `cellCount = 8`
+  - Graphviz 2-node component `cc (6 cells)`
+  - Managed 2-node component `cellCount = 6`
+- full-graph bounds почти перестали раздуваться относительно главной компоненты:
+  - `rawPackedWidth = 20.119584`
+  - `rawPackedHeight = 17.739674`
+- итоговые метрики full `WikiVote` стали почти как у Graphviz:
+  - Graphviz `MeanEdgeToDiagonal = 0.094565`
+  - Managed `MeanEdgeToDiagonal = 0.093859`
+  - Graphviz `EdgeLengthCv = 0.555466`
+  - Managed `EdgeLengthCv = 0.555136`
+
+Итоговый вывод:
+
+- `Patch 14` закрыл основной remaining mismatch по `SfdpComponentPacker`
+- причина была не только в routed-edge shape, а в graphviz-like семантике единиц для packing node boxes
+- если идти дальше, то это уже optional patch на остаточный tie-break / exact placement order, а не обязательный blocker
 
 ---
 
@@ -2805,40 +2872,14 @@ diagnostics.Write(
   - затем proximity / triangulation path
 - и только потом переходить к quadtree mode и его внутренностям
 
-Следующий практический шаг после `Patch 13`:
-
-  - перед compare для `PSGraphView` больше не нужно полагаться на `tests/.../bin`
-  - `-UseLocalModules` сам делает fresh `dotnet publish` и берёт модуль из publish output
-- `Patch 8b.1` уже подтверждён на свежем модуле:
-  - `sharedEdgeCount = 8958` против Graphviz `8955`
-  - `minOverlapFactor = 0.006829...` против Graphviz `0.00684641`
-- `Patch 8b.2` теперь тоже закрыт:
-  - `mode_switch == finish == after_overlap_removal` подтверждено на default path у Graphviz и managed
-  - compare-скрипт пишет эти checkpoint-ы в `comparison.json` автоматически
-- `Patch 8b.3` дал важный сдвиг на главной компоненте:
-  - `pre-overlap box/unit semantics` действительно были реальным разъездом
-- `Patch 12` закрыл главный mismatch по packing scale:
-  - `step = 35` у managed против Graphviz `29`
-  - full `MeanEdgeToDiagonal = 0.016874 -> 0.077753`
-  - `after_packing width = 110.524444 -> 24.811667`
-- `Patch 13` показал, что `normalize/shift` не меняет размеры:
-  - `rawPackedWidth = packedWidth`
-  - `rawPackedHeight = packedHeight`
-- при этом main component по-прежнему близка к Graphviz
-- значит следующий наиболее оправданный шаг по цене/эффекту:
-  - остаться в packing path
-  - сравнить placement мелких компонент вокруг dominant component
-  - смотреть, почему у Graphviz full bounds почти совпадают с main component bounds
-  - смотреть в:
-    - `src/PSGraphView.Sfdp/SfdpComponentPacker.cs`
-    - `src/PSGraphView.Sfdp/SfdpLayoutEngine.cs`
-    - `../graphviz/lib/pack/pack.c`
-
 Следующий практический шаг после текущего состояния:
 
-- оформить это как `Patch 14`
-- сначала проверить:
-  - placement order после dominant component
-  - рост общего bbox после постановки каждой маленькой компоненты
-  - почему Graphviz удерживает full bounds почти на уровне main component
-- и только потом решать, нужен ли ещё один packing-algorithm patch
+- основной blocker по full-graph packing закрыт в `Patch 14`
+- если добивать уже только остаток до совсем буквального `1:1`, то следующий узкий шаг такой:
+  - сравнить equal-perimeter ordering у одинаковых polyomino
+  - убрать лишний `ThenBy(ComponentId)` там, где Graphviz сортирует только по `perim`
+  - отдельно проверить, даст ли это ещё небольшой сдвиг без ухудшения детерминизма
+- смотреть в:
+  - `src/PSGraphView.Sfdp/SfdpComponentPacker.cs`
+  - `../graphviz/lib/pack/pack.c`
+  - или нужен ещё один patch в `fits/placeGraph`, а не в shape generation

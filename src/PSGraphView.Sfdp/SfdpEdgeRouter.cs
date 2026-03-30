@@ -5,6 +5,8 @@ namespace PSGraphView.Sfdp;
 
 internal static class SfdpEdgeRouter
 {
+    internal readonly record struct RoutedPoint(double X, double Y);
+
     internal sealed record RoutedEdge(
         int SourceIndex,
         int TargetIndex,
@@ -37,13 +39,14 @@ internal static class SfdpEdgeRouter
             var sourceIndex = nodeIndexById[edge.SourceId];
             var targetIndex = nodeIndexById[edge.TargetId];
             var hasReverse = edgeKeys.Contains((targetIndex, sourceIndex));
-            routed.Add(new RoutedEdge(sourceIndex, targetIndex, RouteEdge(sourceIndex, targetIndex, hasReverse, x, y, options)));
+            var points = BuildRoutePoints(sourceIndex, targetIndex, hasReverse, x, y, options);
+            routed.Add(new RoutedEdge(sourceIndex, targetIndex, BuildPathData(points)));
         }
 
         return routed;
     }
 
-    private static string RouteEdge(
+    internal static RoutedPoint[] BuildRoutePoints(
         int sourceIndex,
         int targetIndex,
         bool hasReverse,
@@ -53,7 +56,7 @@ internal static class SfdpEdgeRouter
     {
         if (sourceIndex == targetIndex)
         {
-            return BuildSelfLoop(x[sourceIndex], y[sourceIndex], options.NodeRadius);
+            return BuildSelfLoopPoints(x[sourceIndex], y[sourceIndex], options.NodeRadius);
         }
 
         var sx = x[sourceIndex];
@@ -81,7 +84,13 @@ internal static class SfdpEdgeRouter
             var control1Y = startY + ((endY - startY) / 3.0);
             var control2X = startX + (2.0 * (endX - startX) / 3.0);
             var control2Y = startY + (2.0 * (endY - startY) / 3.0);
-            return Invariant($"M {startX:0.###} {startY:0.###} C {control1X:0.###} {control1Y:0.###} {control2X:0.###} {control2Y:0.###} {endX:0.###} {endY:0.###}");
+            return
+            [
+                new RoutedPoint(startX, startY),
+                new RoutedPoint(control1X, control1Y),
+                new RoutedPoint(control2X, control2Y),
+                new RoutedPoint(endX, endY)
+            ];
         }
 
         var nx = -uy;
@@ -112,7 +121,13 @@ internal static class SfdpEdgeRouter
         var curveControl2X = endXCurve + (controlX - endXCurve) * (2.0 / 3.0);
         var curveControl2Y = endYCurve + (controlY - endYCurve) * (2.0 / 3.0);
 
-        return Invariant($"M {startXCurve:0.###} {startYCurve:0.###} C {curveControl1X:0.###} {curveControl1Y:0.###} {curveControl2X:0.###} {curveControl2Y:0.###} {endXCurve:0.###} {endYCurve:0.###}");
+        return
+        [
+            new RoutedPoint(startXCurve, startYCurve),
+            new RoutedPoint(curveControl1X, curveControl1Y),
+            new RoutedPoint(curveControl2X, curveControl2Y),
+            new RoutedPoint(endXCurve, endYCurve)
+        ];
     }
 
     private static (double Start, double End) ClampClearances(double distance, double startClearance, double endClearance)
@@ -128,7 +143,18 @@ internal static class SfdpEdgeRouter
         return (startClearance * scale, endClearance * scale);
     }
 
-    private static string BuildSelfLoop(double x, double y, double nodeRadius)
+    internal static string BuildPathData(IReadOnlyList<RoutedPoint> points)
+    {
+        ArgumentNullException.ThrowIfNull(points);
+        if (points.Count != 4)
+        {
+            throw new ArgumentException("Expected exactly four routed points.", nameof(points));
+        }
+
+        return Invariant($"M {points[0].X:0.###} {points[0].Y:0.###} C {points[1].X:0.###} {points[1].Y:0.###} {points[2].X:0.###} {points[2].Y:0.###} {points[3].X:0.###} {points[3].Y:0.###}");
+    }
+
+    private static RoutedPoint[] BuildSelfLoopPoints(double x, double y, double nodeRadius)
     {
         var loopRadius = nodeRadius * 2.8;
         var startX = x + nodeRadius * 0.6;
@@ -139,7 +165,13 @@ internal static class SfdpEdgeRouter
         var control1Y = y - loopRadius * 1.8;
         var control2X = x - loopRadius;
         var control2Y = y - loopRadius * 1.8;
-        return Invariant($"M {startX:0.###} {startY:0.###} C {control1X:0.###} {control1Y:0.###} {control2X:0.###} {control2Y:0.###} {endX:0.###} {endY:0.###}");
+        return
+        [
+            new RoutedPoint(startX, startY),
+            new RoutedPoint(control1X, control1Y),
+            new RoutedPoint(control2X, control2Y),
+            new RoutedPoint(endX, endY)
+        ];
     }
 
     private static string Invariant(FormattableString value)

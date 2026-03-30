@@ -118,7 +118,9 @@ public sealed class SfdpLayoutEngine
             componentLayouts,
             csrGraph,
             options.NodeRadius,
-            packingOptions);
+            packingOptions,
+            indexedGraph,
+            options);
 
         diagnostics.Write("packing", "start",
         [
@@ -152,6 +154,8 @@ public sealed class SfdpLayoutEngine
                 ("gridWidth", packedComponent.GridWidth),
                 ("gridHeight", packedComponent.GridHeight),
                 ("perimeter", packedComponent.Perimeter),
+                ("gridX", packedComponent.GridX),
+                ("gridY", packedComponent.GridY),
                 ("offsetX", packedComponent.PackedComponent.OffsetX),
                 ("offsetY", packedComponent.PackedComponent.OffsetY),
                 ("packedMinX", packedComponent.PackedComponent.Bounds.MinX),
@@ -160,6 +164,12 @@ public sealed class SfdpLayoutEngine
                 ("packedMaxY", packedComponent.PackedComponent.Bounds.MaxY),
                 ("packedWidth", packedComponent.PackedComponent.Bounds.Width),
                 ("packedHeight", packedComponent.PackedComponent.Bounds.Height),
+                ("aggregateMinX", packedComponent.AggregateBounds.MinX),
+                ("aggregateMinY", packedComponent.AggregateBounds.MinY),
+                ("aggregateMaxX", packedComponent.AggregateBounds.MaxX),
+                ("aggregateMaxY", packedComponent.AggregateBounds.MaxY),
+                ("aggregateWidth", packedComponent.AggregateBounds.Width),
+                ("aggregateHeight", packedComponent.AggregateBounds.Height),
                 ("gap", packingResult.Gap)
             ]);
         }
