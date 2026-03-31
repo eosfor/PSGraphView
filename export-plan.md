@@ -2036,6 +2036,43 @@ Patch 7a:
   - same-geometry compare
   - либо отдельный scene/label-only renderer experiment, где geometry фиксирована и сравнивается только glyph output
 
+Сделано в Patch 7f:
+
+- labelled compare script теперь делает второй прогон тех же cases без labels
+- поверх этого строится `label-only` baseline:
+  - `labeled raster - unlabeled raster`
+  - отдельно для `graphviz` и managed
+- contribution summary теперь сохраняется в:
+  - `PngLabelOnly`
+  - `JpgLabelOnly`
+
+Телеметрия Patch 7f:
+
+- run: `pwsh -NoProfile -File demos/Compare-Export-LabeledGraphs.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-labeled-compare-patch7f`
+- result: `3/3` labeled cases completed successfully
+- result: `single-edge-labeled`:
+  - `PngLabelOnly.DarkPixelContributionDelta = 46`
+  - `PngLabelOnly.DarkPixelDensityContributionDelta = -0.070`
+  - `JpgLabelOnly.DarkPixelContributionDelta = 34`
+  - `JpgLabelOnly.DarkPixelDensityContributionDelta = -0.028`
+- result: `triangle-cycle-labeled`:
+  - `PngLabelOnly.DarkPixelContributionDelta = -104`
+  - `PngLabelOnly.DarkPixelDensityContributionDelta = 0.154`
+  - `JpgLabelOnly.DarkPixelContributionDelta = -126`
+  - `JpgLabelOnly.DarkPixelDensityContributionDelta = 0.150`
+- result: `star-labeled`:
+  - `PngLabelOnly.DarkPixelContributionDelta = 787`
+  - `PngLabelOnly.DarkPixelDensityContributionDelta = 0.035`
+  - `JpgLabelOnly.DarkPixelContributionDelta = 906`
+  - `JpgLabelOnly.DarkPixelDensityContributionDelta = 0.045`
+
+Следующий шаг внутри Patch 7:
+
+- `label-only` baseline подтвердил, что remaining mismatch уже реально сидит в text raster contribution
+- следующий meaningful шаг:
+  - same-geometry compare
+  - или отдельный synthetic label scene, где graphviz и managed сравниваются на одном и том же text box layout
+
 Критерий готовности:
 
 - label anchors, label size и визуальная плотность становятся заметно ближе к graphviz

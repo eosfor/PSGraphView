@@ -83,6 +83,7 @@ foreach ($case in $cases) {
     $caseName = $case.Name
     $graph = $case.Graph
     $runDir = Join-Path $OutputDir $caseName
+    $unlabeledRunDir = Join-Path $runDir 'unlabeled-baseline'
 
     Write-Host "Running labeled export comparison for '$caseName'..."
 
@@ -97,6 +98,74 @@ foreach ($case in $cases) {
         -LabelFontSize $LabelFontSize `
         -AllowPartial:$AllowPartial
 
+    Write-Host "Running unlabeled baseline for '$caseName'..."
+    $unlabeledSummary = Invoke-ExportComparisonRun `
+        -Graph $graph `
+        -GraphLabel "$caseName-unlabeled" `
+        -OutputDir $unlabeledRunDir `
+        -GraphvizSfdpPath $GraphvizSfdpPath `
+        -SfdpSeed $SfdpSeed `
+        -SfdpOverlapRemovalIterations $SfdpOverlapRemovalIterations `
+        -LabelFontSize $LabelFontSize `
+        -AllowPartial:$AllowPartial
+
+    $graphvizFallbackEntries = Get-SvgNodeLabelEntryMap -Path $summary.Graphviz.Outputs.Svg.Path
+    $labelToGraphvizNodeId = @{}
+    $graphvizNodeIdMap = Get-DotNodeIdMap -Path $summary.Graph.DotPath
+    foreach ($entry in $graphvizNodeIdMap.GetEnumerator()) {
+        $labelToGraphvizNodeId[[string]$entry.Value] = [string]$entry.Key
+    }
+
+    $managedLabeledEntries = Get-SvgNodeLabelEntryMap -Path $summary.Managed.Outputs.Svg.Path
+    $managedFallbackEntries = @{}
+    foreach ($label in $managedLabeledEntries.Keys) {
+        if ($labelToGraphvizNodeId.ContainsKey([string]$label)) {
+            $managedFallbackEntries[[string]$labelToGraphvizNodeId[[string]$label]] = $managedLabeledEntries[$label]
+        }
+    }
+
+    $pngGraphvizLabelOnly = Get-LabelOnlyRasterContributionMetrics `
+        -LabeledSvgPath $summary.Graphviz.Outputs.Svg.Path `
+        -UnlabeledSvgPath $unlabeledSummary.Graphviz.Outputs.Svg.Path `
+        -LabeledRasterPath $summary.Graphviz.Outputs.Png.Path `
+        -UnlabeledRasterPath $unlabeledSummary.Graphviz.Outputs.Png.Path `
+        -FallbackLabelEntries $graphvizFallbackEntries
+    $pngManagedLabelOnly = Get-LabelOnlyRasterContributionMetrics `
+        -LabeledSvgPath $summary.Managed.Outputs.Svg.Path `
+        -UnlabeledSvgPath $unlabeledSummary.Managed.Outputs.Svg.Path `
+        -LabeledRasterPath $summary.Managed.Outputs.Png.Path `
+        -UnlabeledRasterPath $unlabeledSummary.Managed.Outputs.Png.Path `
+        -FallbackLabelEntries $managedFallbackEntries
+    $jpgGraphvizLabelOnly = Get-LabelOnlyRasterContributionMetrics `
+        -LabeledSvgPath $summary.Graphviz.Outputs.Svg.Path `
+        -UnlabeledSvgPath $unlabeledSummary.Graphviz.Outputs.Svg.Path `
+        -LabeledRasterPath $summary.Graphviz.Outputs.Jpg.Path `
+        -UnlabeledRasterPath $unlabeledSummary.Graphviz.Outputs.Jpg.Path `
+        -FallbackLabelEntries $graphvizFallbackEntries
+    $jpgManagedLabelOnly = Get-LabelOnlyRasterContributionMetrics `
+        -LabeledSvgPath $summary.Managed.Outputs.Svg.Path `
+        -UnlabeledSvgPath $unlabeledSummary.Managed.Outputs.Svg.Path `
+        -LabeledRasterPath $summary.Managed.Outputs.Jpg.Path `
+        -UnlabeledRasterPath $unlabeledSummary.Managed.Outputs.Jpg.Path `
+        -FallbackLabelEntries $managedFallbackEntries
+
+    $pngLabelOnly = [ordered]@{
+        Available = $pngGraphvizLabelOnly.Available -and $pngManagedLabelOnly.Available
+        Graphviz = $pngGraphvizLabelOnly
+        Managed = $pngManagedLabelOnly
+        DarkPixelContributionDelta = if ($pngGraphvizLabelOnly.Available -and $pngManagedLabelOnly.Available) { $pngManagedLabelOnly.DarkPixelContribution - $pngGraphvizLabelOnly.DarkPixelContribution } else { $null }
+        NonWhitePixelContributionDelta = if ($pngGraphvizLabelOnly.Available -and $pngManagedLabelOnly.Available) { $pngManagedLabelOnly.NonWhitePixelContribution - $pngGraphvizLabelOnly.NonWhitePixelContribution } else { $null }
+        DarkPixelDensityContributionDelta = if ($pngGraphvizLabelOnly.Available -and $pngManagedLabelOnly.Available -and $null -ne $pngGraphvizLabelOnly.DarkPixelDensityContribution -and $null -ne $pngManagedLabelOnly.DarkPixelDensityContribution) { [double]$pngManagedLabelOnly.DarkPixelDensityContribution - [double]$pngGraphvizLabelOnly.DarkPixelDensityContribution } else { $null }
+    }
+    $jpgLabelOnly = [ordered]@{
+        Available = $jpgGraphvizLabelOnly.Available -and $jpgManagedLabelOnly.Available
+        Graphviz = $jpgGraphvizLabelOnly
+        Managed = $jpgManagedLabelOnly
+        DarkPixelContributionDelta = if ($jpgGraphvizLabelOnly.Available -and $jpgManagedLabelOnly.Available) { $jpgManagedLabelOnly.DarkPixelContribution - $jpgGraphvizLabelOnly.DarkPixelContribution } else { $null }
+        NonWhitePixelContributionDelta = if ($jpgGraphvizLabelOnly.Available -and $jpgManagedLabelOnly.Available) { $jpgManagedLabelOnly.NonWhitePixelContribution - $jpgGraphvizLabelOnly.NonWhitePixelContribution } else { $null }
+        DarkPixelDensityContributionDelta = if ($jpgGraphvizLabelOnly.Available -and $jpgManagedLabelOnly.Available -and $null -ne $jpgGraphvizLabelOnly.DarkPixelDensityContribution -and $null -ne $jpgManagedLabelOnly.DarkPixelDensityContribution) { [double]$jpgManagedLabelOnly.DarkPixelDensityContribution - [double]$jpgGraphvizLabelOnly.DarkPixelDensityContribution } else { $null }
+    }
+
     $summaryPath = Join-Path $runDir "$caseName-comparison.json"
     $summary | ConvertTo-Json -Depth 10 | Set-Content -Path $summaryPath
 
@@ -110,6 +179,8 @@ foreach ($case in $cases) {
         FontResolution = $summary.Comparisons.FontResolution
         PngLabelRaster = $summary.Comparisons.PngLabelRaster
         JpgLabelRaster = $summary.Comparisons.JpgLabelRaster
+        PngLabelOnly = $pngLabelOnly
+        JpgLabelOnly = $jpgLabelOnly
         PngComparison = [ordered]@{
             WidthDelta = $summary.Comparisons.Png.WidthDelta
             HeightDelta = $summary.Comparisons.Png.HeightDelta

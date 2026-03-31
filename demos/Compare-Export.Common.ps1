@@ -270,8 +270,49 @@ function Get-SvgNodeLabelEntry {
     }
 }
 
-function Get-SvgLabelRasterRegions {
+function Get-SvgNodeLabelEntryMap {
     param([Parameter(Mandatory)][string]$Path)
+
+    if (-not (Test-Path $Path)) {
+        return $null
+    }
+
+    [xml]$document = Get-Content -Path $Path -Raw
+    $svg = $document.DocumentElement
+    if ($null -eq $svg) {
+        return $null
+    }
+
+    $graphGroup = $document.SelectSingleNode("//*[local-name()='g' and contains(concat(' ', normalize-space(@class), ' '), ' graph ')]")
+    $graphTransformValue = if ($null -ne $graphGroup -and $null -ne $graphGroup.Attributes['transform']) { [string]$graphGroup.Attributes['transform'].Value } else { $null }
+    $graphTransform = Get-SvgGraphTransform -Transform $graphTransformValue
+    $viewBoxRect = Get-SvgViewBoxRect -ViewBox ([string]$svg.GetAttribute('viewBox'))
+    if ($null -eq $graphTransform -or $null -eq $viewBoxRect) {
+        return $null
+    }
+
+    $nodeGroups = $document.SelectNodes("//*[local-name()='g' and contains(concat(' ', normalize-space(@class), ' '), ' node ')]")
+    $entryMap = @{}
+    foreach ($nodeGroup in $nodeGroups) {
+        $titleNode = $nodeGroup.SelectSingleNode("./*[local-name()='title']")
+        $ellipseNode = $nodeGroup.SelectSingleNode("./*[local-name()='ellipse']")
+        $textNode = $nodeGroup.SelectSingleNode("./*[local-name()='text']")
+        if ($null -eq $titleNode -or $null -eq $ellipseNode -or $null -eq $textNode) {
+            continue
+        }
+
+        $entry = Get-SvgNodeLabelEntry -NodeTitle ([string]$titleNode.InnerText) -EllipseNode $ellipseNode -TextNode $textNode
+        $entryMap[[string]$entry.NodeTitle] = $entry
+    }
+
+    return $entryMap
+}
+
+function Get-SvgLabelRasterRegions {
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [hashtable]$FallbackLabelEntries
+    )
 
     if (-not (Test-Path $Path)) {
         return $null
@@ -297,11 +338,32 @@ function Get-SvgLabelRasterRegions {
         $titleNode = $nodeGroup.SelectSingleNode("./*[local-name()='title']")
         $ellipseNode = $nodeGroup.SelectSingleNode("./*[local-name()='ellipse']")
         $textNode = $nodeGroup.SelectSingleNode("./*[local-name()='text']")
-        if ($null -eq $titleNode -or $null -eq $ellipseNode -or $null -eq $textNode) {
+        if ($null -eq $titleNode -or $null -eq $ellipseNode) {
             continue
         }
 
-        $entry = Get-SvgNodeLabelEntry -NodeTitle ([string]$titleNode.InnerText) -EllipseNode $ellipseNode -TextNode $textNode
+        $nodeTitle = [string]$titleNode.InnerText
+        $entry = $null
+        if ($null -ne $textNode) {
+            $entry = Get-SvgNodeLabelEntry -NodeTitle $nodeTitle -EllipseNode $ellipseNode -TextNode $textNode
+        }
+        elseif ($null -ne $FallbackLabelEntries -and $FallbackLabelEntries.ContainsKey($nodeTitle)) {
+            $fallback = $FallbackLabelEntries[$nodeTitle]
+            $cx = Get-SvgAttributeDouble -Node $ellipseNode -AttributeName 'cx'
+            $cy = Get-SvgAttributeDouble -Node $ellipseNode -AttributeName 'cy'
+            $entry = [ordered]@{
+                NodeTitle = $nodeTitle
+                Text = [string]$fallback.Text
+                X = if ($cx -is [double] -and $fallback.OffsetX -is [double]) { [double]$cx + [double]$fallback.OffsetX } else { $null }
+                Y = if ($cy -is [double] -and $fallback.BaselineOffsetY -is [double]) { [double]$cy + [double]$fallback.BaselineOffsetY } else { $null }
+                FontSize = $fallback.FontSize
+                FontFamily = $fallback.FontFamily
+                TextAnchor = $fallback.TextAnchor
+                OffsetX = $fallback.OffsetX
+                BaselineOffsetY = $fallback.BaselineOffsetY
+            }
+        }
+
         if ($null -eq $entry.FontSize -or [string]::IsNullOrWhiteSpace([string]$entry.Text)) {
             continue
         }
@@ -844,6 +906,39 @@ function Get-RasterLabelRegionMetrics {
     }
     finally {
         $data.Dispose()
+    }
+}
+
+function Get-LabelOnlyRasterContributionMetrics {
+    param(
+        [Parameter(Mandatory)][string]$LabeledSvgPath,
+        [Parameter(Mandatory)][string]$UnlabeledSvgPath,
+        [Parameter(Mandatory)][string]$LabeledRasterPath,
+        [Parameter(Mandatory)][string]$UnlabeledRasterPath,
+        [Parameter(Mandatory)][hashtable]$FallbackLabelEntries
+    )
+
+    $labeledRegions = Get-SvgLabelRasterRegions -Path $LabeledSvgPath -FallbackLabelEntries $FallbackLabelEntries
+    $unlabeledRegions = Get-SvgLabelRasterRegions -Path $UnlabeledSvgPath -FallbackLabelEntries $FallbackLabelEntries
+    $labeledMetrics = Get-RasterLabelRegionMetrics -RasterPath $LabeledRasterPath -SvgLabelRegions $labeledRegions
+    $unlabeledMetrics = Get-RasterLabelRegionMetrics -RasterPath $UnlabeledRasterPath -SvgLabelRegions $unlabeledRegions
+    if ($null -eq $labeledMetrics -or $null -eq $unlabeledMetrics) {
+        return [ordered]@{
+            Available = $false
+            Reason = 'Label contribution metrics could not be computed.'
+        }
+    }
+
+    return [ordered]@{
+        Available = $true
+        RegionCountDelta = $labeledMetrics.RegionCount - $unlabeledMetrics.RegionCount
+        RegionPixelContribution = $labeledMetrics.RegionPixelCount - $unlabeledMetrics.RegionPixelCount
+        DarkPixelContribution = $labeledMetrics.DarkPixelCount - $unlabeledMetrics.DarkPixelCount
+        NonWhitePixelContribution = $labeledMetrics.NonWhitePixelCount - $unlabeledMetrics.NonWhitePixelCount
+        DarkPixelDensityContribution = if ($null -ne $labeledMetrics.DarkPixelDensity -and $null -ne $unlabeledMetrics.DarkPixelDensity) { [double]$labeledMetrics.DarkPixelDensity - [double]$unlabeledMetrics.DarkPixelDensity } else { $null }
+        NonWhitePixelDensityContribution = if ($null -ne $labeledMetrics.NonWhitePixelDensity -and $null -ne $unlabeledMetrics.NonWhitePixelDensity) { [double]$labeledMetrics.NonWhitePixelDensity - [double]$unlabeledMetrics.NonWhitePixelDensity } else { $null }
+        Labeled = $labeledMetrics
+        Unlabeled = $unlabeledMetrics
     }
 }
 

@@ -1054,3 +1054,48 @@
 - следующий meaningful шаг:
   - same-geometry compare
   - либо отдельный label-only / scene-only raster experiment уже без layout path вообще
+
+## 2026-03-30 21:16 PDT - Patch 7f выделяет именно вклад текста через labeled vs unlabeled baseline
+
+Решение: следующий baseline внутри `Patch 7` делаем как `label-only` contribution experiment:
+
+- каждый labeled case прогоняется дважды:
+  - с labels
+  - без labels
+- затем считаем contribution самого текста как разницу `labeled - unlabeled`
+- и сравниваем уже contribution между `graphviz` и managed
+
+Причины:
+
+- `Patch 7e` уже показал, что local ROI по label-ам расходится
+- но всё ещё оставался вопрос, какая часть этого ROI идёт от самого текста, а какая от фона node/scene внутри box
+- baseline `labeled - unlabeled` убирает большую часть этого шума и даёт более чистую оценку raster contribution именно от текста
+
+Телеметрия:
+
+- code change: `/Users/andrei/repo/PSGraphView/demos/Compare-Export.Common.ps1`
+- code change: `/Users/andrei/repo/PSGraphView/demos/Compare-Export-LabeledGraphs.ps1`
+- run: `pwsh -NoProfile -File demos/Compare-Export-LabeledGraphs.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-labeled-compare-patch7f`
+- result: `3/3` labeled cases completed successfully
+- result: `single-edge-labeled`:
+  - `PngLabelOnly.DarkPixelContributionDelta = 46`
+  - `PngLabelOnly.DarkPixelDensityContributionDelta = -0.070`
+  - `JpgLabelOnly.DarkPixelContributionDelta = 34`
+  - `JpgLabelOnly.DarkPixelDensityContributionDelta = -0.028`
+- result: `triangle-cycle-labeled`:
+  - `PngLabelOnly.DarkPixelContributionDelta = -104`
+  - `PngLabelOnly.DarkPixelDensityContributionDelta = 0.154`
+  - `JpgLabelOnly.DarkPixelContributionDelta = -126`
+  - `JpgLabelOnly.DarkPixelDensityContributionDelta = 0.150`
+- result: `star-labeled`:
+  - `PngLabelOnly.DarkPixelContributionDelta = 787`
+  - `PngLabelOnly.DarkPixelDensityContributionDelta = 0.035`
+  - `JpgLabelOnly.DarkPixelContributionDelta = 906`
+  - `JpgLabelOnly.DarkPixelDensityContributionDelta = 0.045`
+
+Следствие:
+
+- remaining mismatch теперь подтверждён уже не только whole-image и не только local ROI, а именно на уровне raster contribution самого текста
+- следующий шаг внутри `Patch 7` уже просится как:
+  - same-geometry compare
+  - или synthetic label scene / text-only experiment
