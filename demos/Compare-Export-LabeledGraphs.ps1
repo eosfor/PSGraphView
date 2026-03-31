@@ -108,6 +108,8 @@ foreach ($case in $cases) {
         ManagedSvgPath = $summary.Managed.Outputs.Svg.Path
         TextComparison = $summary.Comparisons.Text
         FontResolution = $summary.Comparisons.FontResolution
+        PngLabelRaster = $summary.Comparisons.PngLabelRaster
+        JpgLabelRaster = $summary.Comparisons.JpgLabelRaster
         PngComparison = [ordered]@{
             WidthDelta = $summary.Comparisons.Png.WidthDelta
             HeightDelta = $summary.Comparisons.Png.HeightDelta

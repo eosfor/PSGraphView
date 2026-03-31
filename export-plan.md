@@ -2000,6 +2000,42 @@ Patch 7a:
   - same-geometry compare
   - или label-only raster experiment для отделения glyph shaping от общей scene density
 
+Сделано в Patch 7e:
+
+- compare harness теперь считает отдельные `label ROI` raster metrics для `png/jpg`
+- ROI строится из `svg` text geometry и потом маппится в локальные raster rectangles
+- labelled compare overview теперь сохраняет:
+  - `PngLabelRaster`
+  - `JpgLabelRaster`
+
+Телеметрия Patch 7e:
+
+- run: `pwsh -NoProfile -File demos/Compare-Export-LabeledGraphs.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-labeled-compare-patch7e`
+- result: `3/3` labeled cases completed successfully
+- result: label ROI metrics теперь отделяют local text region от whole-image size noise
+- result: `single-edge-labeled`:
+  - `PngLabelDarkDelta = 38`
+  - `PngLabelDarkDensityDelta = -0.091`
+  - `JpgLabelDarkDelta = 58`
+  - `JpgLabelDarkDensityDelta = -0.021`
+- result: `triangle-cycle-labeled`:
+  - `PngLabelDarkDelta = -197`
+  - `PngLabelDarkDensityDelta = 0.141`
+  - `JpgLabelDarkDelta = -148`
+  - `JpgLabelDarkDensityDelta = 0.164`
+- result: `star-labeled`:
+  - `PngLabelDarkDelta = 743`
+  - `PngLabelDarkDensityDelta = 0.027`
+  - `JpgLabelDarkDelta = 933`
+  - `JpgLabelDarkDensityDelta = 0.046`
+
+Следующий шаг внутри Patch 7:
+
+- label ROI telemetry показала, что local raster text mismatch действительно существует даже после вычитания общего scene size
+- следующий meaningful шаг:
+  - same-geometry compare
+  - либо отдельный scene/label-only renderer experiment, где geometry фиксирована и сравнивается только glyph output
+
 Критерий готовности:
 
 - label anchors, label size и визуальная плотность становятся заметно ближе к graphviz

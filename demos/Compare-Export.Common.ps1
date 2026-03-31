@@ -270,6 +270,78 @@ function Get-SvgNodeLabelEntry {
     }
 }
 
+function Get-SvgLabelRasterRegions {
+    param([Parameter(Mandatory)][string]$Path)
+
+    if (-not (Test-Path $Path)) {
+        return $null
+    }
+
+    [xml]$document = Get-Content -Path $Path -Raw
+    $svg = $document.DocumentElement
+    if ($null -eq $svg) {
+        return $null
+    }
+
+    $graphGroup = $document.SelectSingleNode("//*[local-name()='g' and contains(concat(' ', normalize-space(@class), ' '), ' graph ')]")
+    $graphTransformValue = if ($null -ne $graphGroup -and $null -ne $graphGroup.Attributes['transform']) { [string]$graphGroup.Attributes['transform'].Value } else { $null }
+    $graphTransform = Get-SvgGraphTransform -Transform $graphTransformValue
+    $viewBoxRect = Get-SvgViewBoxRect -ViewBox ([string]$svg.GetAttribute('viewBox'))
+    if ($null -eq $graphTransform -or $null -eq $viewBoxRect) {
+        return $null
+    }
+
+    $nodeGroups = $document.SelectNodes("//*[local-name()='g' and contains(concat(' ', normalize-space(@class), ' '), ' node ')]")
+    $regions = New-Object System.Collections.Generic.List[object]
+    foreach ($nodeGroup in $nodeGroups) {
+        $titleNode = $nodeGroup.SelectSingleNode("./*[local-name()='title']")
+        $ellipseNode = $nodeGroup.SelectSingleNode("./*[local-name()='ellipse']")
+        $textNode = $nodeGroup.SelectSingleNode("./*[local-name()='text']")
+        if ($null -eq $titleNode -or $null -eq $ellipseNode -or $null -eq $textNode) {
+            continue
+        }
+
+        $entry = Get-SvgNodeLabelEntry -NodeTitle ([string]$titleNode.InnerText) -EllipseNode $ellipseNode -TextNode $textNode
+        if ($null -eq $entry.FontSize -or [string]::IsNullOrWhiteSpace([string]$entry.Text)) {
+            continue
+        }
+
+        $fontSize = [double]$entry.FontSize
+        $labelWidth = [Math]::Max(6.0, ([string]$entry.Text).Length * $fontSize * 0.56)
+        $labelLeft = switch ([string]$entry.TextAnchor) {
+            'middle' { [double]$entry.X - ($labelWidth * 0.5) }
+            'end' { [double]$entry.X - $labelWidth }
+            default { [double]$entry.X }
+        }
+        $labelTop = [double]$entry.Y - $fontSize
+        $labelBottom = [double]$entry.Y + ($fontSize * 0.35)
+        $labelRight = $labelLeft + $labelWidth
+
+        $corners = @(
+            (Transform-SvgPoint -X $labelLeft -Y $labelTop -Transform $graphTransform),
+            (Transform-SvgPoint -X $labelRight -Y $labelTop -Transform $graphTransform),
+            (Transform-SvgPoint -X $labelLeft -Y $labelBottom -Transform $graphTransform),
+            (Transform-SvgPoint -X $labelRight -Y $labelBottom -Transform $graphTransform)
+        )
+        $cornerXs = @($corners | ForEach-Object { [double]$_['X'] })
+        $cornerYs = @($corners | ForEach-Object { [double]$_['Y'] })
+
+        $region = New-Object System.Collections.Hashtable
+        $region['NodeTitle'] = $entry.NodeTitle
+        $region['Text'] = $entry.Text
+        $region['MinX'] = ($cornerXs | Measure-Object -Minimum).Minimum
+        $region['MinY'] = ($cornerYs | Measure-Object -Minimum).Minimum
+        $region['MaxX'] = ($cornerXs | Measure-Object -Maximum).Maximum
+        $region['MaxY'] = ($cornerYs | Measure-Object -Maximum).Maximum
+        $regions.Add($region)
+    }
+
+    $result = New-Object System.Collections.Hashtable
+    $result['ViewBox'] = $viewBoxRect
+    $result['Regions'] = $regions.ToArray()
+    return $result
+}
+
 function Get-SvgViewBoxRect {
     param([string]$ViewBox)
 
@@ -652,6 +724,112 @@ function Get-RasterPixelSummary {
                     DarkPixelCount = $darkPixelCount
                     NonWhitePixelCount = $nonWhitePixelCount
                     NearFallbackPixelCount = $nearFallbackPixelCount
+                }
+            }
+            finally {
+                if ($null -ne $bitmap) {
+                    $bitmap.Dispose()
+                }
+            }
+        }
+        finally {
+            $image.Dispose()
+        }
+    }
+    finally {
+        $data.Dispose()
+    }
+}
+
+function Get-RasterLabelRegionMetrics {
+    param(
+        [Parameter(Mandatory)][string]$RasterPath,
+        [Parameter(Mandatory)]$SvgLabelRegions
+    )
+
+    if ($null -eq $SvgLabelRegions -or $SvgLabelRegions.Regions.Count -eq 0) {
+        return $null
+    }
+
+    Ensure-SkiaSharpAssemblyLoaded
+
+    $skDataType = 'SkiaSharp.SKData' -as [type]
+    $skImageType = 'SkiaSharp.SKImage' -as [type]
+    $skBitmapType = 'SkiaSharp.SKBitmap' -as [type]
+    $skImageInfoType = 'SkiaSharp.SKImageInfo' -as [type]
+    if ($null -eq $skDataType -or $null -eq $skImageType -or $null -eq $skBitmapType -or $null -eq $skImageInfoType) {
+        return $null
+    }
+
+    $viewBox = $SvgLabelRegions.ViewBox
+    $regions = $SvgLabelRegions.Regions
+    $bytes = [System.IO.File]::ReadAllBytes($RasterPath)
+    $data = [SkiaSharp.SKData]::CreateCopy($bytes)
+    try {
+        $image = [SkiaSharp.SKImage]::FromEncodedData($data)
+        if ($null -eq $image) {
+            return $null
+        }
+
+        try {
+            $info = [SkiaSharp.SKImageInfo]::new(
+                $image.Width,
+                $image.Height,
+                [SkiaSharp.SKColorType]::Rgba8888,
+                [SkiaSharp.SKAlphaType]::Unpremul)
+            $bitmap = [SkiaSharp.SKBitmap]::new($info)
+            try {
+                $ok = $image.ReadPixels($info, $bitmap.GetPixels(), $info.RowBytes, 0, 0)
+                if (-not $ok) {
+                    return $null
+                }
+
+                $pixels = New-Object byte[] ($info.RowBytes * $info.Height)
+                [System.Runtime.InteropServices.Marshal]::Copy($bitmap.GetPixels(), $pixels, 0, $pixels.Length)
+
+                $regionPixelCount = 0
+                $opaquePixelCount = 0
+                $darkPixelCount = 0
+                $nonWhitePixelCount = 0
+
+                foreach ($region in $regions) {
+                    $minX = [Math]::Max(0, [int][Math]::Floor((([double]$region.MinX - [double]$viewBox.MinX) / [double]$viewBox.Width) * $image.Width))
+                    $maxX = [Math]::Min($image.Width, [int][Math]::Ceiling((([double]$region.MaxX - [double]$viewBox.MinX) / [double]$viewBox.Width) * $image.Width))
+                    $minY = [Math]::Max(0, [int][Math]::Floor((([double]$region.MinY - [double]$viewBox.MinY) / [double]$viewBox.Height) * $image.Height))
+                    $maxY = [Math]::Min($image.Height, [int][Math]::Ceiling((([double]$region.MaxY - [double]$viewBox.MinY) / [double]$viewBox.Height) * $image.Height))
+
+                    for ($y = $minY; $y -lt $maxY; $y++) {
+                        for ($x = $minX; $x -lt $maxX; $x++) {
+                            $index = ($y * $info.RowBytes) + ($x * 4)
+                            $r = [int]$pixels[$index]
+                            $g = [int]$pixels[$index + 1]
+                            $b = [int]$pixels[$index + 2]
+                            $a = [int]$pixels[$index + 3]
+
+                            $regionPixelCount++
+                            if ($a -eq 255) {
+                                $opaquePixelCount++
+                            }
+
+                            if ($r -lt 250 -or $g -lt 250 -or $b -lt 250) {
+                                $nonWhitePixelCount++
+                            }
+
+                            if ((($r + $g + $b) / 3.0) -lt 250) {
+                                $darkPixelCount++
+                            }
+                        }
+                    }
+                }
+
+                return [ordered]@{
+                    RegionCount = $regions.Count
+                    RegionPixelCount = $regionPixelCount
+                    OpaquePixelCount = $opaquePixelCount
+                    DarkPixelCount = $darkPixelCount
+                    NonWhitePixelCount = $nonWhitePixelCount
+                    DarkPixelDensity = Get-NullableRatio -Numerator $darkPixelCount -Denominator $opaquePixelCount
+                    NonWhitePixelDensity = Get-NullableRatio -Numerator $nonWhitePixelCount -Denominator $opaquePixelCount
                 }
             }
             finally {
@@ -1450,6 +1628,46 @@ function Get-FontResolutionComparisonSummary {
     }
 }
 
+function Get-LabelRasterComparisonSummary {
+    param(
+        [Parameter(Mandatory)][string]$FormatName,
+        [object]$GraphvizSvgResult,
+        [object]$ManagedSvgResult,
+        [object]$GraphvizRasterResult,
+        [object]$ManagedRasterResult
+    )
+
+    if (-not $GraphvizSvgResult.Supported -or -not $ManagedSvgResult.Supported -or -not $GraphvizRasterResult.Supported -or -not $ManagedRasterResult.Supported) {
+        return [ordered]@{
+            Available = $false
+            Reason = "One side did not produce both SVG and $FormatName output for label ROI comparison."
+        }
+    }
+
+    $graphvizRegions = Get-SvgLabelRasterRegions -Path $GraphvizSvgResult.Path
+    $managedRegions = Get-SvgLabelRasterRegions -Path $ManagedSvgResult.Path
+    $graphvizMetrics = Get-RasterLabelRegionMetrics -RasterPath $GraphvizRasterResult.Path -SvgLabelRegions $graphvizRegions
+    $managedMetrics = Get-RasterLabelRegionMetrics -RasterPath $ManagedRasterResult.Path -SvgLabelRegions $managedRegions
+    if ($null -eq $graphvizMetrics -or $null -eq $managedMetrics) {
+        return [ordered]@{
+            Available = $false
+            Reason = 'Label ROI metrics could not be computed.'
+        }
+    }
+
+    return [ordered]@{
+        Available = $true
+        RegionCountDelta = $managedMetrics.RegionCount - $graphvizMetrics.RegionCount
+        RegionPixelDelta = $managedMetrics.RegionPixelCount - $graphvizMetrics.RegionPixelCount
+        DarkPixelDelta = $managedMetrics.DarkPixelCount - $graphvizMetrics.DarkPixelCount
+        NonWhitePixelDelta = $managedMetrics.NonWhitePixelCount - $graphvizMetrics.NonWhitePixelCount
+        DarkPixelDensityDelta = if ($null -ne $graphvizMetrics.DarkPixelDensity -and $null -ne $managedMetrics.DarkPixelDensity) { [double]$managedMetrics.DarkPixelDensity - [double]$graphvizMetrics.DarkPixelDensity } else { $null }
+        NonWhitePixelDensityDelta = if ($null -ne $graphvizMetrics.NonWhitePixelDensity -and $null -ne $managedMetrics.NonWhitePixelDensity) { [double]$managedMetrics.NonWhitePixelDensity - [double]$graphvizMetrics.NonWhitePixelDensity } else { $null }
+        Graphviz = $graphvizMetrics
+        Managed = $managedMetrics
+    }
+}
+
 function Get-RasterComparisonSummary {
     param(
         [Parameter(Mandatory)][string]$FormatName,
@@ -1662,6 +1880,8 @@ function Invoke-ExportComparisonRun {
             Diagnostics = Get-DiagnosticsComparisonSummary -GraphvizResult $graphvizResults.Svg -ManagedResult $managedResults.Svg
             Png = Get-RasterComparisonSummary -FormatName 'PNG' -GraphvizResult $graphvizResults.Png -ManagedResult $managedResults.Png
             Jpg = Get-RasterComparisonSummary -FormatName 'JPG' -GraphvizResult $graphvizResults.Jpg -ManagedResult $managedResults.Jpg
+            PngLabelRaster = Get-LabelRasterComparisonSummary -FormatName 'PNG' -GraphvizSvgResult $graphvizResults.Svg -ManagedSvgResult $managedResults.Svg -GraphvizRasterResult $graphvizResults.Png -ManagedRasterResult $managedResults.Png
+            JpgLabelRaster = Get-LabelRasterComparisonSummary -FormatName 'JPG' -GraphvizSvgResult $graphvizResults.Svg -ManagedSvgResult $managedResults.Svg -GraphvizRasterResult $graphvizResults.Jpg -ManagedRasterResult $managedResults.Jpg
         }
         OutputDirectories = [ordered]@{
             Root = $OutputDir

@@ -1009,3 +1009,48 @@
 - следующий meaningful шаг внутри `Patch 7`:
   - same-geometry compare
   - или label-only raster experiment, где geometry фиксирована и видна только разница рендера текста
+
+## 2026-03-30 21:02 PDT - Patch 7e подтверждает local raster text mismatch через label ROI telemetry
+
+Решение: добавляем в labelled compare отдельный `label ROI` слой метрик и принимаем его как следующий рабочий baseline для raster text parity.
+
+Причины:
+
+- после `Patch 7d` стало ясно, что проблема не в простом font fallback
+- whole-image raster metrics всё ещё смешивали в одну кучу:
+  - text weight
+  - scene size
+  - node/edge density
+- нужен был локальный metric именно по области label-а, чтобы увидеть, расходится ли сам raster text после вычитания общего scene noise
+
+Телеметрия:
+
+- code change: `/Users/andrei/repo/PSGraphView/demos/Compare-Export.Common.ps1`
+- code change: `/Users/andrei/repo/PSGraphView/demos/Compare-Export-LabeledGraphs.ps1`
+- run: `pwsh -NoProfile -File demos/Compare-Export-LabeledGraphs.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-labeled-compare-patch7e`
+- result: `3/3` labeled cases completed successfully
+- result: `single-edge-labeled`:
+  - `PngLabelDarkDelta = 38`
+  - `PngLabelDarkDensityDelta = -0.091`
+  - `JpgLabelDarkDelta = 58`
+  - `JpgLabelDarkDensityDelta = -0.021`
+- result: `triangle-cycle-labeled`:
+  - `PngLabelDarkDelta = -197`
+  - `PngLabelDarkDensityDelta = 0.141`
+  - `JpgLabelDarkDelta = -148`
+  - `JpgLabelDarkDensityDelta = 0.164`
+- result: `star-labeled`:
+  - `PngLabelDarkDelta = 743`
+  - `PngLabelDarkDensityDelta = 0.027`
+  - `JpgLabelDarkDelta = 933`
+  - `JpgLabelDarkDensityDelta = 0.046`
+
+Следствие:
+
+- local text region действительно расходится и после вычитания общего размера сцены
+- это усиливает вывод, что remaining mismatch сидит уже в:
+  - glyph shaping / hinting
+  - либо в том, как graphviz и managed по-разному rasterize-ят один и тот же text box
+- следующий meaningful шаг:
+  - same-geometry compare
+  - либо отдельный label-only / scene-only raster experiment уже без layout path вообще
