@@ -338,6 +338,10 @@ public sealed class ExportGraphViewCmdlet : PSCmdlet
             throw new OperationCanceledException();
         }
 
+        var labelFontSize = MyInvocation.BoundParameters.ContainsKey(nameof(LabelFontSize)) ? LabelFontSize : 14.0;
+        var labelOffsetX = MyInvocation.BoundParameters.ContainsKey(nameof(LabelOffsetX)) ? LabelOffsetX : 0.0;
+        var labelOffsetY = MyInvocation.BoundParameters.ContainsKey(nameof(LabelOffsetY)) ? LabelOffsetY : 0.0;
+
         var options = new SfdpOptions
         {
             Seed = SfdpSeed,
@@ -374,9 +378,9 @@ public sealed class ExportGraphViewCmdlet : PSCmdlet
             EdgeLineWidth = EdgeLineWidth,
             EdgeColor = EdgeColor,
             ArrowSize = ArrowSize,
-            LabelFontSize = LabelFontSize,
-            LabelOffsetX = LabelOffsetX,
-            LabelOffsetY = LabelOffsetY,
+            LabelFontSize = labelFontSize,
+            LabelOffsetX = labelOffsetX,
+            LabelOffsetY = labelOffsetY,
             GroupMetadataKey = GroupMetadataKey,
             DisableGroupColors = DisableGroupColors.IsPresent,
             Width = Width,

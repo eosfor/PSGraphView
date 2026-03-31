@@ -25,8 +25,7 @@ internal static class SfdpRenderScenePipeline
             ? SfdpLabelLayouter.PlaceLabels(graph.Nodes.Select(node => node.Label).ToArray(), outputX, outputY, options)
             : Array.Empty<SfdpLabelLayouter.LabelPlacement>();
         var routedEdges = SfdpEdgeRouter.RouteEdges(graph, outputX, outputY, options);
-        var contentBounds = ExpandBoundsForLabels(outputBounds, labelPlacements);
-        contentBounds = ExpandBoundsForEdges(contentBounds, routedEdges);
+        var contentBounds = ExpandBoundsForEdges(outputBounds, routedEdges);
         var viewportMetrics = SfdpViewportCalculator.CalculateSvgViewport(contentBounds, options);
         var translatedX = TranslateCoordinates(outputX, viewportMetrics.TranslationX);
         var translatedY = TranslateCoordinates(outputY, viewportMetrics.TranslationY);
@@ -45,31 +44,6 @@ internal static class SfdpRenderScenePipeline
             renderScene.ViewportMetrics,
             translatedLabels,
             SfdpGeometrySummary.Create(SfdpGraphBuilder.BuildUndirectedCsr(SfdpGraphBuilder.BuildIndexed(graph)), layout.X, layout.Y));
-    }
-
-    private static SfdpBoundingBox ExpandBoundsForLabels(
-        SfdpBoundingBox bounds,
-        IReadOnlyList<SfdpLabelLayouter.LabelPlacement> labels)
-    {
-        if (labels.Count == 0)
-        {
-            return bounds;
-        }
-
-        var minX = bounds.MinX;
-        var minY = bounds.MinY;
-        var maxX = bounds.MaxX;
-        var maxY = bounds.MaxY;
-
-        foreach (var label in labels)
-        {
-            minX = Math.Min(minX, label.X);
-            minY = Math.Min(minY, label.Y);
-            maxX = Math.Max(maxX, label.X + label.Width);
-            maxY = Math.Max(maxY, label.Y + label.Height);
-        }
-
-        return new SfdpBoundingBox(minX, minY, maxX, maxY);
     }
 
     private static double[] TranslateCoordinates(IReadOnlyList<double> coordinates, double offset)

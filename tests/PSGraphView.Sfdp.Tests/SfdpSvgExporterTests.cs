@@ -27,6 +27,8 @@ public sealed class SfdpSvgExporterTests
         Assert.Contains("<svg", svg, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(">A<", svg, StringComparison.OrdinalIgnoreCase);
         Assert.Contains(">B<", svg, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("font-family=\"Times,serif\"", svg, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("text-anchor=\"middle\"", svg, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -296,7 +298,7 @@ public sealed class SfdpSvgExporterTests
                 Assert.True(data.GetProperty("averageWidth").GetDouble() > 0.0);
                 Assert.True(data.GetProperty("averageHeight").GetDouble() > 0.0);
                 Assert.True(data.GetProperty("averageFontSize").GetDouble() > 0.0);
-                Assert.Equal("sans-serif", data.GetProperty("fontFamilies").GetString());
+                Assert.Equal("Times,serif", data.GetProperty("fontFamilies").GetString());
             }
 
             Assert.True(labelSummarySeen);
@@ -332,6 +334,36 @@ public sealed class SfdpSvgExporterTests
         Assert.Contains("viewBox=\"0.00 0.00", svg, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("width=\"", svg, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("height=\"", svg, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Export_WithLabels_UsesCenteredNodeAnchors()
+    {
+        var graph = new GraphView(
+            [
+                new GraphViewNode("Alpha", "Alpha", null, new Dictionary<string, object?>()),
+                new GraphViewNode("Beta", "Beta", null, new Dictionary<string, object?>())
+            ],
+            [
+                new GraphViewEdge("Alpha", "Beta", null, 1)
+            ]);
+
+        var svg = _exporter.Export(graph, new SfdpOptions { ShowLabels = true });
+        var document = XDocument.Parse(svg);
+        XNamespace ns = "http://www.w3.org/2000/svg";
+
+        foreach (var node in document.Descendants(ns + "g").Where(element => string.Equals((string?)element.Attribute("class"), "node", StringComparison.Ordinal)))
+        {
+            var ellipse = node.Element(ns + "ellipse");
+            var text = node.Element(ns + "text");
+            Assert.NotNull(ellipse);
+            Assert.NotNull(text);
+
+            var cx = double.Parse(ellipse!.Attribute("cx")!.Value, CultureInfo.InvariantCulture);
+            var textX = double.Parse(text!.Attribute("x")!.Value, CultureInfo.InvariantCulture);
+            Assert.Equal(cx, textX, 3);
+            Assert.Equal("middle", text.Attribute("text-anchor")!.Value);
+        }
     }
 
     [Fact]

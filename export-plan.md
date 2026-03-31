@@ -1876,6 +1876,47 @@ Patch 7a:
 
 - `Patch 7b`: реальная правка label placement / font defaults / `svg` text attributes под graphviz-like baseline
 
+Сделано в Patch 7b:
+
+- `Sfdp` label semantics переведены на graphviz-like centered mode:
+  - label рисуется по центру node
+  - `text-anchor="middle"`
+  - default `font-family="Times,serif"`
+- default `LabelFontSize` для `Sfdp` поднят до `14.0`
+- default `LabelOffsetX/Y` для `Sfdp` выровнен к `0.0 / 0.0`
+- PowerShell-path для `Sfdp` теперь применяет эти defaults только когда пользователь не передал свои значения явно
+- label bounds больше не расширяют viewport / page size
+- raster text path теперь уважает `text-anchor` и пытается брать `Times New Roman` как practical match для `Times,serif`
+
+Телеметрия Patch 7b:
+
+- test: `dotnet test tests/PSGraphView.GVExport.Tests/PSGraphView.GVExport.Tests.csproj`
+- result: `6/6` passed
+- test: `dotnet test tests/PSGraphView.Sfdp.Tests/PSGraphView.Sfdp.Tests.csproj --filter SfdpSvgExporterTests`
+- result: `13/13` passed
+- test: `dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --filter ExportGraphViewCmdletTests`
+- result: `13/13` passed
+- run: `pwsh -NoProfile -File demos/Compare-Export-LabeledGraphs.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-labeled-compare-patch7b`
+- result: `3/3` labeled cases completed successfully
+- result: for all labeled cases:
+  - `NodeLabelCountDelta = 0`
+  - `MissingNodeLabelsInManaged = []`
+  - `UnexpectedNodeLabelsInManaged = []`
+  - `GraphvizFontFamilies = ["Times,serif"]`
+  - `ManagedFontFamilies = ["Times,serif"]`
+  - `GraphvizTextAnchors = ["middle"]`
+  - `ManagedTextAnchors = ["middle"]`
+  - `AverageFontSizeDelta = 0.0`
+  - `AverageOffsetXDelta = 0.0`
+- result: `triangle-cycle-labeled`:
+  - `AverageBaselineOffsetYDelta = 8.881784197001252E-16`
+- result: `star-labeled`:
+  - `AverageBaselineOffsetYDelta = -8.881784197001252E-16`
+
+Следующий шаг внутри Patch 7:
+
+- оценить remaining raster text parity уже не по font defaults, а по фактическому `SkiaSharp` glyph shaping и anti-aliasing
+
 Критерий готовности:
 
 - label anchors, label size и визуальная плотность становятся заметно ближе к graphviz

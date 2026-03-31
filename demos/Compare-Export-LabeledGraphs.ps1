@@ -13,7 +13,7 @@ param(
     [ValidateRange(1, 100000)]
     [int]$SfdpOverlapRemovalIterations = 1000,
     [ValidateRange(4.0, 64.0)]
-    [double]$LabelFontSize = 8.0,
+    [double]$LabelFontSize = 14.0,
     [switch]$AllowPartial = $true
 )
 

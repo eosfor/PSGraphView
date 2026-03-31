@@ -1229,7 +1229,7 @@ function Invoke-ManagedExport {
         [Parameter(Mandatory)][int]$SfdpSeed,
         [Parameter(Mandatory)][int]$SfdpOverlapRemovalIterations,
         [switch]$IncludeLabels,
-        [double]$LabelFontSize = 8.0,
+        [double]$LabelFontSize = 14.0,
         [switch]$AllowPartial
     )
 
@@ -1424,7 +1424,7 @@ function Invoke-ExportComparisonRun {
         [Parameter(Mandatory)][int]$SfdpSeed,
         [Parameter(Mandatory)][int]$SfdpOverlapRemovalIterations,
         [switch]$IncludeLabels,
-        [double]$LabelFontSize = 8.0,
+        [double]$LabelFontSize = 14.0,
         [switch]$AllowPartial
     )
 

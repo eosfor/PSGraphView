@@ -831,3 +831,73 @@
 - следующий правильный шаг внутри `Patch 7`:
   - `Patch 7b`
   - править label placement, font defaults и `svg` text attributes уже под измеримый baseline
+
+## 2026-03-30 17:14 PDT - Patch 7b переводит Sfdp labels на graphviz-like centered semantics
+
+Решение: для `Sfdp` принимаем graphviz-like semantics для node labels как новый baseline:
+
+- centered label inside node
+- `font-family="Times,serif"`
+- `text-anchor="middle"`
+- default `LabelFontSize = 14.0`
+- default `LabelOffsetX = 0.0`
+- default `LabelOffsetY = 0.0`
+
+Отдельно фиксируем, что label bounds больше не должны раздувать viewport. Для PowerShell-path эти defaults применяются только когда пользователь явно не передал свои значения.
+
+Причины:
+
+- `Patch 7a` показал, что remaining text mismatch сидел не в содержимом label-ов, а в semantics:
+  - font family
+  - font size
+  - anchor
+  - relative placement относительно центра node
+- у `graphviz` node labels в наших reference `svg` рисуются centered с `Times,serif` и `text-anchor="middle"`
+- старый managed path с внешним label placement и `8pt sans-serif` давал заметный визуальный шум и pixel diff даже при правильной geometry узлов и рёбер
+- label bounds не должны влиять на page size, иначе text parity начинает ломать viewport parity
+
+Телеметрия:
+
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.Sfdp/SfdpLabelLayouter.cs`
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.Sfdp/SfdpOptions.cs`
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.Sfdp/SfdpRenderSceneBuilder.cs`
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.Sfdp/SfdpRenderScenePipeline.cs`
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.GVExport/GraphRenderScene.cs`
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.GVExport/GraphSvgRenderSceneWriter.cs`
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.GVExport/GraphRasterRenderSceneWriter.cs`
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.PowerShell/ExportGraphViewCmdlet.cs`
+- code change: `/Users/andrei/repo/PSGraphView/demos/Compare-Export.Common.ps1`
+- code change: `/Users/andrei/repo/PSGraphView/demos/Compare-Export-LabeledGraphs.ps1`
+- test: `dotnet test tests/PSGraphView.GVExport.Tests/PSGraphView.GVExport.Tests.csproj`
+- result: `6/6` passed
+- test: `dotnet test tests/PSGraphView.Sfdp.Tests/PSGraphView.Sfdp.Tests.csproj --filter SfdpSvgExporterTests`
+- result: `13/13` passed
+- test: `dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --filter ExportGraphViewCmdletTests`
+- result: `13/13` passed
+- run: `pwsh -NoProfile -File demos/Compare-Export-LabeledGraphs.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-labeled-compare-patch7b`
+- result: `3/3` labeled cases completed successfully
+- result: for all labeled cases:
+  - `NodeLabelCountDelta = 0`
+  - `MissingNodeLabelsInManaged = []`
+  - `UnexpectedNodeLabelsInManaged = []`
+  - `GraphvizFontFamilies = ["Times,serif"]`
+  - `ManagedFontFamilies = ["Times,serif"]`
+  - `GraphvizTextAnchors = ["middle"]`
+  - `ManagedTextAnchors = ["middle"]`
+  - `AverageFontSizeDelta = 0.0`
+  - `AverageOffsetXDelta = 0.0`
+- result: `single-edge-labeled`:
+  - `AverageBaselineOffsetYDelta = 0.0`
+- result: `triangle-cycle-labeled`:
+  - `AverageBaselineOffsetYDelta = 8.881784197001252E-16`
+- result: `star-labeled`:
+  - `AverageBaselineOffsetYDelta = -8.881784197001252E-16`
+
+Следствие:
+
+- `Patch 7b` закрывает крупный semantic mismatch по text/font/anchor для `svg`
+- remaining text differences теперь стоит искать уже в renderer-specific деталях:
+  - glyph shaping
+  - font availability
+  - raster anti-aliasing
+- следующие compare-прогоны по `png/jpg` надо трактовать уже без прежней скидки на неправильные defaults текста

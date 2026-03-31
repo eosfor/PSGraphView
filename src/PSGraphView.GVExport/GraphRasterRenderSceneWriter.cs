@@ -174,10 +174,50 @@ public static class GraphRasterRenderSceneWriter
             {
                 Color = ParseColor(node.Label.Fill),
                 TextSize = (float)node.Label.FontSize,
+                TextAlign = GetTextAlign(node.Label.TextAnchor),
                 IsAntialias = true,
             };
+            var typeface = CreateLabelTypeface(node.Label.FontFamily);
+            if (typeface is not null)
+            {
+                textPaint.Typeface = typeface;
+            }
+
             canvas.DrawText(node.Label.Text, (float)node.Label.X, (float)node.Label.BaselineY, textPaint);
         }
+    }
+
+    private static SKTextAlign GetTextAlign(string? textAnchor)
+    {
+        return textAnchor switch
+        {
+            "middle" => SKTextAlign.Center,
+            "end" => SKTextAlign.Right,
+            _ => SKTextAlign.Left
+        };
+    }
+
+    private static SKTypeface? CreateLabelTypeface(string? fontFamily)
+    {
+        if (string.IsNullOrWhiteSpace(fontFamily))
+        {
+            return null;
+        }
+
+        if (fontFamily.Contains("Times", StringComparison.OrdinalIgnoreCase))
+        {
+            return SKTypeface.FromFamilyName("Times New Roman");
+        }
+
+        var firstFamily = fontFamily
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(firstFamily))
+        {
+            return null;
+        }
+
+        return SKTypeface.FromFamilyName(firstFamily.Trim('"'));
     }
 
     private static void DrawArrowHead(SKCanvas canvas, SKPath edgePath, GraphRenderArrowStyle arrowStyle, SKColor strokeColor)

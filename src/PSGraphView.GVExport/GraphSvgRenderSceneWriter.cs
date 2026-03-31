@@ -64,13 +64,19 @@ public static class GraphSvgRenderSceneWriter
 
             if (node.Label is not null)
             {
-                nodeElement.Add(new XElement(ns + "text",
+                var text = new XElement(ns + "text",
                     new XAttribute("x", Format(node.Label.X)),
                     new XAttribute("y", Format(node.Label.BaselineY)),
                     new XAttribute("font-size", Format(node.Label.FontSize)),
                     new XAttribute("font-family", node.Label.FontFamily),
                     new XAttribute("fill", node.Label.Fill),
-                    node.Label.Text));
+                    node.Label.Text);
+                if (!string.IsNullOrWhiteSpace(node.Label.TextAnchor))
+                {
+                    text.Add(new XAttribute("text-anchor", node.Label.TextAnchor));
+                }
+
+                nodeElement.Add(text);
             }
 
             nodeElements.Add(nodeElement);

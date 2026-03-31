@@ -33,6 +33,7 @@ public sealed record GraphRenderLabel(
     double BaselineY,
     double FontSize,
     string FontFamily,
+    string? TextAnchor,
     string Fill);
 
 public sealed record GraphRenderNode(

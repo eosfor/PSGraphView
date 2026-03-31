@@ -7,8 +7,9 @@ namespace PSGraphView.Sfdp;
 internal static class SfdpRenderSceneBuilder
 {
     private const string DefaultNodeStroke = "#555555";
-    private const string DefaultLabelFill = "#222222";
-    private const string DefaultLabelFontFamily = "sans-serif";
+    private const string DefaultLabelFill = "#000000";
+    private const string DefaultLabelFontFamily = "Times,serif";
+    private const string DefaultLabelTextAnchor = "middle";
     private const string ArrowMarkerId = "arrowhead";
 
     private static readonly string[] GroupPalette =
@@ -83,10 +84,11 @@ internal static class SfdpRenderSceneBuilder
             var label = options.ShowLabels
                 ? new GraphRenderLabel(
                     Text: node.Label,
-                    X: labelPlacements[index].X - graphTranslateX,
-                    BaselineY: (labelPlacements[index].Y + (options.LabelFontSize * 0.8)) - graphTranslateY,
+                    X: x[index] - graphTranslateX + options.LabelOffsetX,
+                    BaselineY: y[index] - graphTranslateY + GetGraphvizLabelBaselineOffset(options.LabelFontSize) + options.LabelOffsetY,
                     FontSize: options.LabelFontSize,
                     FontFamily: DefaultLabelFontFamily,
+                    TextAnchor: DefaultLabelTextAnchor,
                     Fill: DefaultLabelFill)
                 : null;
 
@@ -154,6 +156,11 @@ internal static class SfdpRenderSceneBuilder
     private static string Format(double value)
     {
         return value.ToString("0.###", CultureInfo.InvariantCulture);
+    }
+
+    private static double GetGraphvizLabelBaselineOffset(double fontSize)
+    {
+        return fontSize * 0.3607142857142857;
     }
 
     private static string ResolveFill(GraphViewNode node, SfdpOptions options)

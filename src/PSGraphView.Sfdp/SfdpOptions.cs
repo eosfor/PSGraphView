@@ -37,8 +37,8 @@ public sealed class SfdpOptions
     public string BackgroundColor { get; init; } = "#ffffff";
     public bool ShowLabels { get; init; }
     public bool ShowArrows { get; init; }
-    public double LabelFontSize { get; init; } = 8.0;
-    public double LabelOffsetX { get; init; } = 6.0;
+    public double LabelFontSize { get; init; } = 14.0;
+    public double LabelOffsetX { get; init; } = 0.0;
     public double LabelOffsetY { get; init; } = 0.0;
     public double EdgeLineWidth { get; init; } = 0.8;
     public string EdgeColor { get; init; } = "#c0c0c0";
