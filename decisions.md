@@ -901,3 +901,68 @@
   - font availability
   - raster anti-aliasing
 - следующие compare-прогоны по `png/jpg` надо трактовать уже без прежней скидки на неправильные defaults текста
+
+## 2026-03-30 20:24 PDT - Patch 7c добавляет raster text telemetry и лёгкий Skia text tuning
+
+Решение: следующий шаг внутри `Patch 7` делаем не как большой слепой rewrite raster text path, а как измеряемый подпатч:
+
+- добавляем explicit `SkiaSharp` text flags для raster path
+- пишем эти flags в managed diagnostics
+- добавляем в compare harness нормализованные raster density metrics, чтобы отделить text weight от общего размера кадра
+
+Принятые настройки для текущего baseline:
+
+- `HintingLevel = Slight`
+- `SubpixelText = true`
+- `LcdRenderText = true` для opaque background path
+- `IsAutohinted = true`
+
+Причины:
+
+- после `Patch 7b` `svg`-semantics по тексту уже совпали, но `png/jpg` всё ещё расходились и raw pixel counts были плохо интерпретируемы без нормализации
+- labelled cases показали, что raw `DarkPixelDelta` может сильно зависеть от размера output-а, а не только от веса glyph-ов
+- нужен был следующий слой telemetry, который позволит говорить не только “пикселей больше/меньше”, но и “текст плотнее/легче при той же opaque area”
+- небольшой `SkiaSharp` text tuning имеет смысл только если его можно сразу измерить и потом либо оставить, либо откатить
+
+Телеметрия:
+
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.GVExport/GraphRasterRenderSceneWriter.cs`
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.Sfdp/SfdpRenderDiagnostics.cs`
+- code change: `/Users/andrei/repo/PSGraphView/demos/Compare-Export.Common.ps1`
+- code change: `/Users/andrei/repo/PSGraphView/demos/Compare-Export-LabeledGraphs.ps1`
+- code change: `/Users/andrei/repo/PSGraphView/tests/PSGraphView.GVExport.Tests/GraphRasterRenderSceneWriterTests.cs`
+- test: `dotnet test tests/PSGraphView.GVExport.Tests/PSGraphView.GVExport.Tests.csproj`
+- result: `6/6` passed
+- test: `dotnet test tests/PSGraphView.Sfdp.Tests/PSGraphView.Sfdp.Tests.csproj --filter SfdpRasterExporterTests`
+- result: `2/2` passed
+- run: `pwsh -NoProfile -File demos/Compare-Export-LabeledGraphs.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-labeled-compare-patch7c`
+- result: `3/3` labeled cases completed successfully
+- result: managed diagnostics now report:
+  - `textHintingLevel = "Slight"`
+  - `subpixelText = true`
+  - `lcdRenderText = true`
+  - `autohintedText = true`
+- result: `single-edge-labeled`:
+  - `PngDarkPixelDelta` improved from `24` to `19`
+  - `JpgDarkPixelDelta` improved from `34` to `29`
+  - `PngDarkPixelDensityDelta = -0.091`
+  - `JpgDarkPixelDensityDelta = -0.021`
+- result: `star-labeled`:
+  - `PngDarkPixelDelta` improved from `618` to `612`
+  - `JpgDarkPixelDelta` improved from `788` to `777`
+  - `PngDarkPixelDensityDelta = 0.062`
+  - `JpgDarkPixelDensityDelta = 0.083`
+- result: `triangle-cycle-labeled`:
+  - `PngDarkPixelDelta = -350`
+  - `JpgDarkPixelDelta = -289`
+  - `PngDarkPixelDensityDelta = 0.284`
+  - case remains layout-limited and is not a good final judge of raster text tuning
+
+Следствие:
+
+- у нас появился usable raster text baseline, который уже не сводится только к raw pixel count
+- текущий `SkiaSharp` tuning даёт небольшой плюс на labeled cases с близким output size, но не закрывает весь remaining raster text mismatch
+- следующий meaningful шаг для `Patch 7` уже не в “ещё одном флаге antialiasing”, а в:
+  - same-geometry compare
+  - font availability / fallback inspection
+  - возможно, отдельном label-only raster experiment

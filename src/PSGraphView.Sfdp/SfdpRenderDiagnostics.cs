@@ -183,7 +183,11 @@ internal static class SfdpRenderDiagnostics
             ("encodeQuality", result.EncodeQuality),
             ("opaqueOutputPolicy", result.OpaqueOutputPolicy),
             ("opaqueFallbackColor", result.OpaqueFallbackColor),
-            ("opaqueAlphaThreshold", result.OpaqueAlphaThreshold)
+            ("opaqueAlphaThreshold", result.OpaqueAlphaThreshold),
+            ("textHintingLevel", result.TextHintingLevel),
+            ("subpixelText", result.SubpixelText),
+            ("lcdRenderText", result.LcdRenderText),
+            ("autohintedText", result.AutohintedText)
         ]);
     }
 

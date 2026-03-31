@@ -11,6 +11,7 @@ public static class GraphRasterRenderSceneWriter
     private const double RasterDpi = 96.0;
     private const int DefaultJpegQuality = 90;
     private const byte GraphvizJpegOpaqueAlphaThreshold = 64;
+    private const string DefaultRasterTextHinting = "Slight";
     private static readonly SKColor JpegTransparentFallbackBackground = new(255, 255, 254, 255);
 
     public static GraphRasterRenderResult RenderPng(GraphRenderScene scene)
@@ -85,7 +86,11 @@ public static class GraphRasterRenderSceneWriter
             format == GraphRasterImageFormat.Jpg ? DefaultJpegQuality : null,
             format == GraphRasterImageFormat.Jpg ? "GraphvizLikeGdThreshold" : null,
             format == GraphRasterImageFormat.Jpg ? FormatColor(JpegTransparentFallbackBackground) : null,
-            format == GraphRasterImageFormat.Jpg ? GraphvizJpegOpaqueAlphaThreshold : null);
+            format == GraphRasterImageFormat.Jpg ? GraphvizJpegOpaqueAlphaThreshold : null,
+            DefaultRasterTextHinting,
+            SubpixelText: true,
+            LcdRenderText: scene.Style.ShowBackgroundRect,
+            AutohintedText: true);
     }
 
     private static void DrawBackgroundPolygon(SKCanvas canvas, GraphRenderScene scene)
@@ -176,6 +181,10 @@ public static class GraphRasterRenderSceneWriter
                 TextSize = (float)node.Label.FontSize,
                 TextAlign = GetTextAlign(node.Label.TextAnchor),
                 IsAntialias = true,
+                SubpixelText = true,
+                LcdRenderText = scene.Style.ShowBackgroundRect,
+                IsAutohinted = true,
+                HintingLevel = SKPaintHinting.Slight,
             };
             var typeface = CreateLabelTypeface(node.Label.FontFamily);
             if (typeface is not null)
@@ -398,7 +407,11 @@ public sealed record GraphRasterRenderResult(
     int? EncodeQuality,
     string? OpaqueOutputPolicy,
     string? OpaqueFallbackColor,
-    byte? OpaqueAlphaThreshold);
+    byte? OpaqueAlphaThreshold,
+    string? TextHintingLevel,
+    bool? SubpixelText,
+    bool? LcdRenderText,
+    bool? AutohintedText);
 
 internal enum GraphRasterImageFormat
 {

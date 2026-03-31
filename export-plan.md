@@ -1917,6 +1917,56 @@ Patch 7a:
 
 - оценить remaining raster text parity уже не по font defaults, а по фактическому `SkiaSharp` glyph shaping и anti-aliasing
 
+Сделано в Patch 7c:
+
+- `SkiaSharp` raster text path теперь использует явные text flags:
+  - `HintingLevel = Slight`
+  - `SubpixelText = true`
+  - `LcdRenderText = true` для opaque background path
+  - `IsAutohinted = true`
+- managed raster diagnostics теперь пишут реальный text rendering mode:
+  - `textHintingLevel`
+  - `subpixelText`
+  - `lcdRenderText`
+  - `autohintedText`
+- compare harness теперь считает не только raw pixel delta, но и нормализованные raster метрики:
+  - `OpaqueCoverageDelta`
+  - `DarkPixelDensityDelta`
+  - `NonWhitePixelDensityDelta`
+  - `NearFallbackPixelDensityDelta`
+- labelled compare overview теперь сохраняет отдельные `PngComparison` и `JpgComparison`
+
+Телеметрия Patch 7c:
+
+- test: `dotnet test tests/PSGraphView.GVExport.Tests/PSGraphView.GVExport.Tests.csproj`
+- result: `6/6` passed
+- test: `dotnet test tests/PSGraphView.Sfdp.Tests/PSGraphView.Sfdp.Tests.csproj --filter SfdpRasterExporterTests`
+- result: `2/2` passed
+- run: `pwsh -NoProfile -File demos/Compare-Export-LabeledGraphs.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-labeled-compare-patch7c`
+- result: `3/3` labeled cases completed successfully
+- result: managed raster diagnostics now report:
+  - `textHintingLevel = "Slight"`
+  - `subpixelText = true`
+  - `lcdRenderText = true`
+- result: on `single-edge-labeled`:
+  - `PngDarkPixelDelta` improved from `24` to `19`
+  - `JpgDarkPixelDelta` improved from `34` to `29`
+  - `PngDarkPixelDensityDelta = -0.091`
+  - `JpgDarkPixelDensityDelta = -0.021`
+- result: on `star-labeled`:
+  - `PngDarkPixelDelta` improved from `618` to `612`
+  - `JpgDarkPixelDelta` improved from `788` to `777`
+  - `PngDarkPixelDensityDelta = 0.062`
+  - `JpgDarkPixelDensityDelta = 0.083`
+- result: `triangle-cycle-labeled` remains dominated by layout-size mismatch:
+  - `PngDarkPixelDelta = -350`
+  - `JpgDarkPixelDelta = -289`
+  - `PngDarkPixelDensityDelta = 0.284`
+
+Следующий шаг внутри Patch 7:
+
+- для remaining raster text parity нужен уже не общий default-tuning, а отдельное решение по font availability / glyph shaping / same-geometry compare
+
 Критерий готовности:
 
 - label anchors, label size и визуальная плотность становятся заметно ближе к graphviz

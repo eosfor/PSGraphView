@@ -15,6 +15,10 @@ public sealed class GraphRasterRenderSceneWriterTests
         Assert.Equal(32, result.PixelHeight);
         Assert.Equal("SkiaSharp", result.Backend);
         Assert.False(result.FlattenedForOpaqueOutput);
+        Assert.Equal("Slight", result.TextHintingLevel);
+        Assert.True(result.SubpixelText);
+        Assert.True(result.LcdRenderText);
+        Assert.True(result.AutohintedText);
 
         using SKData data = SKData.CreateCopy(result.Bytes);
         using SKImage image = SKImage.FromEncodedData(data)!;
@@ -36,6 +40,10 @@ public sealed class GraphRasterRenderSceneWriterTests
         Assert.Equal("GraphvizLikeGdThreshold", result.OpaqueOutputPolicy);
         Assert.Equal("#fffffeff", result.OpaqueFallbackColor);
         Assert.Equal((byte)64, result.OpaqueAlphaThreshold);
+        Assert.Equal("Slight", result.TextHintingLevel);
+        Assert.True(result.SubpixelText);
+        Assert.True(result.LcdRenderText);
+        Assert.True(result.AutohintedText);
 
         using SKData data = SKData.CreateCopy(result.Bytes);
         using SKImage image = SKImage.FromEncodedData(data)!;

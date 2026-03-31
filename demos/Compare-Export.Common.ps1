@@ -1396,6 +1396,14 @@ function Get-RasterComparisonSummary {
 
     $graphvizSummary = $GraphvizResult.Summary
     $managedSummary = $ManagedResult.Summary
+    $graphvizOpaqueCoverage = Get-NullableRatio -Numerator $graphvizSummary.OpaquePixelCount -Denominator ($graphvizSummary.Width * $graphvizSummary.Height)
+    $managedOpaqueCoverage = Get-NullableRatio -Numerator $managedSummary.OpaquePixelCount -Denominator ($managedSummary.Width * $managedSummary.Height)
+    $graphvizDarkDensity = Get-NullableRatio -Numerator $graphvizSummary.DarkPixelCount -Denominator $graphvizSummary.OpaquePixelCount
+    $managedDarkDensity = Get-NullableRatio -Numerator $managedSummary.DarkPixelCount -Denominator $managedSummary.OpaquePixelCount
+    $graphvizNonWhiteDensity = Get-NullableRatio -Numerator $graphvizSummary.NonWhitePixelCount -Denominator $graphvizSummary.OpaquePixelCount
+    $managedNonWhiteDensity = Get-NullableRatio -Numerator $managedSummary.NonWhitePixelCount -Denominator $managedSummary.OpaquePixelCount
+    $graphvizNearFallbackDensity = Get-NullableRatio -Numerator $graphvizSummary.NearFallbackPixelCount -Denominator $graphvizSummary.OpaquePixelCount
+    $managedNearFallbackDensity = Get-NullableRatio -Numerator $managedSummary.NearFallbackPixelCount -Denominator $managedSummary.OpaquePixelCount
 
     return [ordered]@{
         Available = $true
@@ -1409,10 +1417,32 @@ function Get-RasterComparisonSummary {
         DarkPixelDelta = if ($graphvizSummary.Contains('DarkPixelCount') -and $managedSummary.Contains('DarkPixelCount')) { $managedSummary.DarkPixelCount - $graphvizSummary.DarkPixelCount } else { $null }
         NonWhitePixelDelta = if ($graphvizSummary.Contains('NonWhitePixelCount') -and $managedSummary.Contains('NonWhitePixelCount')) { $managedSummary.NonWhitePixelCount - $graphvizSummary.NonWhitePixelCount } else { $null }
         NearFallbackPixelDelta = if ($graphvizSummary.Contains('NearFallbackPixelCount') -and $managedSummary.Contains('NearFallbackPixelCount')) { $managedSummary.NearFallbackPixelCount - $graphvizSummary.NearFallbackPixelCount } else { $null }
+        OpaqueCoverageDelta = if ($null -ne $graphvizOpaqueCoverage -and $null -ne $managedOpaqueCoverage) { $managedOpaqueCoverage - $graphvizOpaqueCoverage } else { $null }
+        DarkPixelDensityDelta = if ($null -ne $graphvizDarkDensity -and $null -ne $managedDarkDensity) { $managedDarkDensity - $graphvizDarkDensity } else { $null }
+        NonWhitePixelDensityDelta = if ($null -ne $graphvizNonWhiteDensity -and $null -ne $managedNonWhiteDensity) { $managedNonWhiteDensity - $graphvizNonWhiteDensity } else { $null }
+        NearFallbackPixelDensityDelta = if ($null -ne $graphvizNearFallbackDensity -and $null -ne $managedNearFallbackDensity) { $managedNearFallbackDensity - $graphvizNearFallbackDensity } else { $null }
         Graphviz = $graphvizSummary
         Managed = $managedSummary
         ManagedDiagnostics = if ($ManagedResult.DiagnosticsSummary.Raster.Count -gt 0) { $ManagedResult.DiagnosticsSummary.Raster[-1] } else { $null }
     }
+}
+
+function Get-NullableRatio {
+    param(
+        [object]$Numerator,
+        [object]$Denominator
+    )
+
+    if ($null -eq $Numerator -or $null -eq $Denominator) {
+        return $null
+    }
+
+    $denominatorValue = [double]$Denominator
+    if ($denominatorValue -eq 0.0) {
+        return $null
+    }
+
+    return ([double]$Numerator) / $denominatorValue
 }
 
 function Invoke-ExportComparisonRun {

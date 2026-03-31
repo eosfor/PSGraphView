@@ -107,6 +107,20 @@ foreach ($case in $cases) {
         GraphvizSvgPath = $summary.Graphviz.Outputs.Svg.Path
         ManagedSvgPath = $summary.Managed.Outputs.Svg.Path
         TextComparison = $summary.Comparisons.Text
+        PngComparison = [ordered]@{
+            WidthDelta = $summary.Comparisons.Png.WidthDelta
+            HeightDelta = $summary.Comparisons.Png.HeightDelta
+            DarkPixelDelta = $summary.Comparisons.Png.DarkPixelDelta
+            DarkPixelDensityDelta = $summary.Comparisons.Png.DarkPixelDensityDelta
+            NonWhitePixelDensityDelta = $summary.Comparisons.Png.NonWhitePixelDensityDelta
+        }
+        JpgComparison = [ordered]@{
+            WidthDelta = $summary.Comparisons.Jpg.WidthDelta
+            HeightDelta = $summary.Comparisons.Jpg.HeightDelta
+            DarkPixelDelta = $summary.Comparisons.Jpg.DarkPixelDelta
+            DarkPixelDensityDelta = $summary.Comparisons.Jpg.DarkPixelDensityDelta
+            NonWhitePixelDensityDelta = $summary.Comparisons.Jpg.NonWhitePixelDensityDelta
+        }
         SummaryPath = $summaryPath
     }
 }
