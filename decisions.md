@@ -1099,3 +1099,56 @@
 - следующий шаг внутри `Patch 7` уже просится как:
   - same-geometry compare
   - или synthetic label scene / text-only experiment
+
+## 2026-03-30 20:53 PDT - Patch 7g отделяет raster text mismatch от layout и canvas-size noise
+
+Решение: добавляем отдельный same-geometry baseline `demos/Compare-Export-FixedTextScene.ps1` и принимаем его как основной reference для следующих text-raster экспериментов внутри `Patch 7`.
+
+Причины:
+
+- после `Patch 7f` было уже понятно, что mismatch сидит в raster contribution текста, но ещё оставался шум от:
+  - layout geometry
+  - общего scene composition
+  - разных raster dimensions
+- нужен был baseline, где:
+  - geometry берётся из `graphviz`
+  - `graphviz` рендерит fixed-text scene через `neato -n`
+  - managed рендерит тот же text-only scene напрямую через `GVExport`
+- отдельный шаг с принудительным выравниванием managed raster canvas под pixel size reference-вывода `graphviz` нужен был, чтобы не спутать glyph mismatch с mismatch по размеру картинки
+
+Телеметрия:
+
+- code change: `/Users/andrei/repo/PSGraphView/demos/Compare-Export-FixedTextScene.ps1`
+- run: `pwsh -NoProfile -File demos/Compare-Export-FixedTextScene.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-fixed-text-patch7g`
+- result: `2/2` fixed-text cases completed successfully
+- result: `single-edge-fixed-text`
+  - `GraphvizResolvedFamilies = ["Times New Roman"]`
+  - `ManagedResolvedFamilies = ["Times New Roman"]`
+  - `Png WidthDelta = 0`
+  - `Png HeightDelta = 0`
+  - `PngDarkPixelDelta = 73`
+  - `PngDarkPixelDensityDelta = 4.0677`
+  - `Jpg WidthDelta = 0`
+  - `Jpg HeightDelta = 0`
+  - `JpgDarkPixelDelta = -73`
+  - `JpgDarkPixelDensityDelta = -0.2173`
+- result: `star-fixed-text`
+  - `GraphvizResolvedFamilies = ["Times New Roman"]`
+  - `ManagedResolvedFamilies = ["Times New Roman"]`
+  - `Png WidthDelta = 0`
+  - `Png HeightDelta = 0`
+  - `PngDarkPixelDelta = 2889`
+  - `PngDarkPixelDensityDelta = 17.1272`
+  - `Jpg WidthDelta = 0`
+  - `Jpg HeightDelta = 0`
+  - `JpgDarkPixelDelta = -240`
+  - `JpgDarkPixelDensityDelta = -0.0605`
+
+Следствие:
+
+- resolved font family и canvas size уже не объясняют remaining mismatch
+- после вычитания layout-noise и size-noise расхождение остаётся именно в rasterization text-only scene
+- дальше внутри `Patch 7` нужно копать уже не `font-family`, а:
+  - alpha / clear policy
+  - premultiplied-alpha behavior
+  - различия `Pango/Cairo/CoreText` против `SkiaSharp/CoreText` на text-only render path

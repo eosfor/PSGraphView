@@ -2073,6 +2073,47 @@ Patch 7a:
   - same-geometry compare
   - или отдельный synthetic label scene, где graphviz и managed сравниваются на одном и том же text box layout
 
+Сделано в Patch 7g:
+
+- добавлен отдельный same-geometry baseline script:
+  - `demos/Compare-Export-FixedTextScene.ps1`
+- script сначала берёт node label geometry из `graphviz sfdp` SVG, затем:
+  - строит fixed-text DOT с `shape=plain`
+  - рендерит его через `neato -n` в `graphviz`
+  - рендерит тот же text-only scene напрямую через `PSGraphView.GVExport.GraphRasterRenderSceneWriter`
+- managed raster canvas теперь пинится к pixel dimensions reference-вывода `graphviz`, чтобы убрать шум от разного canvas size
+- same-geometry baseline теперь даёт отдельный comparison JSON на case и общий `fixed-text-overview.json`
+
+Телеметрия Patch 7g:
+
+- run: `pwsh -NoProfile -File demos/Compare-Export-FixedTextScene.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-fixed-text-patch7g`
+- result: `2/2` fixed-text cases completed successfully
+- result: в обоих cases размеры raster теперь совпадают точно:
+  - `single-edge-fixed-text`: `Png WidthDelta = 0`, `Png HeightDelta = 0`, `Jpg WidthDelta = 0`, `Jpg HeightDelta = 0`
+  - `star-fixed-text`: `Png WidthDelta = 0`, `Png HeightDelta = 0`, `Jpg WidthDelta = 0`, `Jpg HeightDelta = 0`
+- result: resolved font family по-прежнему совпадает:
+  - `GraphvizResolvedFamilies = ["Times New Roman"]`
+  - `ManagedResolvedFamilies = ["Times New Roman"]`
+- result: remaining mismatch после снятия size-noise остался именно в text raster output:
+  - `single-edge-fixed-text`:
+    - `PngDarkPixelDelta = 73`
+    - `PngDarkPixelDensityDelta = 4.068`
+    - `JpgDarkPixelDelta = -73`
+    - `JpgDarkPixelDensityDelta = -0.217`
+  - `star-fixed-text`:
+    - `PngDarkPixelDelta = 2889`
+    - `PngDarkPixelDensityDelta = 17.127`
+    - `JpgDarkPixelDelta = -240`
+    - `JpgDarkPixelDensityDelta = -0.060`
+
+Следующий шаг внутри Patch 7:
+
+- same-geometry baseline подтвердил, что даже без layout noise `graphviz` и managed по-разному rasterize-ят text-only scene
+- следующий meaningful шаг:
+  - разбирать alpha / premultiplied-alpha и clear policy в `SkiaSharp` text-only path
+  - отдельно проверить SVG-to-raster policy у `graphviz` text-only cases
+  - при необходимости добавить ещё один micro-baseline на один label в фиксированном box-е
+
 Критерий готовности:
 
 - label anchors, label size и визуальная плотность становятся заметно ближе к graphviz
