@@ -15,6 +15,8 @@ param(
     [int]$SfdpOverlapRemovalIterations = 1000,
     [ValidateRange(4.0, 64.0)]
     [double]$LabelFontSize = 14.0,
+    [bool]$ManagedShowBackgroundRect = $true,
+    [string]$ManagedBackgroundColor = '#ffffff',
     [switch]$AllowPartial = $true
 )
 
@@ -190,6 +192,8 @@ function Invoke-ManagedFixedTextRasterExport {
         [Parameter(Mandatory)][string]$SourceSvgPath,
         [Parameter(Mandatory)][string]$FormatName,
         [Parameter(Mandatory)][string]$OutputPath,
+        [Parameter(Mandatory)][bool]$ShowBackgroundRect,
+        [Parameter(Mandatory)][string]$BackgroundColor,
         [double]$RasterWidthPoints = [double]::NaN,
         [double]$RasterHeightPoints = [double]::NaN
     )
@@ -212,7 +216,7 @@ function Invoke-ManagedFixedTextRasterExport {
         $outputHeightPoints,
         $effectiveRasterWidthPoints,
         $effectiveRasterHeightPoints)
-    $style = [PSGraphView.GVExport.GraphRenderStyle]::new($false, '#ffffff', $null)
+    $style = [PSGraphView.GVExport.GraphRenderStyle]::new($ShowBackgroundRect, $BackgroundColor, $null)
     $canvas = [PSGraphView.GVExport.GraphRenderCanvas]::new(
         [string]$summary.GraphGroupId,
         'graph',
@@ -393,12 +397,16 @@ foreach ($case in $cases) {
         -SourceSvgPath $graphvizFixedSvg.Path `
         -FormatName 'Png' `
         -OutputPath (Join-Path $pngDir "$caseName-managed.png") `
+        -ShowBackgroundRect $ManagedShowBackgroundRect `
+        -BackgroundColor $ManagedBackgroundColor `
         -RasterWidthPoints (([double]$graphvizFixedPng.Summary.Width * 72.0) / 96.0) `
         -RasterHeightPoints (([double]$graphvizFixedPng.Summary.Height * 72.0) / 96.0)
     $managedFixedJpg = Invoke-ManagedFixedTextRasterExport `
         -SourceSvgPath $graphvizFixedSvg.Path `
         -FormatName 'Jpg' `
         -OutputPath (Join-Path $jpgDir "$caseName-managed.jpg") `
+        -ShowBackgroundRect $ManagedShowBackgroundRect `
+        -BackgroundColor $ManagedBackgroundColor `
         -RasterWidthPoints (([double]$graphvizFixedJpg.Summary.Width * 72.0) / 96.0) `
         -RasterHeightPoints (([double]$graphvizFixedJpg.Summary.Height * 72.0) / 96.0)
 
@@ -426,6 +434,8 @@ $overview = [ordered]@{
     Seed = $SfdpSeed
     OverlapRemovalIterations = $SfdpOverlapRemovalIterations
     LabelFontSize = $LabelFontSize
+    ManagedShowBackgroundRect = $ManagedShowBackgroundRect
+    ManagedBackgroundColor = $ManagedBackgroundColor
     CaseCount = $caseSummaries.Count
     Cases = $caseSummaries
 }

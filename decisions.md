@@ -1152,3 +1152,52 @@
   - alpha / clear policy
   - premultiplied-alpha behavior
   - различия `Pango/Cairo/CoreText` против `SkiaSharp/CoreText` на text-only render path
+
+## 2026-03-30 21:12 PDT - Patch 7h показывает, что fixed-text PNG mismatch в основном сидел в background semantics
+
+Решение: для same-geometry fixed-text baseline managed-сторону переводим на graphviz-like opaque white raster background и принимаем вывод, что основной крупный mismatch в `png` был вызван не glyph shaping, а различием device background semantics.
+
+Причины:
+
+- `Patch 7g` всё ещё показывал огромный разъезд по `png`, хотя:
+  - canvas size уже совпадал
+  - resolved font family уже совпадала
+- визуальный preview при этом показывал, что managed `png` выглядит как почти чёрный прямоугольник, а reference `graphviz png:cairo` выглядит как нормальный текст на белом фоне
+- это указывало, что следующий честный шаг нужно делать не в production renderer, а в synthetic baseline:
+  - сначала выровнять background semantics text-only device path
+  - и только потом смотреть, что осталось от собственно glyph mismatch
+
+Телеметрия:
+
+- code change: `/Users/andrei/repo/PSGraphView/demos/Compare-Export-FixedTextScene.ps1`
+- run: `pwsh -NoProfile -File demos/Compare-Export-FixedTextScene.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-fixed-text-patch7h`
+- result: `2/2` fixed-text cases completed successfully
+- result: `single-edge-fixed-text`
+  - `GraphvizResolvedFamilies = ["Times New Roman"]`
+  - `ManagedResolvedFamilies = ["Times New Roman"]`
+  - `Png WidthDelta = 0`
+  - `Png HeightDelta = 0`
+  - `TransparentPixelDelta = 0`
+  - `PngDarkPixelDelta = -21`
+  - `PngDarkPixelDensityDelta = -0.0816`
+  - previously on `Patch 7g`: `PngDarkPixelDelta = 73`, `PngDarkPixelDensityDelta = 4.0677`
+- result: `star-fixed-text`
+  - `GraphvizResolvedFamilies = ["Times New Roman"]`
+  - `ManagedResolvedFamilies = ["Times New Roman"]`
+  - `Png WidthDelta = 0`
+  - `Png HeightDelta = 0`
+  - `TransparentPixelDelta = 0`
+  - `PngDarkPixelDelta = -123`
+  - `PngDarkPixelDensityDelta = -0.0395`
+  - previously on `Patch 7g`: `PngDarkPixelDelta = 2889`, `PngDarkPixelDensityDelta = 17.1272`
+- result: `jpg` residual remains more noticeable:
+  - `single-edge-fixed-text`: `JpgDarkPixelDelta = -73`, `JpgNearFallbackPixelDelta = 74`
+  - `star-fixed-text`: `JpgDarkPixelDelta = -287`, `JpgNearFallbackPixelDelta = 293`
+
+Следствие:
+
+- крупный text-only `png` mismatch из `Patch 7g` оказался в основном artefact-ом от разной background policy
+- после выравнивания white background `png` уже близок к reference даже без новых font/glyph changes
+- следующий meaningful шаг внутри `Patch 7` теперь уже более узкий:
+  - micro-baseline на один label
+  - и отдельная доводка `jpg` opaque conversion / text weight

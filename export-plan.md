@@ -2114,6 +2114,50 @@ Patch 7a:
   - отдельно проверить SVG-to-raster policy у `graphviz` text-only cases
   - при необходимости добавить ещё один micro-baseline на один label в фиксированном box-е
 
+Сделано в Patch 7h:
+
+- fixed-text baseline обновлён так, чтобы managed scene использовал graphviz-like raster background policy:
+  - `ManagedShowBackgroundRect = true`
+  - `ManagedBackgroundColor = "#ffffff"`
+- это изменение сделано только в baseline script:
+  - `demos/Compare-Export-FixedTextScene.ps1`
+- цель патча: отделить реальный text raster mismatch от mismatch по device background semantics в `png`
+
+Телеметрия Patch 7h:
+
+- run: `pwsh -NoProfile -File demos/Compare-Export-FixedTextScene.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-fixed-text-patch7h`
+- result: `2/2` fixed-text cases completed successfully
+- result: размеры raster по-прежнему совпадают точно:
+  - `single-edge-fixed-text`: `png/jpg WidthDelta = 0`, `HeightDelta = 0`
+  - `star-fixed-text`: `png/jpg WidthDelta = 0`, `HeightDelta = 0`
+- result: resolved font family по-прежнему совпадает:
+  - `GraphvizResolvedFamilies = ["Times New Roman"]`
+  - `ManagedResolvedFamilies = ["Times New Roman"]`
+- result: для `png` mismatch сократился резко после выравнивания background semantics:
+  - `single-edge-fixed-text`:
+    - `PngDarkPixelDelta: 73 -> -21`
+    - `PngDarkPixelDensityDelta: 4.068 -> -0.082`
+    - `TransparentPixelDelta: 90 -> 0`
+  - `star-fixed-text`:
+    - `PngDarkPixelDelta: 2889 -> -123`
+    - `PngDarkPixelDensityDelta: 17.127 -> -0.040`
+    - `TransparentPixelDelta: 2960 -> 0`
+- result: для `jpg` заметный residual всё ещё остался:
+  - `single-edge-fixed-text`:
+    - `JpgDarkPixelDelta = -73`
+    - `JpgNearFallbackPixelDelta = 74`
+  - `star-fixed-text`:
+    - `JpgDarkPixelDelta = -287`
+    - `JpgNearFallbackPixelDelta = 293`
+
+Следующий шаг внутри Patch 7:
+
+- после `Patch 7h` основной remaining text-only residual уже сидит не в transparent `png` background, а в `jpg` opaque conversion и в более тонких различиях raster text weight
+- следующий meaningful шаг:
+  - сделать micro-baseline на один label в фиксированном box-е
+  - отдельно сравнить `png` и `jpg` text weight на этом micro-case
+  - при необходимости уточнить `jpg` opaque conversion policy для text-only scene
+
 Критерий готовности:
 
 - label anchors, label size и визуальная плотность становятся заметно ближе к graphviz
