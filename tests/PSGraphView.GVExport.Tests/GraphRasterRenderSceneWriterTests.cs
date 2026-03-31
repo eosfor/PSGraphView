@@ -85,6 +85,24 @@ public sealed class GraphRasterRenderSceneWriterTests
         Assert.InRange(center.Blue, 180, 255);
     }
 
+    [Fact]
+    public void RenderPng_ReportsResolvedLabelFontFamilies()
+    {
+        var viewport = new GraphRenderViewport(0.0, 0.0, 48.0, 24.0, 48.0, 24.0, 48.0, 24.0);
+        var style = new GraphRenderStyle(true, "#ffffff", null);
+        var canvas = new GraphRenderCanvas("graph0", "graph", "G", "scale(1 1) rotate(0) translate(0 0)", "0,0 0,0 0,0 0,0");
+        var label = new GraphRenderLabel("NodeA", 24, 16, 14, "Times,serif", "middle", "#000000");
+        var nodes = new[]
+        {
+            new GraphRenderNode("node1", "A", "A", 24, 16, 8, 8, "#ffffff", "#000000", 1.0, label)
+        };
+        var scene = new GraphRenderScene(viewport, style, canvas, Array.Empty<GraphRenderEdge>(), nodes);
+
+        var result = GraphRasterRenderSceneWriter.RenderPng(scene);
+
+        Assert.False(string.IsNullOrWhiteSpace(result.ResolvedLabelFontFamilies));
+    }
+
     private static GraphRenderScene CreateScene()
     {
         var viewport = new GraphRenderViewport(0.0, 0.0, 48.0, 24.0, 48.0, 24.0, 48.0, 24.0);

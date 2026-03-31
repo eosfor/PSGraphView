@@ -1967,6 +1967,39 @@ Patch 7a:
 
 - для remaining raster text parity нужен уже не общий default-tuning, а отдельное решение по font availability / glyph shaping / same-geometry compare
 
+Сделано в Patch 7d:
+
+- compare harness теперь собирает font resolution telemetry из `graphviz -v`:
+  - `fontname: ... resolved to ...`
+- managed raster diagnostics теперь пишут фактически выбранные `SkiaSharp` label font families:
+  - `resolvedLabelFontFamilies`
+- labelled compare overview теперь сохраняет `FontResolution` summary рядом с `TextComparison`
+
+Телеметрия Patch 7d:
+
+- test: `dotnet test tests/PSGraphView.GVExport.Tests/PSGraphView.GVExport.Tests.csproj`
+- result: `7/7` passed
+- test: `dotnet test tests/PSGraphView.Sfdp.Tests/PSGraphView.Sfdp.Tests.csproj --filter SfdpRasterExporterTests`
+- result: `2/2` passed
+- run: `pwsh -NoProfile -File demos/Compare-Export-LabeledGraphs.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-labeled-compare-patch7d`
+- result: `3/3` labeled cases completed successfully
+- result: for all labeled cases:
+  - `GraphvizResolvedFamilies = ["Times New Roman"]`
+  - `ManagedResolvedFamilies = ["Times New Roman"]`
+  - `MissingResolvedFamiliesInManaged = []`
+  - `UnexpectedResolvedFamiliesInManaged = []`
+- result: `single-edge-labeled` detailed summary now shows:
+  - `Requested = "Times-Roman"`
+  - `ResolvedFamily = "Times New Roman"`
+  - managed `resolvedLabelFontFamilies = "Times New Roman"`
+
+Следующий шаг внутри Patch 7:
+
+- на текущей машине remaining raster text mismatch уже нельзя объяснить простым font fallback
+- следующий meaningful шаг:
+  - same-geometry compare
+  - или label-only raster experiment для отделения glyph shaping от общей scene density
+
 Критерий готовности:
 
 - label anchors, label size и визуальная плотность становятся заметно ближе к graphviz

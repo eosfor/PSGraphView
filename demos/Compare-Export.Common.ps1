@@ -769,11 +769,41 @@ function Get-GraphvizVerboseSummary {
         Svg = $null
         Cairo = $null
         Gd = $null
+        FontResolution = @()
+        ResolvedFontFamilies = @()
         PreOverlapGeometry = @()
         OverlapGeometry = @()
     }
 
     foreach ($line in Get-Content -Path $Path) {
+        if ($line.StartsWith('fontname: "', [System.StringComparison]::Ordinal)) {
+            $requested = $null
+            $resolved = $null
+            $resolvedFamily = $null
+            if ($line -match '^fontname:\s+"(?<requested>[^"]+)"\s+resolved to:\s+(?<resolved>.+)$') {
+                $requested = $matches['requested']
+                $resolved = $matches['resolved']
+                if ($resolved -match '"(?<family>[^",]+),\s*\d+(?:\.\d+)?"') {
+                    $resolvedFamily = $matches['family']
+                }
+            }
+            elseif ($line -match '^fontname:\s+unable to resolve\s+"(?<requested>[^"]+)"$') {
+                $requested = $matches['requested']
+            }
+
+            $entry = [ordered]@{
+                Requested = $requested
+                Resolved = $resolved
+                ResolvedFamily = $resolvedFamily
+            }
+            $summary.FontResolution += $entry
+            if (-not [string]::IsNullOrWhiteSpace($resolvedFamily) -and $resolvedFamily -notin $summary.ResolvedFontFamilies) {
+                $summary.ResolvedFontFamilies += $resolvedFamily
+            }
+
+            continue
+        }
+
         if ($line.StartsWith('pre overlap geometry ')) {
             $summary.PreOverlapGeometry += Convert-StructuredLogFields -Text $line.Substring('pre overlap geometry '.Length)
             continue
@@ -1380,6 +1410,46 @@ function Get-TextComparisonSummary {
     }
 }
 
+function Get-FontResolutionComparisonSummary {
+    param(
+        [object]$GraphvizResult,
+        [object]$ManagedResult
+    )
+
+    if (-not $GraphvizResult.Supported -or -not $ManagedResult.Supported) {
+        return [ordered]@{
+            Available = $false
+            Reason = 'One side did not produce raster output for font resolution comparison.'
+        }
+    }
+
+    $graphvizVerbose = $GraphvizResult.VerboseSummary
+    $managedDiagnostics = $ManagedResult.DiagnosticsSummary
+    $managedRaster = if ($null -ne $managedDiagnostics -and $managedDiagnostics.Raster.Count -gt 0) { $managedDiagnostics.Raster[-1] } else { $null }
+    if ($null -eq $graphvizVerbose -or $null -eq $managedRaster) {
+        return [ordered]@{
+            Available = $false
+            Reason = 'Graphviz verbose or managed raster diagnostics summary is missing.'
+        }
+    }
+
+    $graphvizResolvedFamilies = @($graphvizVerbose.ResolvedFontFamilies | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Sort-Object -Unique)
+    $managedResolvedFamilies = @()
+    if (-not [string]::IsNullOrWhiteSpace([string]$managedRaster['resolvedLabelFontFamilies'])) {
+        $managedResolvedFamilies = @(([string]$managedRaster['resolvedLabelFontFamilies']).Split(',', [System.StringSplitOptions]::RemoveEmptyEntries -bor [System.StringSplitOptions]::TrimEntries) | Sort-Object -Unique)
+    }
+
+    return [ordered]@{
+        Available = $true
+        GraphvizResolvedFamilies = $graphvizResolvedFamilies
+        ManagedResolvedFamilies = $managedResolvedFamilies
+        MissingResolvedFamiliesInManaged = @($graphvizResolvedFamilies | Where-Object { $_ -notin $managedResolvedFamilies })
+        UnexpectedResolvedFamiliesInManaged = @($managedResolvedFamilies | Where-Object { $_ -notin $graphvizResolvedFamilies })
+        GraphvizFontResolution = $graphvizVerbose.FontResolution
+        ManagedRasterDiagnostics = $managedRaster
+    }
+}
+
 function Get-RasterComparisonSummary {
     param(
         [Parameter(Mandatory)][string]$FormatName,
@@ -1588,6 +1658,7 @@ function Invoke-ExportComparisonRun {
         Comparisons = [ordered]@{
             Svg = Get-SvgComparisonSummary -GraphvizResult $graphvizResults.Svg -ManagedResult $managedResults.Svg
             Text = Get-TextComparisonSummary -GraphvizResult $graphvizResults.Svg -ManagedResult $managedResults.Svg
+            FontResolution = Get-FontResolutionComparisonSummary -GraphvizResult $graphvizResults.Png -ManagedResult $managedResults.Png
             Diagnostics = Get-DiagnosticsComparisonSummary -GraphvizResult $graphvizResults.Svg -ManagedResult $managedResults.Svg
             Png = Get-RasterComparisonSummary -FormatName 'PNG' -GraphvizResult $graphvizResults.Png -ManagedResult $managedResults.Png
             Jpg = Get-RasterComparisonSummary -FormatName 'JPG' -GraphvizResult $graphvizResults.Jpg -ManagedResult $managedResults.Jpg

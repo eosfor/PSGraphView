@@ -966,3 +966,46 @@
   - same-geometry compare
   - font availability / fallback inspection
   - возможно, отдельном label-only raster experiment
+
+## 2026-03-30 20:42 PDT - Patch 7d показывает, что current raster text mismatch не объясняется простым font fallback
+
+Решение: добавляем explicit font resolution telemetry в compare loop и принимаем вывод, что на текущей машине `graphviz` и managed фактически сходятся на одной и той же resolved family для node labels: `Times New Roman`.
+
+Причины:
+
+- после `Patch 7c` всё ещё оставался вопрос, не уходит ли `SkiaSharp` в другой fallback font, из-за чего и расходятся raster glyph-ы
+- без этого любая следующая попытка чинить raster text parity была бы гаданием
+- `graphviz -v` уже пишет строку `fontname: ... resolved to ...`, а managed raster path теперь может писать фактически выбранные `SKTypeface.FamilyName`
+
+Телеметрия:
+
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.GVExport/GraphRasterRenderSceneWriter.cs`
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.Sfdp/SfdpRenderDiagnostics.cs`
+- code change: `/Users/andrei/repo/PSGraphView/demos/Compare-Export.Common.ps1`
+- code change: `/Users/andrei/repo/PSGraphView/demos/Compare-Export-LabeledGraphs.ps1`
+- code change: `/Users/andrei/repo/PSGraphView/tests/PSGraphView.GVExport.Tests/GraphRasterRenderSceneWriterTests.cs`
+- test: `dotnet test tests/PSGraphView.GVExport.Tests/PSGraphView.GVExport.Tests.csproj`
+- result: `7/7` passed
+- test: `dotnet test tests/PSGraphView.Sfdp.Tests/PSGraphView.Sfdp.Tests.csproj --filter SfdpRasterExporterTests`
+- result: `2/2` passed
+- run: `pwsh -NoProfile -File demos/Compare-Export-LabeledGraphs.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-labeled-compare-patch7d`
+- result: `3/3` labeled cases completed successfully
+- result: for all labeled cases:
+  - `GraphvizResolvedFamilies = ["Times New Roman"]`
+  - `ManagedResolvedFamilies = ["Times New Roman"]`
+  - `MissingResolvedFamiliesInManaged = []`
+  - `UnexpectedResolvedFamiliesInManaged = []`
+- result: `single-edge-labeled` detailed comparison:
+  - graphviz requested `Times-Roman`
+  - graphviz resolved family `Times New Roman`
+  - managed diagnostics `resolvedLabelFontFamilies = "Times New Roman"`
+
+Следствие:
+
+- на этой машине remaining raster text mismatch уже нельзя списать на другой resolved font family
+- значит следующий remaining слой сидит глубже:
+  - glyph shaping / hinting differences между Pango/Cairo и Skia
+  - либо общий scene-density noise
+- следующий meaningful шаг внутри `Patch 7`:
+  - same-geometry compare
+  - или label-only raster experiment, где geometry фиксирована и видна только разница рендера текста

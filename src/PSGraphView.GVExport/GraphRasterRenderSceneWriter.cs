@@ -37,6 +37,7 @@ public static class GraphRasterRenderSceneWriter
 
         using SKSurface surface = SKSurface.Create(info)
             ?? throw new InvalidOperationException("Failed to create Skia raster surface.");
+        var resolvedLabelFontFamilies = new HashSet<string>(StringComparer.Ordinal);
 
         var canvas = surface.Canvas;
         var clearColor = format switch
@@ -66,7 +67,7 @@ public static class GraphRasterRenderSceneWriter
         }
 
         DrawEdges(canvas, scene);
-        DrawNodes(canvas, scene);
+        DrawNodes(canvas, scene, resolvedLabelFontFamilies);
         canvas.Flush();
 
         using SKImage renderedImage = surface.Snapshot();
@@ -90,7 +91,8 @@ public static class GraphRasterRenderSceneWriter
             DefaultRasterTextHinting,
             SubpixelText: true,
             LcdRenderText: scene.Style.ShowBackgroundRect,
-            AutohintedText: true);
+            AutohintedText: true,
+            ResolvedLabelFontFamilies: string.Join(",", resolvedLabelFontFamilies.OrderBy(static family => family, StringComparer.Ordinal)));
     }
 
     private static void DrawBackgroundPolygon(SKCanvas canvas, GraphRenderScene scene)
@@ -139,7 +141,7 @@ public static class GraphRasterRenderSceneWriter
         }
     }
 
-    private static void DrawNodes(SKCanvas canvas, GraphRenderScene scene)
+    private static void DrawNodes(SKCanvas canvas, GraphRenderScene scene, ISet<string> resolvedLabelFontFamilies)
     {
         foreach (var node in scene.Nodes)
         {
@@ -190,6 +192,14 @@ public static class GraphRasterRenderSceneWriter
             if (typeface is not null)
             {
                 textPaint.Typeface = typeface;
+                if (!string.IsNullOrWhiteSpace(typeface.FamilyName))
+                {
+                    resolvedLabelFontFamilies.Add(typeface.FamilyName);
+                }
+            }
+            else if (!string.IsNullOrWhiteSpace(node.Label.FontFamily))
+            {
+                resolvedLabelFontFamilies.Add(node.Label.FontFamily);
             }
 
             canvas.DrawText(node.Label.Text, (float)node.Label.X, (float)node.Label.BaselineY, textPaint);
@@ -411,7 +421,8 @@ public sealed record GraphRasterRenderResult(
     string? TextHintingLevel,
     bool? SubpixelText,
     bool? LcdRenderText,
-    bool? AutohintedText);
+    bool? AutohintedText,
+    string? ResolvedLabelFontFamilies);
 
 internal enum GraphRasterImageFormat
 {

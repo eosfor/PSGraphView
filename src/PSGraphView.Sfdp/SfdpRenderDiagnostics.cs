@@ -187,7 +187,8 @@ internal static class SfdpRenderDiagnostics
             ("textHintingLevel", result.TextHintingLevel),
             ("subpixelText", result.SubpixelText),
             ("lcdRenderText", result.LcdRenderText),
-            ("autohintedText", result.AutohintedText)
+            ("autohintedText", result.AutohintedText),
+            ("resolvedLabelFontFamilies", result.ResolvedLabelFontFamilies)
         ]);
     }
 

@@ -107,6 +107,7 @@ foreach ($case in $cases) {
         GraphvizSvgPath = $summary.Graphviz.Outputs.Svg.Path
         ManagedSvgPath = $summary.Managed.Outputs.Svg.Path
         TextComparison = $summary.Comparisons.Text
+        FontResolution = $summary.Comparisons.FontResolution
         PngComparison = [ordered]@{
             WidthDelta = $summary.Comparisons.Png.WidthDelta
             HeightDelta = $summary.Comparisons.Png.HeightDelta
