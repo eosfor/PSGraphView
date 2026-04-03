@@ -298,6 +298,10 @@ Ensure-Directory -Path $OutputDir
 
 $cases = @(
     [ordered]@{
+        Name = 'single-label-fixed-text'
+        Graph = New-GraphFromDefinition -Vertices @('Glyph Probe 19gy')
+    }
+    [ordered]@{
         Name = 'single-edge-fixed-text'
         Graph = New-GraphFromDefinition -Edges @([pscustomobject]@{ From = 'AlphaService'; To = 'BetaDatabase' })
     }

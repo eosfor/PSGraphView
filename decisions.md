@@ -1201,3 +1201,46 @@
 - следующий meaningful шаг внутри `Patch 7` теперь уже более узкий:
   - micro-baseline на один label
   - и отдельная доводка `jpg` opaque conversion / text weight
+
+## 2026-04-02 09:18 PDT - Patch 7i показывает, что на одном label remaining text mismatch уже маленький
+
+Решение: добавляем в fixed-text baseline отдельный micro-case `single-label-fixed-text` и принимаем вывод, что после `Patch 7h` большого per-glyph mismatch уже не видно.
+
+Причины:
+
+- после `Patch 7h` всё ещё оставался вопрос, не маскируют ли multi-label cases маленький, но системный glyph mismatch
+- для честного ответа нужен был самый маленький text-only case:
+  - один label
+  - тот же resolved font family
+  - те же pixel dimensions
+  - тот же compare loop для `png/jpg`
+
+Телеметрия:
+
+- code change: `/Users/andrei/repo/PSGraphView/demos/Compare-Export-FixedTextScene.ps1`
+- run: `pwsh -NoProfile -File demos/Compare-Export-FixedTextScene.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-fixed-text-patch7i`
+- result: `3/3` fixed-text cases completed successfully
+- result: `single-label-fixed-text`
+  - `GraphvizResolvedFamilies = ["Times New Roman"]`
+  - `ManagedResolvedFamilies = ["Times New Roman"]`
+  - `Png WidthDelta = 0`
+  - `Png HeightDelta = 0`
+  - `PngDarkPixelDelta = -4`
+  - `PngDarkPixelDensityDelta = -0.0625`
+  - `Jpg WidthDelta = 0`
+  - `Jpg HeightDelta = 0`
+  - `JpgDarkPixelDelta = -7`
+  - `JpgDarkPixelDensityDelta = -0.1094`
+  - `JpgNearFallbackPixelDelta = 7`
+- visual preview:
+  - `png` managed и `graphviz` почти совпадают
+  - `jpg` тоже близок, но managed остаётся немного светлее reference
+
+Следствие:
+
+- после выравнивания background semantics и перехода к micro-case большого per-glyph mismatch уже не видно
+- remaining residual теперь выглядит узким и, скорее всего, сидит в:
+  - `jpg` opaque conversion
+  - compression / quality
+  - небольшом различии text weight после flattening
+- это уже не похоже на крупную ошибку text pipeline

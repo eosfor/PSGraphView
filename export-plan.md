@@ -2158,6 +2158,43 @@ Patch 7a:
   - отдельно сравнить `png` и `jpg` text weight на этом micro-case
   - при необходимости уточнить `jpg` opaque conversion policy для text-only scene
 
+Сделано в Patch 7i:
+
+- в fixed-text baseline добавлен отдельный micro-case:
+  - `single-label-fixed-text`
+- его цель:
+  - убрать шум от нескольких label-ов
+  - получить самый маленький text-only case для честного `png/jpg` compare
+  - понять, есть ли большой per-glyph mismatch сам по себе
+
+Телеметрия Patch 7i:
+
+- run: `pwsh -NoProfile -File demos/Compare-Export-FixedTextScene.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-fixed-text-patch7i`
+- result: `3/3` fixed-text cases completed successfully
+- result: `single-label-fixed-text`
+  - `GraphvizResolvedFamilies = ["Times New Roman"]`
+  - `ManagedResolvedFamilies = ["Times New Roman"]`
+  - `Png WidthDelta = 0`
+  - `Png HeightDelta = 0`
+  - `PngDarkPixelDelta = -4`
+  - `PngDarkPixelDensityDelta = -0.0625`
+  - `Jpg WidthDelta = 0`
+  - `Jpg HeightDelta = 0`
+  - `JpgDarkPixelDelta = -7`
+  - `JpgDarkPixelDensityDelta = -0.1094`
+  - `JpgNearFallbackPixelDelta = 7`
+- result: visual preview on the micro-case shows:
+  - `png` уже очень близок к reference
+  - `jpg` тоже близок, но managed выглядит немного светлее reference
+
+Следующий шаг внутри Patch 7:
+
+- micro-baseline показал, что большого per-glyph mismatch уже не видно
+- remaining `jpg` residual выглядит как тонкая разница opaque conversion / compression / text weight, а не как крупная поломка text path
+- следующий meaningful шаг:
+  - либо сделать ещё один очень маленький production patch на `jpg` text-only path
+  - либо признать `Patch 7` практически закрытым и переходить к `Patch 8`
+
 Критерий готовности:
 
 - label anchors, label size и визуальная плотность становятся заметно ближе к graphviz
