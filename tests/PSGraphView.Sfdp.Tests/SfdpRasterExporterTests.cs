@@ -7,6 +7,7 @@ namespace PSGraphView.Sfdp.Tests;
 public sealed class SfdpRasterExporterTests
 {
     private readonly SfdpRasterExporter _exporter = new();
+    private readonly SfdpExportBundleExporter _bundleExporter = new();
 
     [Fact]
     public void ExportPng_ReturnsPngBytes()
@@ -74,6 +75,58 @@ public sealed class SfdpRasterExporterTests
             if (File.Exists(diagnosticsPath))
             {
                 File.Delete(diagnosticsPath);
+            }
+        }
+    }
+
+    [Fact]
+    public void ExportBundle_WritesAllFormatsAndSeparateDiagnostics()
+    {
+        var graph = BuildGraph();
+        var tempDir = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid():N}-bundle");
+        var svgDiagnosticsPath = Path.Combine(tempDir, "managed-svg.jsonl");
+        var pngDiagnosticsPath = Path.Combine(tempDir, "managed-png.jsonl");
+        var jpgDiagnosticsPath = Path.Combine(tempDir, "managed-jpg.jsonl");
+
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var bundle = _bundleExporter.Export(
+                graph,
+                new SfdpOptions(),
+                new SfdpExportBundleDiagnosticsOptions
+                {
+                    SvgDiagnostics = new SfdpDiagnosticsOptions { Path = svgDiagnosticsPath, IncludeIterations = false },
+                    PngDiagnostics = new SfdpDiagnosticsOptions { Path = pngDiagnosticsPath, IncludeIterations = false },
+                    JpgDiagnostics = new SfdpDiagnosticsOptions { Path = jpgDiagnosticsPath, IncludeIterations = false }
+                });
+
+            Assert.NotNull(bundle.Svg);
+            Assert.NotNull(bundle.PngBytes);
+            Assert.NotNull(bundle.JpgBytes);
+            Assert.Contains("<svg", bundle.Svg, StringComparison.OrdinalIgnoreCase);
+            Assert.True(bundle.PngBytes.Length > 8);
+            Assert.Equal(0x89, bundle.PngBytes[0]);
+            Assert.Equal((byte)'P', bundle.PngBytes[1]);
+            Assert.Equal((byte)'N', bundle.PngBytes[2]);
+            Assert.Equal((byte)'G', bundle.PngBytes[3]);
+            Assert.True(bundle.JpgBytes.Length > 4);
+            Assert.Equal(0xFF, bundle.JpgBytes[0]);
+            Assert.Equal(0xD8, bundle.JpgBytes[1]);
+
+            Assert.True(File.Exists(svgDiagnosticsPath));
+            Assert.True(File.Exists(pngDiagnosticsPath));
+            Assert.True(File.Exists(jpgDiagnosticsPath));
+            Assert.Contains(File.ReadLines(svgDiagnosticsPath), static line => line.Contains("\"Phase\":\"svg\"", StringComparison.Ordinal));
+            Assert.Contains(File.ReadLines(pngDiagnosticsPath), static line => line.Contains("\"format\":\"Png\"", StringComparison.Ordinal));
+            Assert.Contains(File.ReadLines(jpgDiagnosticsPath), static line => line.Contains("\"format\":\"Jpg\"", StringComparison.Ordinal));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                Directory.Delete(tempDir, recursive: true);
             }
         }
     }

@@ -1399,3 +1399,63 @@
 - полный `WikiVote` теперь можно использовать как repeatable compare-case без ручного обхода
 - harness больше не смешивает “экспортер сломан” и “summary слишком тяжёлый”
 - detailed edge visibility остаётся на small-case и subgraph-case, где она действительно полезна и недорога
+
+## 2026-04-04 16:28 PDT - Patch 9a переводит managed compare-run на bundle export
+
+Решение: для `WikiVote` compare harness managed-сторона должна экспортировать `svg/png/jpg` через один общий `Sfdp` bundle exporter, а не через три независимых `Export-GraphView` вызова подряд.
+
+Что именно принято:
+
+- в `PSGraphView.Sfdp` добавлен `SfdpExportBundleExporter`
+- bundle exporter делает один `SfdpRenderScenePipeline.Prepare(...)` и потом выпускает несколько форматов из одного prepared scene
+- `png` и `jpg` внутри managed-side теперь могут кодироваться из одной и той же Skia surface через `RenderPngAndJpg(...)`
+- `demos/Compare-Export.Common.ps1` переведён на новый bundle path
+- старый поформатный path сохранён как fallback на случай реальной ошибки
+
+Причины:
+
+- после `Patch 9` full-case всё ещё был слишком тяжёлым на managed-стороне
+- старый compare path делал:
+  - три полных `Sfdp` layout-прохода на одном full graph
+  - две отдельные полные raster-отрисовки dense scene для `png` и `jpg`
+- это не давало устойчиво закончить полный `WikiVote` на чистом дереве без лишнего ожидания и повторных ручных обходов
+
+Телеметрия:
+
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.Sfdp/SfdpExportBundleExporter.cs`
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.Sfdp/SfdpExportBundle.cs`
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.Sfdp/SfdpExportBundleDiagnosticsOptions.cs`
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.Sfdp/SfdpExportBundleFormats.cs`
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.GVExport/GraphRasterRenderSceneWriter.cs`
+- code change: `/Users/andrei/repo/PSGraphView/demos/Compare-Export.Common.ps1`
+- test: `dotnet test tests/PSGraphView.GVExport.Tests/PSGraphView.GVExport.Tests.csproj`
+- result: `7/7` passed
+- test: `dotnet test tests/PSGraphView.Sfdp.Tests/PSGraphView.Sfdp.Tests.csproj --filter SfdpRasterExporterTests`
+- result: `3/3` passed
+- test: `dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --filter ExportGraphViewCmdletTests`
+- result: `14/14` passed
+- run: `GV_PLUGIN_PATH=/tmp/graphviz-prefix/lib/graphviz pwsh -NoProfile -File demos/Compare-WikiVote-Export.ps1 -UseLocalModules -UseSubgraph -SubgraphSeedCount 30 -SubgraphStartVertexCount 3 -OutputDir /tmp/psgraphview-export-wikivote-patch9a-subgraph`
+- result: subgraph case completed successfully
+- run: `GV_PLUGIN_PATH=/tmp/graphviz-prefix/lib/graphviz pwsh -NoProfile -File demos/Compare-WikiVote-Export.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-wikivote-patch9a-final`
+- result: full case completed successfully and wrote `/tmp/psgraphview-export-wikivote-patch9a-final/wiki-vote-full/wiki-vote-full-comparison.json`
+- result: full-case `Svg` comparison:
+  - `SummaryMode = "Fast"`
+  - `VisibleNodeCoverageRatio = 1.0`
+- result: full-case raster residuals remain measurable:
+  - `PNG WidthDelta = 61`
+  - `PNG HeightDelta = -30`
+  - `PNG DarkPixelDelta = -213220`
+  - `PNG NearFallbackPixelDelta = 200381`
+  - `JPG WidthDelta = 61`
+  - `JPG HeightDelta = -30`
+  - `JPG DarkPixelDelta = -135829`
+  - `JPG NearFallbackPixelDelta = 182862`
+- result: summary captured managed elapsed values:
+  - `Managed PNG ElapsedMilliseconds = 82913`
+  - `Managed JPG ElapsedMilliseconds = 80325`
+
+Следствие:
+
+- full `WikiVote` снова стал repeatable compare-case на текущей ветке
+- main managed cost теперь сидит в одном большом layout + dense raster work, а не в трёх отдельных layout-проходах
+- remaining mismatch дальше уже можно лечить отдельно от проблем orchestration/harness

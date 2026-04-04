@@ -20,6 +20,32 @@ public static class GraphRasterRenderSceneWriter
     public static GraphRasterRenderResult RenderJpg(GraphRenderScene scene)
         => Render(scene, GraphRasterImageFormat.Jpg, DefaultJpegQuality);
 
+    public static GraphRasterRenderPair RenderPngAndJpg(GraphRenderScene scene)
+    {
+        ArgumentNullException.ThrowIfNull(scene);
+
+        using var rendered = RenderSurface(scene);
+        using SKImage renderedImage = rendered.Surface.Snapshot();
+        using SKData pngData = renderedImage.Encode(SKEncodedImageFormat.Png, DefaultJpegQuality);
+        using SKData jpgData = EncodeJpeg(renderedImage, rendered.Info, scene, DefaultJpegQuality);
+
+        return new GraphRasterRenderPair
+        {
+            Png = CreateResult(
+                rendered,
+                GraphRasterImageFormat.Png,
+                pngData.ToArray(),
+                encodeQuality: null,
+                flattenedForOpaqueOutput: false),
+            Jpg = CreateResult(
+                rendered,
+                GraphRasterImageFormat.Jpg,
+                jpgData.ToArray(),
+                encodeQuality: DefaultJpegQuality,
+                flattenedForOpaqueOutput: true)
+        };
+    }
+
     private static GraphRasterRenderResult Render(
         GraphRenderScene scene,
         GraphRasterImageFormat format,
@@ -27,6 +53,22 @@ public static class GraphRasterRenderSceneWriter
     {
         ArgumentNullException.ThrowIfNull(scene);
 
+        using var rendered = RenderSurface(scene);
+        using SKImage renderedImage = rendered.Surface.Snapshot();
+        using SKData data = format == GraphRasterImageFormat.Jpg
+            ? EncodeJpeg(renderedImage, rendered.Info, scene, quality)
+            : renderedImage.Encode(SKEncodedImageFormat.Png, quality);
+
+        return CreateResult(
+            rendered,
+            format,
+            data.ToArray(),
+            format == GraphRasterImageFormat.Jpg ? DefaultJpegQuality : null,
+            flattenedForOpaqueOutput: format == GraphRasterImageFormat.Jpg);
+    }
+
+    private static RasterSurfaceRenderResult RenderSurface(GraphRenderScene scene)
+    {
         var rasterWidthPoints = Math.Max(scene.Viewport.RasterWidthPoints, 1.0);
         var rasterHeightPoints = Math.Max(scene.Viewport.RasterHeightPoints, 1.0);
         var pixelWidth = Math.Max(1, (int)Math.Round(rasterWidthPoints * RasterDpi / SvgDpi));
@@ -35,17 +77,14 @@ public static class GraphRasterRenderSceneWriter
         var scaleY = pixelHeight / rasterHeightPoints;
         var info = new SKImageInfo(pixelWidth, pixelHeight, SKColorType.Rgba8888, SKAlphaType.Premul);
 
-        using SKSurface surface = SKSurface.Create(info)
+        var surface = SKSurface.Create(info)
             ?? throw new InvalidOperationException("Failed to create Skia raster surface.");
         var resolvedLabelFontFamilies = new HashSet<string>(StringComparer.Ordinal);
 
         var canvas = surface.Canvas;
-        var clearColor = format switch
-        {
-            GraphRasterImageFormat.Png when scene.Style.ShowBackgroundRect => ParseColor(scene.Style.BackgroundColor),
-            GraphRasterImageFormat.Png => SKColors.Transparent,
-            _ => SKColors.Transparent
-        };
+        var clearColor = scene.Style.ShowBackgroundRect
+            ? ParseColor(scene.Style.BackgroundColor)
+            : SKColors.Transparent;
         canvas.Clear(clearColor);
         canvas.Scale((float)scaleX, (float)scaleY);
 
@@ -70,29 +109,34 @@ public static class GraphRasterRenderSceneWriter
         DrawNodes(canvas, scene, resolvedLabelFontFamilies);
         canvas.Flush();
 
-        using SKImage renderedImage = surface.Snapshot();
-        using SKData data = format == GraphRasterImageFormat.Jpg
-            ? EncodeJpeg(renderedImage, info, scene, quality)
-            : renderedImage.Encode(SKEncodedImageFormat.Png, quality);
+        return new RasterSurfaceRenderResult(surface, info, pixelWidth, pixelHeight, scaleX, scaleY, resolvedLabelFontFamilies);
+    }
 
+    private static GraphRasterRenderResult CreateResult(
+        RasterSurfaceRenderResult rendered,
+        GraphRasterImageFormat format,
+        byte[] bytes,
+        int? encodeQuality,
+        bool flattenedForOpaqueOutput)
+    {
         return new GraphRasterRenderResult(
-            data.ToArray(),
-            pixelWidth,
-            pixelHeight,
-            scaleX,
-            scaleY,
+            bytes,
+            rendered.PixelWidth,
+            rendered.PixelHeight,
+            rendered.ScaleX,
+            rendered.ScaleY,
             GraphRasterBackendSelection.Selected.ToString(),
             format.ToString(),
-            format == GraphRasterImageFormat.Jpg,
-            format == GraphRasterImageFormat.Jpg ? DefaultJpegQuality : null,
+            flattenedForOpaqueOutput,
+            encodeQuality,
             format == GraphRasterImageFormat.Jpg ? "GraphvizLikeGdThreshold" : null,
             format == GraphRasterImageFormat.Jpg ? FormatColor(JpegTransparentFallbackBackground) : null,
             format == GraphRasterImageFormat.Jpg ? GraphvizJpegOpaqueAlphaThreshold : null,
             DefaultRasterTextHinting,
             SubpixelText: true,
-            LcdRenderText: scene.Style.ShowBackgroundRect,
+            LcdRenderText: true,
             AutohintedText: true,
-            ResolvedLabelFontFamilies: string.Join(",", resolvedLabelFontFamilies.OrderBy(static family => family, StringComparer.Ordinal)));
+            ResolvedLabelFontFamilies: string.Join(",", rendered.ResolvedLabelFontFamilies.OrderBy(static family => family, StringComparer.Ordinal)));
     }
 
     private static void DrawBackgroundPolygon(SKCanvas canvas, GraphRenderScene scene)
@@ -407,6 +451,46 @@ public static class GraphRasterRenderSceneWriter
         double RotationDegrees,
         double TranslateX,
         double TranslateY);
+
+    private sealed class RasterSurfaceRenderResult : IDisposable
+    {
+        public RasterSurfaceRenderResult(
+            SKSurface surface,
+            SKImageInfo info,
+            int pixelWidth,
+            int pixelHeight,
+            double scaleX,
+            double scaleY,
+            ISet<string> resolvedLabelFontFamilies)
+        {
+            Surface = surface;
+            Info = info;
+            PixelWidth = pixelWidth;
+            PixelHeight = pixelHeight;
+            ScaleX = scaleX;
+            ScaleY = scaleY;
+            ResolvedLabelFontFamilies = resolvedLabelFontFamilies;
+        }
+
+        public SKSurface Surface { get; }
+
+        public SKImageInfo Info { get; }
+
+        public int PixelWidth { get; }
+
+        public int PixelHeight { get; }
+
+        public double ScaleX { get; }
+
+        public double ScaleY { get; }
+
+        public ISet<string> ResolvedLabelFontFamilies { get; }
+
+        public void Dispose()
+        {
+            Surface.Dispose();
+        }
+    }
 }
 
 public sealed record GraphRasterRenderResult(

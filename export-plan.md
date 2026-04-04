@@ -2333,6 +2333,81 @@ Patch 7a:
 - на больших графах harness честно переключается с detailed edge visibility на быстрый structural mode
 - оставшийся mismatch теперь измеряется repeatable и на полном `WikiVote`, а не только на подграфах
 
+### Patch 9a. Убираем лишние managed full-case проходы
+
+Статус:
+
+- сделано
+
+Цель:
+
+- убрать лишние managed full-case проходы в `Compare-WikiVote-Export.ps1`, чтобы полный `WikiVote` стабильно доходил до конца уже без многоразового повторного `Sfdp` layout и без повторной полной raster-отрисовки для `png` и `jpg`
+
+Почему понадобился отдельный patch:
+
+- после `Patch 9` full-case действительно перестал вязнуть на дорогом detailed `svg` summary, но managed-сторона всё ещё оставалась слишком тяжёлой
+- compare harness вызывал `Export-GraphView` три раза подряд:
+  - `svg`
+  - `png`
+  - `jpg`
+- это означало:
+  - три полных `Sfdp` layout-прохода на одном и том же full graph
+  - две отдельные raster-отрисовки одной и той же dense scene для `png` и `jpg`
+
+Сделано в Patch 9a:
+
+- в `src/PSGraphView.Sfdp` добавлен bundle exporter:
+  - `SfdpExportBundleExporter`
+  - `SfdpExportBundle`
+  - `SfdpExportBundleDiagnosticsOptions`
+  - `SfdpExportBundleFormats`
+- bundle exporter теперь:
+  - делает один `SfdpRenderScenePipeline.Prepare(...)`
+  - выпускает несколько форматов из одного prepared scene
+  - пишет раздельные diagnostics paths для `svg/png/jpg`
+- в `src/PSGraphView.GVExport` добавлен shared raster pair path:
+  - `GraphRasterRenderSceneWriter.RenderPngAndJpg(...)`
+  - `png` и `jpg` теперь могут кодироваться из одной уже отрисованной Skia surface
+- `demos/Compare-Export.Common.ps1` переведён на новый managed bundle path:
+  - для compare harness managed `svg/png/jpg` теперь берутся из одного общего exporter-вызова
+  - старый поформатный path оставлен как fallback на случай ошибки
+- добавлен regression test на bundle exporter:
+  - `tests/PSGraphView.Sfdp.Tests/SfdpRasterExporterTests.cs`
+
+Телеметрия Patch 9a:
+
+- test: `dotnet test tests/PSGraphView.GVExport.Tests/PSGraphView.GVExport.Tests.csproj`
+- result: `7/7` passed
+- test: `dotnet test tests/PSGraphView.Sfdp.Tests/PSGraphView.Sfdp.Tests.csproj --filter SfdpRasterExporterTests`
+- result: `3/3` passed
+- test: `dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --filter ExportGraphViewCmdletTests`
+- result: `14/14` passed
+- run: `GV_PLUGIN_PATH=/tmp/graphviz-prefix/lib/graphviz pwsh -NoProfile -File demos/Compare-WikiVote-Export.ps1 -UseLocalModules -UseSubgraph -SubgraphSeedCount 30 -SubgraphStartVertexCount 3 -OutputDir /tmp/psgraphview-export-wikivote-patch9a-subgraph`
+- result: subgraph case completed successfully and still wrote full `svg/png/jpg` set
+- run: `GV_PLUGIN_PATH=/tmp/graphviz-prefix/lib/graphviz pwsh -NoProfile -File demos/Compare-WikiVote-Export.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-wikivote-patch9a-final`
+- result: full case completed successfully and wrote `/tmp/psgraphview-export-wikivote-patch9a-final/wiki-vote-full/wiki-vote-full-comparison.json`
+- result: full-case `Svg` comparison remains:
+  - `SummaryMode = "Fast"`
+  - `VisibleNodeCoverageRatio = 1.0`
+- result: full-case raster residuals remain measurable:
+  - `PNG WidthDelta = 61`
+  - `PNG HeightDelta = -30`
+  - `PNG DarkPixelDelta = -213220`
+  - `PNG NearFallbackPixelDelta = 200381`
+  - `JPG WidthDelta = 61`
+  - `JPG HeightDelta = -30`
+  - `JPG DarkPixelDelta = -135829`
+  - `JPG NearFallbackPixelDelta = 182862`
+- result: managed full-case elapsed captured in summary:
+  - `Managed PNG ElapsedMilliseconds = 82913`
+  - `Managed JPG ElapsedMilliseconds = 80325`
+
+Итог Patch 9a:
+
+- full `WikiVote` теперь снова доходит до финального `comparison.json` на чистой рабочей ветке
+- compare harness больше не платит цену за три полных managed layout-прохода подряд
+- для dense full-case managed path всё ещё дорогой, но это уже долгий repeatable run, а не застревание без итогового summary
+
 ---
 
 ## Первые необходимые patch-и

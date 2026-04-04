@@ -1607,6 +1607,111 @@ function Invoke-ManagedExport {
     }
 }
 
+function Invoke-ManagedExportBundle {
+    param(
+        [Parameter(Mandatory)]$Graph,
+        [Parameter(Mandatory)][string]$GraphLabel,
+        [Parameter(Mandatory)][string]$SvgOutputPath,
+        [Parameter(Mandatory)][string]$PngOutputPath,
+        [Parameter(Mandatory)][string]$JpgOutputPath,
+        [Parameter(Mandatory)][string]$SvgDiagnosticsPath,
+        [Parameter(Mandatory)][string]$PngDiagnosticsPath,
+        [Parameter(Mandatory)][string]$JpgDiagnosticsPath,
+        [Parameter(Mandatory)][int]$SfdpSeed,
+        [Parameter(Mandatory)][int]$SfdpOverlapRemovalIterations,
+        [switch]$IncludeLabels,
+        [double]$LabelFontSize = 14.0,
+        [switch]$AllowPartial
+    )
+
+    $watch = [System.Diagnostics.Stopwatch]::StartNew()
+    try {
+        $formats = [PSGraphView.Sfdp.SfdpExportBundleFormats]::Svg -bor [PSGraphView.Sfdp.SfdpExportBundleFormats]::Png -bor [PSGraphView.Sfdp.SfdpExportBundleFormats]::Jpg
+        $skipJpgForLargeGraph = $Graph.EdgeCount -gt 100000
+        if ($skipJpgForLargeGraph) {
+            $formats = $formats -bxor [PSGraphView.Sfdp.SfdpExportBundleFormats]::Jpg
+        }
+
+        $options = New-Object PSGraphView.Sfdp.SfdpOptions -Property @{
+            Seed = $SfdpSeed
+            OverlapRemovalIterations = $SfdpOverlapRemovalIterations
+            OverlapRemovalPadding = 4
+            OverlapRemovalBoxUnits = [PSGraphView.Sfdp.SfdpOverlapRemovalBoxUnits]::GraphvizPoints
+            DisableGroupColors = $true
+            NodeRadius = 0.72
+            EdgeLineWidth = 0.2
+            EdgeColor = '#00000018'
+            GraphvizNodeStyle = $true
+            ShowLabels = $IncludeLabels.IsPresent
+            LabelFontSize = $LabelFontSize
+            ShowArrows = $true
+            ArrowSize = 0.08
+        }
+
+        $diagnostics = New-Object PSGraphView.Sfdp.SfdpExportBundleDiagnosticsOptions -Property @{
+            SvgDiagnostics = (New-Object PSGraphView.Sfdp.SfdpDiagnosticsOptions -Property @{ Path = $SvgDiagnosticsPath })
+            PngDiagnostics = (New-Object PSGraphView.Sfdp.SfdpDiagnosticsOptions -Property @{ Path = $PngDiagnosticsPath })
+            JpgDiagnostics = (New-Object PSGraphView.Sfdp.SfdpDiagnosticsOptions -Property @{ Path = $JpgDiagnosticsPath })
+        }
+
+        $exporter = [PSGraphView.Sfdp.SfdpExportBundleExporter]::new()
+        $bundle = $exporter.Export($Graph, $options, $diagnostics, $formats)
+
+        if ($null -ne $bundle.Svg) {
+            Set-Content -Path $SvgOutputPath -Value $bundle.Svg -NoNewline
+        }
+        if ($null -ne $bundle.PngBytes) {
+            [System.IO.File]::WriteAllBytes($PngOutputPath, $bundle.PngBytes)
+        }
+        if ($null -ne $bundle.JpgBytes) {
+            [System.IO.File]::WriteAllBytes($JpgOutputPath, $bundle.JpgBytes)
+        }
+        $watch.Stop()
+
+        $elapsed = $watch.ElapsedMilliseconds
+        return [ordered]@{
+            Svg = [ordered]@{
+                Supported = $null -ne $bundle.Svg
+                Format = 'Svg'
+                Path = $SvgOutputPath
+                DiagnosticsPath = $SvgDiagnosticsPath
+                Error = if ($null -eq $bundle.Svg) { 'Managed SVG bundle did not produce output.' } else { $null }
+                ElapsedMilliseconds = $elapsed
+                Summary = if ($null -ne $bundle.Svg) { Get-FormatSummary -Format 'Svg' -Path $SvgOutputPath } else { $null }
+                DiagnosticsSummary = Get-ManagedDiagnosticsSummary -Path $SvgDiagnosticsPath
+            }
+            Png = [ordered]@{
+                Supported = $null -ne $bundle.PngBytes
+                Format = 'Png'
+                Path = $PngOutputPath
+                DiagnosticsPath = $PngDiagnosticsPath
+                Error = if ($null -eq $bundle.PngBytes) { 'Managed PNG bundle did not produce output.' } else { $null }
+                ElapsedMilliseconds = $elapsed
+                Summary = if ($null -ne $bundle.PngBytes) { Get-FormatSummary -Format 'Png' -Path $PngOutputPath } else { $null }
+                DiagnosticsSummary = Get-ManagedDiagnosticsSummary -Path $PngDiagnosticsPath
+            }
+            Jpg = [ordered]@{
+                Supported = $null -ne $bundle.JpgBytes
+                Format = 'Jpg'
+                Path = $JpgOutputPath
+                DiagnosticsPath = $JpgDiagnosticsPath
+                Error = if ($skipJpgForLargeGraph) { 'Skipped in fast full-graph mode because managed JPG remains too expensive on very large graphs.' } elseif ($null -eq $bundle.JpgBytes) { 'Managed JPG bundle did not produce output.' } else { $null }
+                ElapsedMilliseconds = $elapsed
+                Summary = if ($null -ne $bundle.JpgBytes) { Get-FormatSummary -Format 'Jpg' -Path $JpgOutputPath } else { $null }
+                DiagnosticsSummary = Get-ManagedDiagnosticsSummary -Path $JpgDiagnosticsPath
+            }
+        }
+    }
+    catch {
+        $watch.Stop()
+        if (-not $AllowPartial) {
+            throw
+        }
+
+        return $null
+    }
+}
+
 function Get-SvgComparisonSummary {
     param(
         [object]$GraphvizResult,
@@ -1945,37 +2050,54 @@ function Invoke-ExportComparisonRun {
             -AllowPartial:$AllowPartial
     }
 
-    $managedResults = [ordered]@{
-        Svg = Invoke-ManagedExport `
-            -Graph $managedGraph `
-            -FormatName 'Svg' `
-            -OutputPath (Join-Path $svgDir "$GraphLabel-managed.svg") `
-            -DiagnosticsPath (Join-Path $logDir "$GraphLabel-managed-svg.diagnostics.jsonl") `
-            -SfdpSeed $SfdpSeed `
-            -SfdpOverlapRemovalIterations $SfdpOverlapRemovalIterations `
-            -IncludeLabels:$IncludeLabels `
-            -LabelFontSize $LabelFontSize `
-            -AllowPartial:$AllowPartial
-        Png = Invoke-ManagedExport `
-            -Graph $managedGraph `
-            -FormatName 'Png' `
-            -OutputPath (Join-Path $pngDir "$GraphLabel-managed.png") `
-            -DiagnosticsPath (Join-Path $logDir "$GraphLabel-managed-png.diagnostics.jsonl") `
-            -SfdpSeed $SfdpSeed `
-            -SfdpOverlapRemovalIterations $SfdpOverlapRemovalIterations `
-            -IncludeLabels:$IncludeLabels `
-            -LabelFontSize $LabelFontSize `
-            -AllowPartial:$AllowPartial
-        Jpg = Invoke-ManagedExport `
-            -Graph $managedGraph `
-            -FormatName 'Jpg' `
-            -OutputPath (Join-Path $jpgDir "$GraphLabel-managed.jpg") `
-            -DiagnosticsPath (Join-Path $logDir "$GraphLabel-managed-jpg.diagnostics.jsonl") `
-            -SfdpSeed $SfdpSeed `
-            -SfdpOverlapRemovalIterations $SfdpOverlapRemovalIterations `
-            -IncludeLabels:$IncludeLabels `
-            -LabelFontSize $LabelFontSize `
-            -AllowPartial:$AllowPartial
+    $managedResults = Invoke-ManagedExportBundle `
+        -Graph $managedGraph `
+        -GraphLabel $GraphLabel `
+        -SvgOutputPath (Join-Path $svgDir "$GraphLabel-managed.svg") `
+        -PngOutputPath (Join-Path $pngDir "$GraphLabel-managed.png") `
+        -JpgOutputPath (Join-Path $jpgDir "$GraphLabel-managed.jpg") `
+        -SvgDiagnosticsPath (Join-Path $logDir "$GraphLabel-managed-svg.diagnostics.jsonl") `
+        -PngDiagnosticsPath (Join-Path $logDir "$GraphLabel-managed-png.diagnostics.jsonl") `
+        -JpgDiagnosticsPath (Join-Path $logDir "$GraphLabel-managed-jpg.diagnostics.jsonl") `
+        -SfdpSeed $SfdpSeed `
+        -SfdpOverlapRemovalIterations $SfdpOverlapRemovalIterations `
+        -IncludeLabels:$IncludeLabels `
+        -LabelFontSize $LabelFontSize `
+        -AllowPartial:$AllowPartial
+
+    if ($null -eq $managedResults) {
+        $managedResults = [ordered]@{
+            Svg = Invoke-ManagedExport `
+                -Graph $managedGraph `
+                -FormatName 'Svg' `
+                -OutputPath (Join-Path $svgDir "$GraphLabel-managed.svg") `
+                -DiagnosticsPath (Join-Path $logDir "$GraphLabel-managed-svg.diagnostics.jsonl") `
+                -SfdpSeed $SfdpSeed `
+                -SfdpOverlapRemovalIterations $SfdpOverlapRemovalIterations `
+                -IncludeLabels:$IncludeLabels `
+                -LabelFontSize $LabelFontSize `
+                -AllowPartial:$AllowPartial
+            Png = Invoke-ManagedExport `
+                -Graph $managedGraph `
+                -FormatName 'Png' `
+                -OutputPath (Join-Path $pngDir "$GraphLabel-managed.png") `
+                -DiagnosticsPath (Join-Path $logDir "$GraphLabel-managed-png.diagnostics.jsonl") `
+                -SfdpSeed $SfdpSeed `
+                -SfdpOverlapRemovalIterations $SfdpOverlapRemovalIterations `
+                -IncludeLabels:$IncludeLabels `
+                -LabelFontSize $LabelFontSize `
+                -AllowPartial:$AllowPartial
+            Jpg = Invoke-ManagedExport `
+                -Graph $managedGraph `
+                -FormatName 'Jpg' `
+                -OutputPath (Join-Path $jpgDir "$GraphLabel-managed.jpg") `
+                -DiagnosticsPath (Join-Path $logDir "$GraphLabel-managed-jpg.diagnostics.jsonl") `
+                -SfdpSeed $SfdpSeed `
+                -SfdpOverlapRemovalIterations $SfdpOverlapRemovalIterations `
+                -IncludeLabels:$IncludeLabels `
+                -LabelFontSize $LabelFontSize `
+                -AllowPartial:$AllowPartial
+        }
     }
 
     return [ordered]@{

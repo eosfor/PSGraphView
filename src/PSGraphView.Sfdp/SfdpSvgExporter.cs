@@ -32,7 +32,7 @@ public sealed class SfdpSvgExporter
         return document.ToString(System.Xml.Linq.SaveOptions.DisableFormatting);
     }
 
-    private static void WriteSvgGeometry(
+    internal static void WriteSvgGeometry(
         SfdpDiagnosticsWriter diagnostics,
         string stage,
         SfdpGeometrySummary graphGeometry,
@@ -81,7 +81,7 @@ public sealed class SfdpSvgExporter
             ("viewBox", viewBox)
         ]);
     }
-    private static string Format(double value)
+    internal static string Format(double value)
     {
         return value.ToString("0.###", System.Globalization.CultureInfo.InvariantCulture);
     }
