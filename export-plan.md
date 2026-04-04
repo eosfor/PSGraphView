@@ -2275,6 +2275,64 @@ Patch 7a:
   - managed `Sfdp` умеет direct `Svg`, `Png`, `Jpg`
 - export-plan теперь дошёл до финального cleanup слоя
 
+### Patch 9. Стабилизация full-case compare harness
+
+Статус:
+
+- сделано
+
+Цель:
+
+- сделать так, чтобы `demos/Compare-WikiVote-Export.ps1` стабильно доходил до финального `comparison.json` и на полном `WikiVote`, а не только на small-case и subgraph-case
+
+Почему понадобился отдельный patch:
+
+- после `Patch 7j` полный `WikiVote` всё ещё рендерился, но compare harness вяз на full-case до записи итогового summary
+- узкое место оказалось не в exporter-е, а в самом summary-layer:
+  - слишком дорогой detailed edge visibility на `103689` рёбрах
+  - и отдельный bug в `Get-AverageOrNull`, когда summary шёл по графу без label-ов
+
+Сделано в Patch 9:
+
+- в `demos/Compare-Export.Common.ps1` добавлен fast-path для больших `svg`:
+  - detailed edge visibility выключается, если `edgeCount` превышает limit
+  - длинные списки edge titles тоже не собираются на full-case
+  - structural counters, node visibility и raster comparison остаются
+- `Get-SvgComparisonSummary` теперь умеет корректно жить без edge visibility lists:
+  - `EdgeVisibilityAvailable = false`
+  - `EdgeTitleListsAvailable = false`
+  - `SummaryMode = "Fast"`
+- `Get-AverageOrNull` больше не падает на пустом массиве label metrics
+
+Телеметрия Patch 9:
+
+- test: `dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --filter ExportGraphViewCmdletTests`
+- result: `14/14` passed
+- run: `GV_PLUGIN_PATH=/tmp/graphviz-prefix/lib/graphviz pwsh -NoProfile -File demos/Compare-WikiVote-Export.ps1 -UseLocalModules -UseSubgraph -SubgraphSeedCount 30 -SubgraphStartVertexCount 3 -OutputDir /tmp/psgraphview-export-wikivote-patch9-subgraph`
+- result: subgraph case completed successfully and kept detailed mode
+- run: `GV_PLUGIN_PATH=/tmp/graphviz-prefix/lib/graphviz pwsh -NoProfile -File demos/Compare-WikiVote-Export.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-wikivote-patch9-full-2`
+- result: full case completed successfully and wrote:
+  - `/tmp/psgraphview-export-wikivote-patch9-full-2/wiki-vote-full/wiki-vote-full-comparison.json`
+- result: full-case `Svg` summary now reports:
+  - `Available = true`
+  - `SummaryMode = "Fast"`
+  - `EdgeVisibilityAvailable = false`
+  - `EdgeTitleListsAvailable = false`
+  - `VisibleNodeCoverageRatio = 1.0`
+- result: full-case size/raster residuals remain measurable:
+  - `PNG WidthDelta = 61`
+  - `PNG HeightDelta = -30`
+  - `PNG DarkPixelDelta = -213220`
+  - `JPG WidthDelta = 61`
+  - `JPG HeightDelta = -30`
+  - `JPG DarkPixelDelta = -135830`
+
+Итог Patch 9:
+
+- full-case compare harness больше не требует ручного обхода
+- на больших графах harness честно переключается с detailed edge visibility на быстрый structural mode
+- оставшийся mismatch теперь измеряется repeatable и на полном `WikiVote`, а не только на подграфах
+
 ---
 
 ## Первые необходимые patch-и

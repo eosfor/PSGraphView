@@ -1343,3 +1343,59 @@
 - visual mismatch по dense node markers теперь не маскируется непрозрачной node fill на managed-стороне
 - compare harness стал ближе к реальному graphviz node semantics
 - remaining residual после этого уже надо трактовать как size / density / raster-weight mismatch, а не как ошибку node fill policy
+
+## 2026-04-04 13:04 PDT - Patch 9 переводит full-case compare harness на fast SVG summary mode
+
+Решение: для очень больших `svg` compare harness больше не пытается всегда считать полный detailed edge visibility summary. На full-case он автоматически переключается в fast mode и всё равно дописывает итоговый `comparison.json`.
+
+Что именно принято:
+
+- для больших графов detailed edge visibility и длинные edge title lists больше не считаются обязательными
+- вместо этого harness сохраняет:
+  - structural `svg` counters
+  - node visibility
+  - raster metrics
+  - diagnostics comparison
+- в summary это явно помечается как:
+  - `SummaryMode = "Fast"`
+  - `EdgeVisibilityAvailable = false`
+  - `EdgeTitleListsAvailable = false`
+- отдельный bug в `Get-AverageOrNull` на пустом массиве label metrics тоже исправлен
+
+Причины:
+
+- полный `Compare-WikiVote-Export.ps1` на `7115 / 103689` до этого не доходил до финального `comparison.json`
+- exporter сам по себе работал, но harness зависал или падал на summary-stage
+- основная cost-проблема была в detailed edge visibility:
+  - для каждого edge path считался sampled bezier bbox
+  - это было слишком дорого для full `WikiVote`
+- дополнительно `Get-AverageOrNull` падал на graphs без label-ов, что делало full SVG summary partial даже после fast-path
+
+Телеметрия:
+
+- code change: `/Users/andrei/repo/PSGraphView/demos/Compare-Export.Common.ps1`
+- test: `dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --filter ExportGraphViewCmdletTests`
+- result: `14/14` passed
+- run: `GV_PLUGIN_PATH=/tmp/graphviz-prefix/lib/graphviz pwsh -NoProfile -File demos/Compare-WikiVote-Export.ps1 -UseLocalModules -UseSubgraph -SubgraphSeedCount 30 -SubgraphStartVertexCount 3 -OutputDir /tmp/psgraphview-export-wikivote-patch9-subgraph`
+- result: subgraph case completed successfully
+- run: `GV_PLUGIN_PATH=/tmp/graphviz-prefix/lib/graphviz pwsh -NoProfile -File demos/Compare-WikiVote-Export.ps1 -UseLocalModules -OutputDir /tmp/psgraphview-export-wikivote-patch9-full-2`
+- result: full case completed successfully and wrote `/tmp/psgraphview-export-wikivote-patch9-full-2/wiki-vote-full/wiki-vote-full-comparison.json`
+- result: full-case `Svg` comparison:
+  - `Available = true`
+  - `SummaryMode = "Fast"`
+  - `EdgeVisibilityAvailable = false`
+  - `EdgeTitleListsAvailable = false`
+  - `VisibleNodeCoverageRatio = 1.0`
+- result: full-case residuals remain measurable:
+  - `PNG WidthDelta = 61`
+  - `PNG HeightDelta = -30`
+  - `PNG DarkPixelDelta = -213220`
+  - `JPG WidthDelta = 61`
+  - `JPG HeightDelta = -30`
+  - `JPG DarkPixelDelta = -135830`
+
+Следствие:
+
+- полный `WikiVote` теперь можно использовать как repeatable compare-case без ручного обхода
+- harness больше не смешивает “экспортер сломан” и “summary слишком тяжёлый”
+- detailed edge visibility остаётся на small-case и subgraph-case, где она действительно полезна и недорога

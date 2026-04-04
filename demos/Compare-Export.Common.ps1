@@ -104,6 +104,10 @@ function Get-SvgStructureSummary {
 
     $viewBoxRect = Get-SvgViewBoxRect -ViewBox ([string]$svg.GetAttribute('viewBox'))
     $graphTransform = Get-SvgGraphTransform -Transform $graphTransformValue
+    $edgeVisibilityLimit = 5000
+    $edgeTitleListLimit = 20000
+    $enableDetailedEdgeVisibility = $edgeGroups.Count -le $edgeVisibilityLimit
+    $enableDetailedEdgeTitleLists = $edgeGroups.Count -le $edgeTitleListLimit
     $visibleNodeIds = New-Object System.Collections.Generic.List[string]
     $visibleEdgeTitles = New-Object System.Collections.Generic.List[string]
     $presentNodeIds = New-Object System.Collections.Generic.List[string]
@@ -141,9 +145,11 @@ function Get-SvgStructureSummary {
         }
 
         $title = [string]$titleNode.InnerText
-        $presentEdgeTitles.Add($title)
+        if ($enableDetailedEdgeTitleLists) {
+            $presentEdgeTitles.Add($title)
+        }
 
-        if ($null -ne $viewBoxRect -and $null -ne $graphTransform) {
+        if ($enableDetailedEdgeVisibility -and $null -ne $viewBoxRect -and $null -ne $graphTransform) {
             $bounds = Get-SvgPathBounds -PathData ([string]$pathNode.Attributes['d'].Value) -Transform $graphTransform
             if ($null -ne $bounds -and (Test-SvgRectIntersection -Left $bounds.MinX -Top $bounds.MinY -Right $bounds.MaxX -Bottom $bounds.MaxY -ViewBoxRect $viewBoxRect)) {
                 $visibleEdgeTitles.Add($title)
@@ -184,9 +190,9 @@ function Get-SvgStructureSummary {
     $summary['AnchorCount'] = $anchors.Count
     $summary['RectCount'] = $rectangles.Count
     $summary['PresentNodeCount'] = $presentNodeIds.Count
-    $summary['PresentEdgeCount'] = $presentEdgeTitles.Count
+    $summary['PresentEdgeCount'] = $edgeGroups.Count
     $summary['VisibleNodeCount'] = $visibleNodeIds.Count
-    $summary['VisibleEdgeCount'] = $visibleEdgeTitles.Count
+    $summary['VisibleEdgeCount'] = if ($enableDetailedEdgeVisibility) { $visibleEdgeTitles.Count } else { $null }
     $summary['NodeLabelCount'] = $nodeLabelEntries.Count
     $summary['NodeLabelTexts'] = $labelTexts
     $summary['FontFamilies'] = $fontFamilies
@@ -196,14 +202,22 @@ function Get-SvgStructureSummary {
     $summary['AverageNodeLabelFontSize'] = $averageNodeLabelFontSize
     $summary['CenteredNodeLabelCount'] = $centeredNodeLabelCount
     $summary['PresentNodeIds'] = @($presentNodeIds)
-    $summary['PresentEdgeTitles'] = @($presentEdgeTitles)
+    $summary['PresentEdgeTitles'] = if ($enableDetailedEdgeTitleLists) { @($presentEdgeTitles) } else { $null }
     $summary['VisibleNodeIds'] = @($visibleNodeIds)
-    $summary['VisibleEdgeTitles'] = @($visibleEdgeTitles)
+    $summary['VisibleEdgeTitles'] = if ($enableDetailedEdgeVisibility) { @($visibleEdgeTitles) } else { $null }
+    $summary['EdgeVisibilityAvailable'] = $enableDetailedEdgeVisibility
+    $summary['EdgeTitleListsAvailable'] = $enableDetailedEdgeTitleLists
+    $summary['SummaryMode'] = if ($enableDetailedEdgeVisibility -and $enableDetailedEdgeTitleLists) { 'Detailed' } else { 'Fast' }
+    $summary['FastPathReason'] = if ($enableDetailedEdgeVisibility -and $enableDetailedEdgeTitleLists) { $null } else { "edgeCount=$($edgeGroups.Count) exceeds detailed limits (visibility=$edgeVisibilityLimit, titles=$edgeTitleListLimit)" }
     return $summary
 }
 
 function Get-AverageOrNull {
-    param([Parameter(Mandatory)][object[]]$Values)
+    param([object[]]$Values)
+
+    if ($null -eq $Values -or $Values.Count -eq 0) {
+        return $null
+    }
 
     $numbers = @($Values | Where-Object { $_ -is [double] -or $_ -is [float] -or $_ -is [int] -or $_ -is [long] } | ForEach-Object { [double]$_ })
     if ($numbers.Count -eq 0) {
@@ -1608,8 +1622,18 @@ function Get-SvgComparisonSummary {
 
     $graphvizSummary = $GraphvizResult.Summary
     $managedSummary = $ManagedResult.Summary
-    $visibleNodeIdsMissingInManaged = @($graphvizSummary.VisibleNodeIds | Where-Object { $_ -notin $managedSummary.VisibleNodeIds })
-    $visibleEdgeTitlesMissingInManaged = @($graphvizSummary.VisibleEdgeTitles | Where-Object { $_ -notin $managedSummary.VisibleEdgeTitles })
+    $visibleNodeIdsMissingInManaged = if ($null -ne $graphvizSummary.VisibleNodeIds -and $null -ne $managedSummary.VisibleNodeIds) {
+        @($graphvizSummary.VisibleNodeIds | Where-Object { $_ -notin $managedSummary.VisibleNodeIds })
+    }
+    else {
+        $null
+    }
+    $visibleEdgeTitlesMissingInManaged = if ($null -ne $graphvizSummary.VisibleEdgeTitles -and $null -ne $managedSummary.VisibleEdgeTitles) {
+        @($graphvizSummary.VisibleEdgeTitles | Where-Object { $_ -notin $managedSummary.VisibleEdgeTitles })
+    }
+    else {
+        $null
+    }
 
     return [ordered]@{
         Available = $true
@@ -1623,12 +1647,15 @@ function Get-SvgComparisonSummary {
         TextDelta = $managedSummary.TextCount - $graphvizSummary.TextCount
         AnchorDelta = $managedSummary.AnchorCount - $graphvizSummary.AnchorCount
         RectDelta = $managedSummary.RectCount - $graphvizSummary.RectCount
-        VisibleNodeCountDelta = $managedSummary.VisibleNodeCount - $graphvizSummary.VisibleNodeCount
-        VisibleEdgeCountDelta = $managedSummary.VisibleEdgeCount - $graphvizSummary.VisibleEdgeCount
-        VisibleNodeCoverageRatio = if ($graphvizSummary.VisibleNodeCount -gt 0) { [double]$managedSummary.VisibleNodeCount / [double]$graphvizSummary.VisibleNodeCount } else { $null }
-        VisibleEdgeCoverageRatio = if ($graphvizSummary.VisibleEdgeCount -gt 0) { [double]$managedSummary.VisibleEdgeCount / [double]$graphvizSummary.VisibleEdgeCount } else { $null }
+        VisibleNodeCountDelta = if ($null -ne $graphvizSummary.VisibleNodeCount -and $null -ne $managedSummary.VisibleNodeCount) { $managedSummary.VisibleNodeCount - $graphvizSummary.VisibleNodeCount } else { $null }
+        VisibleEdgeCountDelta = if ($null -ne $graphvizSummary.VisibleEdgeCount -and $null -ne $managedSummary.VisibleEdgeCount) { $managedSummary.VisibleEdgeCount - $graphvizSummary.VisibleEdgeCount } else { $null }
+        VisibleNodeCoverageRatio = if ($null -ne $graphvizSummary.VisibleNodeCount -and $null -ne $managedSummary.VisibleNodeCount -and $graphvizSummary.VisibleNodeCount -gt 0) { [double]$managedSummary.VisibleNodeCount / [double]$graphvizSummary.VisibleNodeCount } else { $null }
+        VisibleEdgeCoverageRatio = if ($null -ne $graphvizSummary.VisibleEdgeCount -and $null -ne $managedSummary.VisibleEdgeCount -and $graphvizSummary.VisibleEdgeCount -gt 0) { [double]$managedSummary.VisibleEdgeCount / [double]$graphvizSummary.VisibleEdgeCount } else { $null }
         VisibleNodeIdsMissingInManaged = $visibleNodeIdsMissingInManaged
         VisibleEdgeTitlesMissingInManaged = $visibleEdgeTitlesMissingInManaged
+        EdgeVisibilityAvailable = ($graphvizSummary.EdgeVisibilityAvailable -and $managedSummary.EdgeVisibilityAvailable)
+        EdgeTitleListsAvailable = ($graphvizSummary.EdgeTitleListsAvailable -and $managedSummary.EdgeTitleListsAvailable)
+        SummaryMode = if ($graphvizSummary.SummaryMode -eq 'Detailed' -and $managedSummary.SummaryMode -eq 'Detailed') { 'Detailed' } else { 'Fast' }
         Graphviz = $graphvizSummary
         Managed = $managedSummary
     }
