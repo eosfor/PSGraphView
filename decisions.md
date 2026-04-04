@@ -1244,3 +1244,38 @@
   - compression / quality
   - небольшом различии text weight после flattening
 - это уже не похоже на крупную ошибку text pipeline
+
+## 2026-04-04 09:07 PDT - Patch 8 синхронизирует docs/help с текущим Sfdp export surface
+
+Решение: закрываем `Patch 8` обновлением пользовательской документации и help-файлов под реальное текущее состояние cmdlet surface:
+
+- managed `Sfdp` экспортирует `Svg`, `Png`, `Jpg`
+- `README`, markdown-help и `dll-Help.xml` должны говорить об одном и том же
+
+Причины:
+
+- после `Patch 4+` и последующих parity-патчей код уже давно умеет direct raster export, но docs/help продолжали утверждать, что `Sfdp` умеет только `Svg`
+- это уже стало user-visible несоответствием между:
+  - кодом
+  - тестами
+  - README
+  - platyPS markdown
+  - external help XML
+- финальный cleanup имеет смысл только после стабилизации export surface, и к этому моменту мы как раз пришли
+
+Телеметрия:
+
+- code change: `/Users/andrei/repo/PSGraphView/README.md`
+- code change: `/Users/andrei/repo/PSGraphView/docs/powershell/Export-GraphView.md`
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.PowerShell/en-US/PSGraphView.PowerShell.dll-Help.xml`
+- test: `dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --filter ExportGraphViewCmdletTests`
+- result: `13/13` passed
+
+Следствие:
+
+- docs/help больше не отстают от текущего `Sfdp` export surface
+- пользователь теперь видит корректную картину:
+  - direct `Svg`
+  - direct `Png`
+  - direct `Jpg`
+- remaining open work после этого уже не про docs, а только про optional доводку узкого `jpg` residual внутри `Patch 7`

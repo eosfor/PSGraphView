@@ -2203,7 +2203,7 @@ Patch 7a:
 
 Статус:
 
-- не сделано
+- сделано
 
 Цель:
 
@@ -2215,6 +2215,34 @@ Patch 7a:
 - `docs/powershell/Export-GraphView.md`
 - generated help
 - demos
+
+Сделано в Patch 8:
+
+- обновлён [README]:
+  - `Export-GraphView` surface теперь показывает `Svg|Png|Jpg` для текущего repo surface
+  - `Sfdp` section теперь описывает direct `svg/png/jpg` export
+  - добавлен `png` example
+  - mapping к `graphviz` обновлён под direct raster output
+  - добавлен `PSGraphView.GVExport` в repo layout
+- обновлён `docs/powershell/Export-GraphView.md`:
+  - `Sfdp` description теперь говорит про `Svg`, `Png`, `Jpg`
+  - добавлен пример `-As Png`
+  - `-As` help больше не утверждает, что `Sfdp` умеет только `Svg`
+  - parameter descriptions для background/size/label/node radius больше не привязаны неверно только к `svg`
+- обновлён `src/PSGraphView.PowerShell/en-US/PSGraphView.PowerShell.dll-Help.xml`:
+  - description и `-As` accepted values синхронизированы с текущим cmdlet surface
+  - example remarks теперь упоминают managed raster output
+
+Телеметрия Patch 8:
+
+- test: `dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --filter ExportGraphViewCmdletTests`
+- result: `13/13` passed
+
+Итог Patch 8:
+
+- docs/help больше не отстают от кода по главному user-visible изменению:
+  - managed `Sfdp` умеет direct `Svg`, `Png`, `Jpg`
+- export-plan теперь дошёл до финального cleanup слоя
 
 ---
 

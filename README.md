@@ -19,22 +19,24 @@ Current status:
 - Includes an extracted DSM SVG exporter used by the legacy `DsmView` compatibility bridge.
 - Includes GraphView-based MSAGL exporters for the fast-incremental and Sugiyama SVG paths, including Sugiyama label placement and SVG post-processing for tree-style layouts.
 - Includes a GraphView-based MSAGL MDS exporter, so all MSAGL renderers now live in `PSGraphView`.
-- Includes an initial managed `Sfdp` SVG path with its own indexed graph, CSR, connected-components, packing, and exporter pipeline.
+- Includes a managed `Sfdp` export pipeline with its own indexed graph, CSR, connected-components, packing, and `svg/png/jpg` output.
+- Includes a shared `PSGraphView.GVExport` layer for scene, SVG, and raster export code.
 
 Repository layout:
 - `src/PSGraphView.Dsm`: DSM-specific visualization library for SVG rendering.
 - `src/PSGraphView.Vega`: visualization library for `GraphView`-based Vega export.
 - `src/PSGraphView.Msagl`: visualization library for `GraphView`-based MSAGL export.
+- `src/PSGraphView.GVExport`: shared scene, SVG, and raster export primitives used by managed renderers.
 - `src/PSGraphView.Sfdp`: managed `Sfdp`-style layout and SVG export pipeline.
 - `src/PSGraphView.PowerShell`: PowerShell cmdlet surface over the extracted graph and DSM renderers.
 - `tests/PSGraphView.Dsm.Tests`: focused tests for the extracted DSM SVG renderer.
 - `tests/PSGraphView.Vega.Tests`: focused tests for the migrated force-directed path.
 - `tests/PSGraphView.Msagl.Tests`: focused tests for the initial MSAGL migration path, including Sugiyama direction and label-placement regressions.
-- `tests/PSGraphView.Sfdp.Tests`: focused tests for the managed `Sfdp` layout, overlap removal, routing, and SVG output.
+- `tests/PSGraphView.Sfdp.Tests`: focused tests for the managed `Sfdp` layout, overlap removal, routing, and managed export output.
 - `tests/PSGraphView.PowerShell.Tests`: cmdlet-level tests for the new PowerShell surface.
 
 Current PowerShell surface:
-- `Export-GraphView -Graph <PsBidirectionalGraph> -Renderer <renderer> [-As Html|Json|Svg] [-Path <file>]`
+- `Export-GraphView -Graph <PsBidirectionalGraph> -Renderer <renderer> [-As Html|Json|Svg|Png|Jpg] [-Path <file>]`
 - `Export-DSMView -Dsm|Result|SequencedDsm <object> -Renderer <renderer> [-As Html|Json|Svg] [-Path <file>]`
 
 PowerShell help:
@@ -43,7 +45,7 @@ PowerShell help:
 
 ## Export-GraphView Sfdp
 
-`Sfdp` is the managed node-link layout in `PSGraphView`. It currently exports `Svg` only.
+`Sfdp` is the managed node-link layout in `PSGraphView`. It now exports `Svg`, `Png`, and `Jpg`.
 
 Basic example:
 
@@ -57,8 +59,20 @@ Export-GraphView -Graph $graph `
   -EdgeLineWidth 0.4
 ```
 
+Raster example:
+
+```powershell
+Export-GraphView -Graph $graph `
+  -Renderer Sfdp `
+  -As Png `
+  -Path ./graph.png `
+  -ShowArrows `
+  -NodeRadius 3 `
+  -EdgeLineWidth 0.4
+```
+
 Common visual parameters for `Sfdp`:
-- `-BackgroundColor <hex>`: SVG background color.
+- `-BackgroundColor <hex>`: background color for `Sfdp` `svg/png/jpg` output.
 - `-ShowLabels`: render node labels. Omit it for unlabeled nodes.
 - `-ShowArrows`: render arrowheads for directed edges.
 - `-NodeRadius <double>`: node circle radius in output units.
@@ -109,7 +123,7 @@ Export-GraphView -Graph $subgraph `
   -DisableGroupColors
 ```
 
-This is only an approximation of the Graphviz CLI style. The managed `Sfdp` path is not a 1:1 port of Graphviz output, and it does not currently export `png` directly.
+This is only an approximation of the Graphviz CLI style. The managed `Sfdp` path is not a strict `1:1` port of Graphviz output, but it now exports `svg`, `png`, and `jpg` directly through the managed export pipeline.
 
 Current mapping to a typical Graphviz command:
 
@@ -125,9 +139,10 @@ Current mapping to a typical Graphviz command:
 | `-Goverlap=prism` | Roughly similar intent: default overlap removal plus `-SfdpOverlapRemovalPadding`. Not the same algorithm. |
 | `-Gsep=\"+4\"` | Roughly `-SfdpOverlapRemovalPadding 4`. |
 | `-Goutputorder=edgesfirst` | Already how `SfdpSvgExporter` writes SVG groups. |
-| `-Gdpi=220` | No direct `Sfdp` parameter right now. SVG is vector; apply DPI when rasterizing later. |
-| `-Tpng` | No direct `png` output right now. Export SVG first, then rasterize externally if needed. |
-| `-o ./x.png` | `-Path ./x.svg` for current `Sfdp` output. |
+| `-Gdpi=220` | No direct `Sfdp` DPI parameter right now. `svg` stays vector; `png/jpg` use the managed raster pipeline defaults. |
+| `-Tpng` | `-As Png -Path ./x.png` |
+| `-Tjpg` | `-As Jpg -Path ./x.jpg` |
+| `-o ./x.png` | `-Path ./x.png` |
 
 Demo scripts:
 - The scripts under `demos/` load installed `PSQuickGraph` and `PSGraphView` modules from `PSModulePath` by default.

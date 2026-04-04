@@ -411,7 +411,7 @@
     </command:details>
     <maml:description>
       <maml:para>Use this cmdlet to render a `PsBidirectionalGraph` through Vega, MSAGL, or the managed `Sfdp` pipeline.</maml:para>
-      <maml:para>The managed `Sfdp` renderer currently exports SVG only and exposes additional layout parameters for multilevel solving, Barnes-Hut acceleration, and overlap removal.</maml:para>
+      <maml:para>The managed `Sfdp` renderer exports Svg, Png, and Jpg, and exposes additional layout parameters for multilevel solving, Barnes-Hut acceleration, and overlap removal.</maml:para>
     </maml:description>
     <command:syntax>
       <command:syntaxItem>
@@ -431,12 +431,14 @@
         <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>As</maml:name>
           <maml:description>
-            <maml:para>Selects the output format. Sfdp and MSAGL renderers currently support SVG output.</maml:para>
+            <maml:para>Selects the output format. Sfdp supports Svg, Png, and Jpg. MSAGL supports Svg. Vega renderers support Json and Html.</maml:para>
           </maml:description>
           <command:parameterValueGroup>
             <command:parameterValue required="false" command:variableLength="false">Json</command:parameterValue>
             <command:parameterValue required="false" command:variableLength="false">Html</command:parameterValue>
             <command:parameterValue required="false" command:variableLength="false">Svg</command:parameterValue>
+            <command:parameterValue required="false" command:variableLength="false">Png</command:parameterValue>
+            <command:parameterValue required="false" command:variableLength="false">Jpg</command:parameterValue>
           </command:parameterValueGroup>
           <command:parameterValue required="true" variableLength="false">ViewOutputKind</command:parameterValue>
           <dev:type>
@@ -448,7 +450,7 @@
         <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>BackgroundColor</maml:name>
           <maml:description>
-            <maml:para>Sets the background fill color for SVG renderers.</maml:para>
+            <maml:para>Sets the background fill color for Sfdp Svg/Png/Jpg output and for other SVG renderers.</maml:para>
           </maml:description>
           <command:parameterValue required="true" variableLength="false">String</command:parameterValue>
           <dev:type>
@@ -515,7 +517,7 @@
         <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>EdgeColor</maml:name>
           <maml:description>
-            <maml:para>Sets the SVG stroke color for edges and arrowheads in Sfdp.</maml:para>
+            <maml:para>Sets the stroke color for edges and arrowheads in Sfdp output.</maml:para>
           </maml:description>
           <command:parameterValue required="true" variableLength="false">String</command:parameterValue>
           <dev:type>
@@ -527,7 +529,7 @@
         <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>EdgeLineWidth</maml:name>
           <maml:description>
-            <maml:para>Sets the SVG stroke width for edges.</maml:para>
+            <maml:para>Sets the stroke width for edges.</maml:para>
           </maml:description>
           <command:parameterValue required="true" variableLength="false">Double</command:parameterValue>
           <dev:type>
@@ -563,7 +565,7 @@
         <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>Height</maml:name>
           <maml:description>
-            <maml:para>Sets the output height for SVG renderers.</maml:para>
+            <maml:para>Sets the output height for Sfdp and other renderers that respect an explicit output size.</maml:para>
           </maml:description>
           <command:parameterValue required="true" variableLength="false">Double</command:parameterValue>
           <dev:type>
@@ -575,7 +577,7 @@
         <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>LabelFontSize</maml:name>
           <maml:description>
-            <maml:para>Sets the SVG font size for node labels.</maml:para>
+            <maml:para>Sets the font size for node labels.</maml:para>
           </maml:description>
           <command:parameterValue required="true" variableLength="false">Double</command:parameterValue>
           <dev:type>
@@ -611,7 +613,7 @@
         <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>NodeRadius</maml:name>
           <maml:description>
-            <maml:para>Sets the node circle radius for SVG renderers.</maml:para>
+            <maml:para>Sets the node circle radius for Sfdp output.</maml:para>
           </maml:description>
           <command:parameterValue required="true" variableLength="false">Double</command:parameterValue>
           <dev:type>
@@ -845,7 +847,7 @@
         <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>Width</maml:name>
           <maml:description>
-            <maml:para>Sets the output width for SVG renderers.</maml:para>
+            <maml:para>Sets the output width for Sfdp and other renderers that respect an explicit output size.</maml:para>
           </maml:description>
           <command:parameterValue required="true" variableLength="false">Double</command:parameterValue>
           <dev:type>
@@ -1025,12 +1027,14 @@
         <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>As</maml:name>
           <maml:description>
-            <maml:para>Selects the output format. Sfdp and MSAGL renderers currently support SVG output.</maml:para>
+            <maml:para>Selects the output format. Sfdp supports Svg, Png, and Jpg. MSAGL supports Svg. Vega renderers support Json and Html.</maml:para>
           </maml:description>
           <command:parameterValueGroup>
             <command:parameterValue required="false" command:variableLength="false">Json</command:parameterValue>
             <command:parameterValue required="false" command:variableLength="false">Html</command:parameterValue>
             <command:parameterValue required="false" command:variableLength="false">Svg</command:parameterValue>
+            <command:parameterValue required="false" command:variableLength="false">Png</command:parameterValue>
+            <command:parameterValue required="false" command:variableLength="false">Jpg</command:parameterValue>
           </command:parameterValueGroup>
           <command:parameterValue required="true" variableLength="false">ViewOutputKind</command:parameterValue>
           <dev:type>
@@ -1042,7 +1046,7 @@
         <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>BackgroundColor</maml:name>
           <maml:description>
-            <maml:para>Sets the background fill color for SVG renderers.</maml:para>
+            <maml:para>Sets the background fill color for Sfdp Svg/Png/Jpg output and for other SVG renderers.</maml:para>
           </maml:description>
           <command:parameterValue required="true" variableLength="false">String</command:parameterValue>
           <dev:type>
@@ -1065,7 +1069,7 @@
         <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>EdgeLineWidth</maml:name>
           <maml:description>
-            <maml:para>Sets the SVG stroke width for edges.</maml:para>
+            <maml:para>Sets the stroke width for edges.</maml:para>
           </maml:description>
           <command:parameterValue required="true" variableLength="false">Double</command:parameterValue>
           <dev:type>
@@ -1101,7 +1105,7 @@
         <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>Height</maml:name>
           <maml:description>
-            <maml:para>Sets the output height for SVG renderers.</maml:para>
+            <maml:para>Sets the output height for Sfdp and other renderers that respect an explicit output size.</maml:para>
           </maml:description>
           <command:parameterValue required="true" variableLength="false">Double</command:parameterValue>
           <dev:type>
@@ -1113,7 +1117,7 @@
         <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>LabelFontSize</maml:name>
           <maml:description>
-            <maml:para>Sets the SVG font size for node labels.</maml:para>
+            <maml:para>Sets the font size for node labels.</maml:para>
           </maml:description>
           <command:parameterValue required="true" variableLength="false">Double</command:parameterValue>
           <dev:type>
@@ -1149,7 +1153,7 @@
         <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>NodeRadius</maml:name>
           <maml:description>
-            <maml:para>Sets the node circle radius for SVG renderers.</maml:para>
+            <maml:para>Sets the node circle radius for Sfdp output.</maml:para>
           </maml:description>
           <command:parameterValue required="true" variableLength="false">Double</command:parameterValue>
           <dev:type>
@@ -1288,7 +1292,7 @@
         <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="none">
           <maml:name>Width</maml:name>
           <maml:description>
-            <maml:para>Sets the output width for SVG renderers.</maml:para>
+            <maml:para>Sets the output width for Sfdp and other renderers that respect an explicit output size.</maml:para>
           </maml:description>
           <command:parameterValue required="true" variableLength="false">Double</command:parameterValue>
           <dev:type>
@@ -1327,7 +1331,7 @@
       <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>As</maml:name>
         <maml:description>
-          <maml:para>Selects the output format. Sfdp and MSAGL renderers currently support SVG output.</maml:para>
+          <maml:para>Selects the output format. Sfdp supports Svg, Png, and Jpg. MSAGL supports Svg. Vega renderers support Json and Html.</maml:para>
         </maml:description>
         <command:parameterValue required="true" variableLength="false">ViewOutputKind</command:parameterValue>
         <dev:type>
@@ -1339,7 +1343,7 @@
       <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>BackgroundColor</maml:name>
         <maml:description>
-          <maml:para>Sets the background fill color for SVG renderers.</maml:para>
+          <maml:para>Sets the background fill color for Sfdp Svg/Png/Jpg output and for other SVG renderers.</maml:para>
         </maml:description>
         <command:parameterValue required="true" variableLength="false">String</command:parameterValue>
         <dev:type>
@@ -1411,7 +1415,7 @@
       <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>EdgeColor</maml:name>
         <maml:description>
-          <maml:para>Sets the SVG stroke color for edges and arrowheads in Sfdp.</maml:para>
+          <maml:para>Sets the stroke color for edges and arrowheads in Sfdp output.</maml:para>
         </maml:description>
         <command:parameterValue required="true" variableLength="false">String</command:parameterValue>
         <dev:type>
@@ -1423,7 +1427,7 @@
       <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>EdgeLineWidth</maml:name>
         <maml:description>
-          <maml:para>Sets the SVG stroke width for edges.</maml:para>
+          <maml:para>Sets the stroke width for edges.</maml:para>
         </maml:description>
         <command:parameterValue required="true" variableLength="false">Double</command:parameterValue>
         <dev:type>
@@ -1459,7 +1463,7 @@
       <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>Height</maml:name>
         <maml:description>
-          <maml:para>Sets the output height for SVG renderers.</maml:para>
+          <maml:para>Sets the output height for Sfdp and other renderers that respect an explicit output size.</maml:para>
         </maml:description>
         <command:parameterValue required="true" variableLength="false">Double</command:parameterValue>
         <dev:type>
@@ -1471,7 +1475,7 @@
       <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>LabelFontSize</maml:name>
         <maml:description>
-          <maml:para>Sets the SVG font size for node labels.</maml:para>
+          <maml:para>Sets the font size for node labels.</maml:para>
         </maml:description>
         <command:parameterValue required="true" variableLength="false">Double</command:parameterValue>
         <dev:type>
@@ -1507,7 +1511,7 @@
       <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>NodeRadius</maml:name>
         <maml:description>
-          <maml:para>Sets the node circle radius for SVG renderers.</maml:para>
+          <maml:para>Sets the node circle radius for Sfdp output.</maml:para>
         </maml:description>
         <command:parameterValue required="true" variableLength="false">Double</command:parameterValue>
         <dev:type>
@@ -1783,7 +1787,7 @@
       <command:parameter required="false" variableLength="true" globbing="false" pipelineInput="False" position="named" aliases="none">
         <maml:name>Width</maml:name>
         <maml:description>
-          <maml:para>Sets the output width for SVG renderers.</maml:para>
+          <maml:para>Sets the output width for Sfdp and other renderers that respect an explicit output size.</maml:para>
         </maml:description>
         <command:parameterValue required="true" variableLength="false">Double</command:parameterValue>
         <dev:type>
@@ -1991,7 +1995,7 @@
         <maml:title>-------------------------- Example 1 --------------------------</maml:title>
         <dev:code>PS C:\&gt; Export-GraphView -Graph $graph -Renderer Sfdp -As Svg -Path ./graph.svg -ShowArrows -NodeRadius 3 -EdgeLineWidth 0.4</dev:code>
         <dev:remarks>
-          <maml:para>Exports the graph with the managed Sfdp renderer to an SVG file.</maml:para>
+          <maml:para>Exports the graph with the managed Sfdp renderer to an SVG file. Use -As Png or -As Jpg for managed raster output.</maml:para>
         </dev:remarks>
       </command:example>
     </command:examples>

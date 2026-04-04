@@ -55,7 +55,7 @@ Export-GraphView -Graph <PsBidirectionalGraph> -Renderer <GraphViewRenderer> [-A
 ## DESCRIPTION
 Use this cmdlet to render a \`PsBidirectionalGraph\` through Vega, MSAGL, or the managed \`Sfdp\` pipeline.
 
-The managed \`Sfdp\` renderer currently exports SVG only and exposes additional layout parameters for multilevel solving, Barnes-Hut acceleration, and overlap removal.
+The managed \`Sfdp\` renderer exports \`Svg\`, \`Png\`, and \`Jpg\`, and exposes additional layout parameters for multilevel solving, Barnes-Hut acceleration, and overlap removal.
 
 ## EXAMPLES
 
@@ -65,6 +65,13 @@ PS C:\> Export-GraphView -Graph $graph -Renderer Sfdp -As Svg -Path ./graph.svg 
 ```
 
 Exports the graph with the managed Sfdp renderer to an SVG file.
+
+### Example 2
+```powershell
+PS C:\> Export-GraphView -Graph $graph -Renderer Sfdp -As Png -Path ./graph.png -ShowArrows -NodeRadius 3 -EdgeLineWidth 0.4
+```
+
+Exports the graph with the managed Sfdp renderer to a PNG file.
 
 ## PARAMETERS
 
@@ -85,13 +92,13 @@ Accept wildcard characters: False
 
 ### -As
 Selects the output format.
-Sfdp and MSAGL renderers currently support SVG output.
+Sfdp supports Svg, Png, and Jpg. MSAGL supports Svg. Vega renderers support Json and Html.
 
 ```yaml
 Type: ViewOutputKind
 Parameter Sets: (All)
 Aliases:
-Accepted values: Json, Html, Svg
+Accepted values: Json, Html, Svg, Png, Jpg
 
 Required: False
 Position: Named
@@ -101,7 +108,7 @@ Accept wildcard characters: False
 ```
 
 ### -BackgroundColor
-Sets the background fill color for SVG renderers.
+Sets the background fill color for Sfdp Svg/Png/Jpg output and for other SVG renderers.
 
 ```yaml
 Type: String
@@ -191,7 +198,7 @@ Accept wildcard characters: False
 ```
 
 ### -EdgeColor
-Sets the SVG stroke color for edges and arrowheads in Sfdp.
+Sets the stroke color for edges and arrowheads in Sfdp output.
 
 ```yaml
 Type: String
@@ -206,7 +213,7 @@ Accept wildcard characters: False
 ```
 
 ### -EdgeLineWidth
-Sets the SVG stroke width for edges.
+Sets the stroke width for edges.
 
 ```yaml
 Type: Double
@@ -251,7 +258,7 @@ Accept wildcard characters: False
 ```
 
 ### -Height
-Sets the output height for SVG renderers.
+Sets the output height for Sfdp and other renderers that respect an explicit output size.
 
 ```yaml
 Type: Double
@@ -266,7 +273,7 @@ Accept wildcard characters: False
 ```
 
 ### -LabelFontSize
-Sets the SVG font size for node labels.
+Sets the font size for node labels.
 
 ```yaml
 Type: Double
@@ -311,7 +318,7 @@ Accept wildcard characters: False
 ```
 
 ### -NodeRadius
-Sets the node circle radius for SVG renderers.
+Sets the node circle radius for Sfdp output.
 
 ```yaml
 Type: Double
@@ -661,7 +668,7 @@ Accept wildcard characters: False
 ```
 
 ### -Width
-Sets the output width for SVG renderers.
+Sets the output width for Sfdp and other renderers that respect an explicit output size.
 
 ```yaml
 Type: Double
