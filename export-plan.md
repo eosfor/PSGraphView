@@ -2195,6 +2195,37 @@ Patch 7a:
   - либо сделать ещё один очень маленький production patch на `jpg` text-only path
   - либо признать `Patch 7` практически закрытым и переходить к `Patch 8`
 
+Сделано в Patch 7j:
+
+- добавлен graphviz-like node style mode для `Sfdp` export:
+  - node `fill="none"` / transparent fill
+  - node `stroke="#000000"`
+- `svg` writer теперь пишет transparent node fill как `fill="none"`, а не как raw transparent hex
+- raster writer теперь не заливает узлы, если fill полностью прозрачный
+- в `Export-GraphView` добавлен switch:
+  - `-SfdpGraphvizNodeStyle`
+- compare harness для parity-run теперь включает этот режим по умолчанию
+
+Телеметрия Patch 7j:
+
+- test: `dotnet test tests/PSGraphView.Sfdp.Tests/PSGraphView.Sfdp.Tests.csproj --filter SfdpSvgExporterTests`
+- result: `14/14` passed
+- test: `dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --filter ExportGraphViewCmdletTests`
+- result: `14/14` passed
+- run: `GV_PLUGIN_PATH=/tmp/graphviz-prefix/lib/graphviz pwsh -NoProfile -File demos/Compare-WikiVote-Export.ps1 -UseLocalModules -UseSubgraph -SubgraphSeedCount 30 -SubgraphStartVertexCount 3 -OutputDir /tmp/psgraphview-export-wikivote-patch7j`
+- result: `30 vertices / 99 edges`
+- result: managed `svg` node elements now match graphviz-like visual style:
+  - `fill="none"`
+  - `stroke="#000000"`
+- result: managed raster output no longer paints opaque node fill over dense edge bundles
+- result: remaining large-graph residual remains size/density-related, not node-fill-related:
+  - `PngWidthDelta = 30`
+  - `PngHeightDelta = 21`
+  - `PngDarkPixelDelta = -1833`
+  - `JpgWidthDelta = 30`
+  - `JpgHeightDelta = 21`
+  - `JpgDarkPixelDelta = -1108`
+
 Критерий готовности:
 
 - label anchors, label size и визуальная плотность становятся заметно ближе к graphviz

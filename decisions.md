@@ -1279,3 +1279,67 @@
   - direct `Png`
   - direct `Jpg`
 - remaining open work после этого уже не про docs, а только про optional доводку узкого `jpg` residual внутри `Patch 7`
+
+## 2026-04-04 12:31 PDT - Patch 7j переводит compare-run на graphviz-like node style для плотных графов
+
+Решение: добавляем в `Sfdp` отдельный graphviz-like node style mode и включаем его по умолчанию в parity compare harness.
+
+Что именно принято:
+
+- у graphviz-like режима узлы рисуются как:
+  - transparent fill / `fill="none"`
+  - black stroke / `stroke="#000000"`
+- в raster path полностью прозрачный fill не рисуется вообще
+- в cmdlet surface это доступно через:
+  - `-SfdpGraphvizNodeStyle`
+- compare scripts используют этот режим по умолчанию, потому что он лучше соответствует reference output `graphviz`
+
+Причины:
+
+- на полном `WikiVote` визуальный разъезд по вершинам был не только в размерах, но и в самом node style
+- в reference `graphviz` dense nodes выглядели почти чёрными точками, потому что:
+  - node interior прозрачный
+  - через него виден накопленный тёмный слой рёбер
+- в managed exporter nodes были с непрозрачной серой заливкой и серой обводкой
+- из-за этого managed path перекрывал тёмные edge bundles под node и визуально давал светлые точки вместо graphviz-like тёмных
+
+Телеметрия:
+
+- full-graph artifact inspection:
+  - graphviz full SVG: `/tmp/psgraphview-export-wikivote-full-gvplugins/wiki-vote-full/svg/wiki-vote-full-graphviz.svg`
+  - managed full SVG before patch: `/tmp/psgraphview-export-wikivote-full/wiki-vote-full/svg/wiki-vote-full-managed.svg`
+- observed reference node style in graphviz full SVG:
+  - `fill="none"`
+  - `stroke="black"`
+  - `rx="0.72" ry="0.72"`
+- observed pre-patch managed node style in SVG:
+  - `fill="#696969"`
+  - `stroke="#555555"`
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.Sfdp/SfdpOptions.cs`
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.Sfdp/SfdpRenderSceneBuilder.cs`
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.GVExport/GraphSvgRenderSceneWriter.cs`
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.GVExport/GraphRasterRenderSceneWriter.cs`
+- code change: `/Users/andrei/repo/PSGraphView/src/PSGraphView.PowerShell/ExportGraphViewCmdlet.cs`
+- code change: `/Users/andrei/repo/PSGraphView/demos/Compare-Export.Common.ps1`
+- test: `dotnet test tests/PSGraphView.Sfdp.Tests/PSGraphView.Sfdp.Tests.csproj --filter SfdpSvgExporterTests`
+- result: `14/14` passed
+- test: `dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --filter ExportGraphViewCmdletTests`
+- result: `14/14` passed
+- run: `GV_PLUGIN_PATH=/tmp/graphviz-prefix/lib/graphviz pwsh -NoProfile -File demos/Compare-WikiVote-Export.ps1 -UseLocalModules -UseSubgraph -SubgraphSeedCount 30 -SubgraphStartVertexCount 3 -OutputDir /tmp/psgraphview-export-wikivote-patch7j`
+- result: `30 vertices / 99 edges`
+- result: managed `svg` node elements after patch:
+  - `fill="none"`
+  - `stroke="#000000"`
+- result: raster compare after patch:
+  - `PngWidthDelta = 30`
+  - `PngHeightDelta = 21`
+  - `PngDarkPixelDelta = -1833`
+  - `JpgWidthDelta = 30`
+  - `JpgHeightDelta = 21`
+  - `JpgDarkPixelDelta = -1108`
+
+Следствие:
+
+- visual mismatch по dense node markers теперь не маскируется непрозрачной node fill на managed-стороне
+- compare harness стал ближе к реальному graphviz node semantics
+- remaining residual после этого уже надо трактовать как size / density / raster-weight mismatch, а не как ошибку node fill policy

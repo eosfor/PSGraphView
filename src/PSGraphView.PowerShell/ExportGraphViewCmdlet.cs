@@ -70,6 +70,9 @@ public sealed class ExportGraphViewCmdlet : PSCmdlet
     public string EdgeColor { get; set; } = "#c0c0c0";
 
     [Parameter(ParameterSetName = SfdpParameterSet)]
+    public SwitchParameter SfdpGraphvizNodeStyle { get; set; }
+
+    [Parameter(ParameterSetName = SfdpParameterSet)]
     [ValidateRange(0.05, 10.0)]
     public double ArrowSize { get; set; } = 1.0;
 
@@ -383,6 +386,7 @@ public sealed class ExportGraphViewCmdlet : PSCmdlet
             LabelOffsetY = labelOffsetY,
             GroupMetadataKey = GroupMetadataKey,
             DisableGroupColors = DisableGroupColors.IsPresent,
+            GraphvizNodeStyle = SfdpGraphvizNodeStyle.IsPresent,
             Width = Width,
             Height = Height,
             Diagnostics = string.IsNullOrWhiteSpace(SfdpDiagnosticsPath)

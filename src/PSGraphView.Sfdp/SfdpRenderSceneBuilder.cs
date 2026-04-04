@@ -6,7 +6,10 @@ namespace PSGraphView.Sfdp;
 
 internal static class SfdpRenderSceneBuilder
 {
+    private const string GraphvizNodeFill = "#00000000";
+    private const string GraphvizNodeStroke = "#000000";
     private const string DefaultNodeStroke = "#555555";
+    private const string DefaultNodeFill = "#696969";
     private const string DefaultLabelFill = "#000000";
     private const string DefaultLabelFontFamily = "Times,serif";
     private const string DefaultLabelTextAnchor = "middle";
@@ -101,7 +104,7 @@ internal static class SfdpRenderSceneBuilder
                 RadiusX: options.NodeRadius,
                 RadiusY: options.NodeRadius,
                 Fill: ResolveFill(node, options),
-                Stroke: DefaultNodeStroke,
+                Stroke: ResolveStroke(options),
                 StrokeWidth: 1.0,
                 Label: label);
         }
@@ -165,9 +168,14 @@ internal static class SfdpRenderSceneBuilder
 
     private static string ResolveFill(GraphViewNode node, SfdpOptions options)
     {
+        if (options.GraphvizNodeStyle)
+        {
+            return GraphvizNodeFill;
+        }
+
         if (options.DisableGroupColors || string.IsNullOrWhiteSpace(options.GroupMetadataKey))
         {
-            return "#696969";
+            return DefaultNodeFill;
         }
 
         if (node.Metadata.TryGetValue(options.GroupMetadataKey, out var value) && TryGetGroup(value, out var group))
@@ -175,7 +183,12 @@ internal static class SfdpRenderSceneBuilder
             return GroupPalette[Math.Abs(group) % GroupPalette.Length];
         }
 
-        return "#696969";
+        return DefaultNodeFill;
+    }
+
+    private static string ResolveStroke(SfdpOptions options)
+    {
+        return options.GraphvizNodeStyle ? GraphvizNodeStroke : DefaultNodeStroke;
     }
 
     private static bool TryGetGroup(object? value, out int group)

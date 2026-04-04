@@ -1547,6 +1547,7 @@ function Invoke-ManagedExport {
             NodeRadius = 0.72
             EdgeLineWidth = 0.2
             EdgeColor = '#00000018'
+            SfdpGraphvizNodeStyle = $true
             ShowLabels = $IncludeLabels.IsPresent
             LabelFontSize = $LabelFontSize
             ShowArrows = $true

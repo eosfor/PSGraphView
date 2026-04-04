@@ -58,8 +58,8 @@ public static class GraphSvgRenderSceneWriter
                     new XAttribute("cy", Format(node.Y)),
                     new XAttribute("rx", Format(node.RadiusX)),
                     new XAttribute("ry", Format(node.RadiusY)),
-                    new XAttribute("fill", node.Fill),
-                    new XAttribute("stroke", node.Stroke),
+                    new XAttribute("fill", ToSvgPaint(node.Fill)),
+                    new XAttribute("stroke", ToSvgPaint(node.Stroke)),
                     new XAttribute("stroke-width", Format(node.StrokeWidth))));
 
             if (node.Label is not null)
@@ -147,5 +147,12 @@ public static class GraphSvgRenderSceneWriter
     private static string FormatViewBoxValue(double value)
     {
         return value.ToString("0.00", CultureInfo.InvariantCulture);
+    }
+
+    private static string ToSvgPaint(string value)
+    {
+        return string.Equals(value, "#00000000", StringComparison.OrdinalIgnoreCase)
+            ? "none"
+            : value;
     }
 }

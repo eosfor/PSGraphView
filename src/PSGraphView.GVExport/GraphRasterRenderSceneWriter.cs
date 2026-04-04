@@ -150,25 +150,29 @@ public static class GraphRasterRenderSceneWriter
                 (float)(node.Y - node.RadiusY),
                 (float)(node.RadiusX * 2.0),
                 (float)(node.RadiusY * 2.0));
+            var fillColor = ParseColor(node.Fill);
+            var strokeColor = ParseColor(node.Stroke);
 
-            using (var fillPaint = new SKPaint
+            if (fillColor.Alpha > 0)
             {
-                Style = SKPaintStyle.Fill,
-                Color = ParseColor(node.Fill),
-                IsAntialias = true,
-            })
-            {
+                using var fillPaint = new SKPaint
+                {
+                    Style = SKPaintStyle.Fill,
+                    Color = fillColor,
+                    IsAntialias = true,
+                };
                 canvas.DrawOval(oval, fillPaint);
             }
 
-            using (var strokePaint = new SKPaint
+            if (strokeColor.Alpha > 0 && node.StrokeWidth > 0)
             {
-                Style = SKPaintStyle.Stroke,
-                Color = ParseColor(node.Stroke),
-                StrokeWidth = (float)node.StrokeWidth,
-                IsAntialias = true,
-            })
-            {
+                using var strokePaint = new SKPaint
+                {
+                    Style = SKPaintStyle.Stroke,
+                    Color = strokeColor,
+                    StrokeWidth = (float)node.StrokeWidth,
+                    IsAntialias = true,
+                };
                 canvas.DrawOval(oval, strokePaint);
             }
 

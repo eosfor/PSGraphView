@@ -137,6 +137,27 @@ public sealed class SfdpSvgExporterTests
     }
 
     [Fact]
+    public void Export_WithGraphvizNodeStyle_UsesTransparentNodeFillAndBlackStroke()
+    {
+        var graph = new GraphView(
+            [
+                new GraphViewNode("A", "A", null, new Dictionary<string, object?>()),
+                new GraphViewNode("B", "B", null, new Dictionary<string, object?>())
+            ],
+            [
+                new GraphViewEdge("A", "B", null, 1)
+            ]);
+
+        var svg = _exporter.Export(graph, new SfdpOptions
+        {
+            GraphvizNodeStyle = true
+        });
+
+        Assert.Contains("fill=\"none\"", svg, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("stroke=\"#000000\"", svg, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Export_WithDiagnostics_WritesSvgGeometryEvents()
     {
         var graph = new GraphView(

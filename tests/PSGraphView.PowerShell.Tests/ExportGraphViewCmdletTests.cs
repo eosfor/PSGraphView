@@ -222,6 +222,25 @@ public sealed class ExportGraphViewCmdletTests : IDisposable
     }
 
     [Fact]
+    public void ExportGraphView_SfdpSvg_GraphvizNodeStyle_UsesTransparentFillAndBlackStroke()
+    {
+        var graph = BuildGraph(("A", "B"), ("B", "C"));
+
+        _powerShell.AddCommand("Export-GraphView")
+            .AddParameter("Graph", graph)
+            .AddParameter("Renderer", GraphViewRenderer.Sfdp)
+            .AddParameter("As", ViewOutputKind.Svg)
+            .AddParameter("SfdpGraphvizNodeStyle", true);
+
+        var result = _powerShell.Invoke();
+
+        Assert.Single(result);
+        var svg = Assert.IsType<string>(result[0].BaseObject);
+        Assert.Contains("fill=\"none\"", svg, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("stroke=\"#000000\"", svg, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void ExportGraphView_SfdpParameters_WithMsaglRenderer_ReturnsError()
     {
         var graph = BuildGraph(("A", "B"), ("B", "C"));

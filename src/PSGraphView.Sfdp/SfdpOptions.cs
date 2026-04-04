@@ -45,4 +45,5 @@ public sealed class SfdpOptions
     public double ArrowSize { get; init; } = 1.0;
     public string GroupMetadataKey { get; init; } = "group";
     public bool DisableGroupColors { get; init; }
+    public bool GraphvizNodeStyle { get; init; }
 }
