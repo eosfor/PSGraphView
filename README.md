@@ -11,7 +11,7 @@ Current status:
 - Contains a standalone `PSGraphView.Dsm` project in a sibling repository.
 - Contains a standalone `PSGraphView.Vega` project in a sibling repository.
 - Contains a standalone `PSGraphView.Msagl` project in a sibling repository.
-- Contains a standalone `PSGraphView.PowerShell` project with initial `Export-GraphView` and `Export-DSMView` cmdlets.
+- Contains a standalone `PSGraphView.PowerShell` project with initial `Export-GraphView`, `Export-GraphvizView`, and `Export-DSMView` cmdlets.
 - Uses `GraphView` from the published `PSGraph.Common` NuGet package.
 - Includes working Vega exporters for the force-directed, adjacency-matrix, and tree-layout paths.
 - Includes a working DSM Vega matrix exporter built on the extracted DSM node/edge payload builder.
@@ -32,6 +32,7 @@ Repository layout:
 
 Current PowerShell surface:
 - `Export-GraphView -Graph <PsBidirectionalGraph> -Renderer <renderer> [-As Html|Json|Svg] [-Path <file>]`
+- `Export-GraphvizView -InputObject <dot>|-DotPath <file> -Renderer <Dot|Neato|Fdp|Sfdp|Twopi|Circo> [-As Svg|Png|Jpg] [-OutputPath <file>]`
 - `Export-DSMView -Dsm|Result|SequencedDsm <object> -Renderer <renderer> [-As Html|Json|Svg] [-Path <file>]`
 
 Demo scripts:

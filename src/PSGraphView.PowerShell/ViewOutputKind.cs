@@ -4,5 +4,7 @@ public enum ViewOutputKind
 {
     Json,
     Html,
-    Svg
+    Svg,
+    Png,
+    Jpg
 }

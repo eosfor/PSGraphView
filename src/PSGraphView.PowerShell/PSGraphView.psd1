@@ -8,7 +8,7 @@
     Description = 'Visualization-oriented PowerShell cmdlets for PSGraphView.'
     PowerShellVersion = '7.4'
     CompatiblePSEditions = @('Core')
-    CmdletsToExport = @('Export-GraphView', 'Export-DSMView')
+    CmdletsToExport = @('Export-GraphView', 'Export-GraphvizView', 'Export-DSMView')
     FunctionsToExport = @()
     AliasesToExport = @()
     VariablesToExport = '*'

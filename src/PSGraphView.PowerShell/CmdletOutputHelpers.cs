@@ -65,6 +65,17 @@ internal static class CmdletOutputHelpers
         File.WriteAllText(path, result);
     }
 
+    public static void WriteResult(PSCmdlet cmdlet, byte[] result, string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            cmdlet.WriteObject(result);
+            return;
+        }
+
+        File.WriteAllBytes(path, result);
+    }
+
     private static bool TryResolveFromPath(string? path, out ViewOutputKind outputKind)
     {
         outputKind = default;
@@ -80,9 +91,12 @@ internal static class CmdletOutputHelpers
             ".html" => ViewOutputKind.Html,
             ".htm" => ViewOutputKind.Html,
             ".svg" => ViewOutputKind.Svg,
+            ".png" => ViewOutputKind.Png,
+            ".jpg" => ViewOutputKind.Jpg,
+            ".jpeg" => ViewOutputKind.Jpg,
             _ => default
         };
 
-        return extension is ".json" or ".html" or ".htm" or ".svg";
+        return extension is ".json" or ".html" or ".htm" or ".svg" or ".png" or ".jpg" or ".jpeg";
     }
 }
