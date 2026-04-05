@@ -9,6 +9,7 @@ Scope note:
 
 Current status:
 - Contains a standalone `PSGraphView.Dsm` project in a sibling repository.
+- Contains a standalone `PSGraphView.Graphviz` project in a sibling repository.
 - Contains a standalone `PSGraphView.Vega` project in a sibling repository.
 - Contains a standalone `PSGraphView.Msagl` project in a sibling repository.
 - Contains a standalone `PSGraphView.PowerShell` project with initial `Export-GraphView`, `Export-GraphvizView`, and `Export-DSMView` cmdlets.
@@ -22,10 +23,12 @@ Current status:
 
 Repository layout:
 - `src/PSGraphView.Dsm`: DSM-specific visualization library for SVG rendering.
+- `src/PSGraphView.Graphviz`: native Graphviz interop library for `DOT -> xdot_json`.
 - `src/PSGraphView.Vega`: visualization library for `GraphView`-based Vega export.
 - `src/PSGraphView.Msagl`: visualization library for `GraphView`-based MSAGL export.
 - `src/PSGraphView.PowerShell`: PowerShell cmdlet surface over the extracted graph and DSM renderers.
 - `tests/PSGraphView.Dsm.Tests`: focused tests for the extracted DSM SVG renderer.
+- `tests/PSGraphView.Graphviz.Tests`: focused tests for native `libpsgv` interop.
 - `tests/PSGraphView.Vega.Tests`: focused tests for the migrated force-directed path.
 - `tests/PSGraphView.Msagl.Tests`: focused tests for the initial MSAGL migration path, including Sugiyama direction and label-placement regressions.
 - `tests/PSGraphView.PowerShell.Tests`: cmdlet-level tests for the new PowerShell surface.
@@ -34,6 +37,14 @@ Current PowerShell surface:
 - `Export-GraphView -Graph <PsBidirectionalGraph> -Renderer <renderer> [-As Html|Json|Svg] [-Path <file>]`
 - `Export-GraphvizView -InputObject <dot>|-DotPath <file> -Renderer <Dot|Neato|Fdp|Sfdp|Twopi|Circo> [-As Svg|Png|Jpg] [-OutputPath <file>]`
 - `Export-DSMView -Dsm|Result|SequencedDsm <object> -Renderer <renderer> [-As Html|Json|Svg] [-Path <file>]`
+
+Bundled Graphviz runtime:
+- `src/PSGraphView.Graphviz` contains the native `libpsgv` interop layer for `DOT -> xdot_json`.
+- `dotnet publish src/PSGraphView.PowerShell/PSGraphView.PowerShell.csproj` can stage bundled native Graphviz runtimes under `runtimes/<rid>/native` when these MSBuild properties are set:
+  - `IncludeGraphvizRuntimeBundle=true`
+  - `GraphvizRuntimeVersion=<psgv runtime version>`
+- Runtime assets are downloaded from the private GitHub repository `eosfor/graphviz-psgv`, so publish needs a token in `PSGRAPHVIEW_GITHUB_TOKEN` or `GITHUB_TOKEN`.
+- The publish workflow expects the secret `GRAPHVIZ_RUNTIME_GITHUB_TOKEN` for this download step.
 
 Demo scripts:
 - The scripts under `demos/` load installed `PSQuickGraph` and `PSGraphView` modules from `PSModulePath` by default.

@@ -5,6 +5,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>PSGraphView.PowerShell</RootNamespace>
+    <IncludeGraphvizRuntimeBundle Condition="'$(IncludeGraphvizRuntimeBundle)' == ''">false</IncludeGraphvizRuntimeBundle>
+    <GraphvizRuntimeRepository Condition="'$(GraphvizRuntimeRepository)' == ''">eosfor/graphviz-psgv</GraphvizRuntimeRepository>
+    <GraphvizRuntimeVersion Condition="'$(GraphvizRuntimeVersion)' == ''"></GraphvizRuntimeVersion>
+    <GraphvizRuntimeToken Condition="'$(GraphvizRuntimeToken)' == ''">$(PSGRAPHVIEW_GITHUB_TOKEN)</GraphvizRuntimeToken>
+    <GraphvizRuntimeToken Condition="'$(GraphvizRuntimeToken)' == ''">$(GITHUB_TOKEN)</GraphvizRuntimeToken>
   </PropertyGroup>
 
   <ItemGroup>
@@ -14,6 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../PSGraphView.Dsm/PSGraphView.Dsm.csproj" />
+    <ProjectReference Include="../PSGraphView.Graphviz/PSGraphView.Graphviz.csproj" />
     <ProjectReference Include="../PSGraphView.Msagl/PSGraphView.Msagl.csproj" />
     <ProjectReference Include="../PSGraphView.Vega/PSGraphView.Vega.csproj" />
   </ItemGroup>
@@ -27,5 +33,12 @@
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
+
+  <Target Name="StageGraphvizRuntimeBundle" AfterTargets="Publish" Condition="'$(IncludeGraphvizRuntimeBundle)' == 'true'">
+    <Error Condition="'$(GraphvizRuntimeVersion)' == ''" Text="GraphvizRuntimeVersion must be set when IncludeGraphvizRuntimeBundle=true." />
+    <Exec
+      Command="pwsh -NoLogo -NoProfile -File &quot;$(MSBuildProjectDirectory)/../../eng/Install-GraphvizRuntimeBundle.ps1&quot; -Repository &quot;$(GraphvizRuntimeRepository)&quot; -Version &quot;$(GraphvizRuntimeVersion)&quot; -DestinationDirectory &quot;$(PublishDir)&quot;"
+      EnvironmentVariables="PSGRAPHVIEW_GITHUB_TOKEN=$(GraphvizRuntimeToken)" />
+  </Target>
 
 </Project>
