@@ -1,5 +1,6 @@
 using System.Management.Automation;
 using System.Text;
+using PSGraphView.Graphviz;
 
 namespace PSGraphView.PowerShell;
 
@@ -57,6 +58,7 @@ public sealed class ExportGraphvizViewCmdlet : PSCmdlet
                 this,
                 Renderer.ToString(),
                 outputKind,
+                ViewOutputKind.Json,
                 ViewOutputKind.Svg,
                 ViewOutputKind.Png,
                 ViewOutputKind.Jpg);
@@ -67,6 +69,13 @@ public sealed class ExportGraphvizViewCmdlet : PSCmdlet
                 DotPathParameterSet => File.ReadAllText(DotPath),
                 _ => throw new NotSupportedException($"Parameter set '{ParameterSetName}' is not supported.")
             };
+
+            if (outputKind == ViewOutputKind.Json)
+            {
+                var xdotJson = GraphvizNativeLayoutRenderer.RenderXdotJson(dot, Renderer);
+                CmdletOutputHelpers.WriteResult(this, xdotJson, OutputPath);
+                return;
+            }
 
             var data = GraphvizProcessRenderer.Render(dot, Renderer, outputKind);
 
@@ -101,6 +110,22 @@ public sealed class ExportGraphvizViewCmdlet : PSCmdlet
                 "PSGraphView.DotInputReadFailed",
                 ErrorCategory.ReadError,
                 DotPath));
+        }
+        catch (GraphvizNativeException ex)
+        {
+            ThrowTerminatingError(new ErrorRecord(
+                ex,
+                "PSGraphView.GraphvizNativeLayoutFailed",
+                ErrorCategory.InvalidOperation,
+                Renderer));
+        }
+        catch (DllNotFoundException ex)
+        {
+            ThrowTerminatingError(new ErrorRecord(
+                ex,
+                "PSGraphView.GraphvizNativeRuntimeNotFound",
+                ErrorCategory.ObjectNotFound,
+                Renderer));
         }
         catch (InvalidOperationException ex)
         {

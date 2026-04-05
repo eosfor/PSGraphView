@@ -35,11 +35,13 @@ Repository layout:
 
 Current PowerShell surface:
 - `Export-GraphView -Graph <PsBidirectionalGraph> -Renderer <renderer> [-As Html|Json|Svg] [-Path <file>]`
-- `Export-GraphvizView -InputObject <dot>|-DotPath <file> -Renderer <Dot|Neato|Fdp|Sfdp|Twopi|Circo> [-As Svg|Png|Jpg] [-OutputPath <file>]`
+- `Export-GraphvizView -InputObject <dot>|-DotPath <file> -Renderer <Dot|Neato|Fdp|Sfdp|Twopi|Circo> [-As Json|Svg|Png|Jpg] [-OutputPath <file>]`
 - `Export-DSMView -Dsm|Result|SequencedDsm <object> -Renderer <renderer> [-As Html|Json|Svg] [-Path <file>]`
 
 Bundled Graphviz runtime:
 - `src/PSGraphView.Graphviz` contains the native `libpsgv` interop layer for `DOT -> xdot_json`.
+- `Export-GraphvizView -As Json` already uses this native path and returns `xdot_json`.
+- `Export-GraphvizView -As Svg|Png|Jpg` still uses the process-based Graphviz fallback until the `xdot_json -> scene -> SkiaSharp` renderer is implemented.
 - `dotnet publish src/PSGraphView.PowerShell/PSGraphView.PowerShell.csproj` can stage bundled native Graphviz runtimes under `runtimes/<rid>/native` when these MSBuild properties are set:
   - `IncludeGraphvizRuntimeBundle=true`
   - `GraphvizRuntimeVersion=<psgv runtime version>`

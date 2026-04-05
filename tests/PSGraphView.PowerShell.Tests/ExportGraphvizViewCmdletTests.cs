@@ -89,4 +89,20 @@ public sealed class ExportGraphvizViewCmdletTests : IDisposable
         Assert.Equal((byte)'N', bytes[2]);
         Assert.Equal((byte)'G', bytes[3]);
     }
+
+    [GraphvizNativeFact]
+    public void ExportGraphvizView_InputObjectJson_ReturnsXdotJson()
+    {
+        _powerShell.AddCommand("Export-GraphvizView")
+            .AddParameter("InputObject", BasicDot)
+            .AddParameter("Renderer", GraphvizLayoutEngine.Dot)
+            .AddParameter("As", ViewOutputKind.Json);
+
+        var result = _powerShell.Invoke();
+
+        Assert.Single(result);
+        var json = Assert.IsType<string>(result[0].BaseObject);
+        Assert.Contains("\"name\": \"G\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"edges\"", json, StringComparison.Ordinal);
+    }
 }
