@@ -21,43 +21,90 @@ public sealed class GraphvizXdotJsonSceneInterpreter
         var subgraphCount = GetOptionalInt32(root, "_subgraph_cnt") ?? 0;
         var bounds = ParseBounds(root);
         var commands = ParseDrawCommands(root, GraphDrawAttributeNames);
-        var objects = new List<SceneObject>();
-
-        if (root.TryGetProperty("objects", out var rawObjects))
-        {
-            if (rawObjects.ValueKind != JsonValueKind.Array)
-            {
-                throw new InvalidDataException("The 'objects' property must be a JSON array.");
-            }
-
-            var index = 0;
-            foreach (var rawObject in rawObjects.EnumerateArray())
-            {
-                var kind = index < subgraphCount ? SceneObjectKind.Subgraph : SceneObjectKind.Node;
-                objects.Add(ParseMetaObject(rawObject, kind));
-                index++;
-            }
-
-            if (subgraphCount > index)
-            {
-                throw new InvalidDataException("The '_subgraph_cnt' value exceeds the number of objects.");
-            }
-        }
-
-        if (root.TryGetProperty("edges", out var rawEdges))
-        {
-            if (rawEdges.ValueKind != JsonValueKind.Array)
-            {
-                throw new InvalidDataException("The 'edges' property must be a JSON array.");
-            }
-
-            foreach (var rawEdge in rawEdges.EnumerateArray())
-            {
-                objects.Add(ParseEdgeObject(rawEdge));
-            }
-        }
+        var rawObjects = ReadElementArray(root, "objects");
+        var rawEdges = ReadElementArray(root, "edges");
+        var objects = ParseSceneObjects(rawObjects, rawEdges, subgraphCount);
 
         return new GraphScene(name, bounds, commands, objects);
+    }
+
+    private static IReadOnlyList<SceneObject> ParseSceneObjects(
+        IReadOnlyList<JsonElement> rawObjects,
+        IReadOnlyList<JsonElement> rawEdges,
+        int subgraphCount)
+    {
+        if (subgraphCount > rawObjects.Count)
+        {
+            throw new InvalidDataException("The '_subgraph_cnt' value exceeds the number of objects.");
+        }
+
+        var state = new DocumentTraversalState(rawObjects, rawEdges, subgraphCount);
+
+        for (var index = 0; index < subgraphCount; index++)
+        {
+            VisitSubgraph(index, state);
+        }
+
+        for (var index = subgraphCount; index < rawObjects.Count; index++)
+        {
+            VisitNode(index, state);
+        }
+
+        for (var index = 0; index < rawEdges.Count; index++)
+        {
+            VisitEdge(index, state);
+        }
+
+        return state.SceneObjects;
+    }
+
+    private static void VisitSubgraph(int index, DocumentTraversalState state)
+    {
+        state.ValidateSubgraphIndex(index);
+        if (!state.VisitedObjectIndices.Add(index))
+        {
+            return;
+        }
+
+        var element = state.RawObjects[index];
+        state.SceneObjects.Add(ParseMetaObject(element, SceneObjectKind.Subgraph));
+
+        foreach (var childSubgraphIndex in ReadIndexList(element, "subgraphs"))
+        {
+            VisitSubgraph(childSubgraphIndex, state);
+        }
+
+        foreach (var nodeIndex in ReadIndexList(element, "nodes"))
+        {
+            VisitNode(nodeIndex, state);
+        }
+
+        foreach (var edgeIndex in ReadIndexList(element, "edges"))
+        {
+            VisitEdge(edgeIndex, state);
+        }
+    }
+
+    private static void VisitNode(int index, DocumentTraversalState state)
+    {
+        state.ValidateNodeIndex(index);
+        if (!state.VisitedObjectIndices.Add(index))
+        {
+            return;
+        }
+
+        state.SceneObjects.Add(ParseMetaObject(state.RawObjects[index], SceneObjectKind.Node));
+    }
+
+    private static void VisitEdge(int index, DocumentTraversalState state)
+    {
+        state.ValidateEdgeIndex(index);
+        if (!state.VisitedEdgeIndices.Add(index))
+        {
+            return;
+        }
+
+        state.SceneObjects.Add(ParseEdgeObject(state.RawEdges[index]));
     }
 
     private static SceneObject ParseMetaObject(JsonElement element, SceneObjectKind kind)
@@ -396,6 +443,47 @@ public sealed class GraphvizXdotJsonSceneInterpreter
         return new SceneRect(minX, minY, maxX - minX, maxY - minY);
     }
 
+    private static IReadOnlyList<JsonElement> ReadElementArray(JsonElement element, string propertyName)
+    {
+        if (!element.TryGetProperty(propertyName, out var property))
+        {
+            return Array.Empty<JsonElement>();
+        }
+
+        if (property.ValueKind != JsonValueKind.Array)
+        {
+            throw new InvalidDataException($"The '{propertyName}' property must be a JSON array.");
+        }
+
+        return property.EnumerateArray().ToArray();
+    }
+
+    private static IReadOnlyList<int> ReadIndexList(JsonElement element, string propertyName)
+    {
+        if (!element.TryGetProperty(propertyName, out var property))
+        {
+            return Array.Empty<int>();
+        }
+
+        if (property.ValueKind != JsonValueKind.Array)
+        {
+            throw new InvalidDataException($"The '{propertyName}' property must be a JSON array of integers.");
+        }
+
+        var result = new List<int>();
+        foreach (var item in property.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Number)
+            {
+                throw new InvalidDataException($"The '{propertyName}' property must be a JSON array of integers.");
+            }
+
+            result.Add(item.GetInt32());
+        }
+
+        return result;
+    }
+
     private static JsonElement GetRequiredArray(JsonElement element, string propertyName)
     {
         if (!element.TryGetProperty(propertyName, out var property) || property.ValueKind != JsonValueKind.Array)
@@ -470,5 +558,54 @@ public sealed class GraphvizXdotJsonSceneInterpreter
         public required SceneFont Font { get; set; }
 
         public required SceneStrokeStyle StrokeStyle { get; set; }
+    }
+
+    private sealed class DocumentTraversalState
+    {
+        public DocumentTraversalState(
+            IReadOnlyList<JsonElement> rawObjects,
+            IReadOnlyList<JsonElement> rawEdges,
+            int subgraphCount)
+        {
+            RawObjects = rawObjects;
+            RawEdges = rawEdges;
+            SubgraphCount = subgraphCount;
+        }
+
+        public IReadOnlyList<JsonElement> RawObjects { get; }
+
+        public IReadOnlyList<JsonElement> RawEdges { get; }
+
+        public int SubgraphCount { get; }
+
+        public HashSet<int> VisitedObjectIndices { get; } = [];
+
+        public HashSet<int> VisitedEdgeIndices { get; } = [];
+
+        public List<SceneObject> SceneObjects { get; } = [];
+
+        public void ValidateSubgraphIndex(int index)
+        {
+            if (index < 0 || index >= SubgraphCount || index >= RawObjects.Count)
+            {
+                throw new InvalidDataException($"The subgraph index '{index}' is out of range.");
+            }
+        }
+
+        public void ValidateNodeIndex(int index)
+        {
+            if (index < SubgraphCount || index >= RawObjects.Count)
+            {
+                throw new InvalidDataException($"The node index '{index}' is out of range.");
+            }
+        }
+
+        public void ValidateEdgeIndex(int index)
+        {
+            if (index < 0 || index >= RawEdges.Count)
+            {
+                throw new InvalidDataException($"The edge index '{index}' is out of range.");
+            }
+        }
     }
 }

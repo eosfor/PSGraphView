@@ -1,5 +1,60 @@
 # Architecture Decision Log
 
+## 2026-04-06 18:40:36 PDT
+
+Решение:
+Закрыть `Патч 2b` через рекурсивную сборку scene по membership-ссылкам `subgraphs`, `nodes`, `edges`, а не по одному только сырому порядку `objects`.
+
+Причины:
+- В `xdot_json` subgraph-структура задается не вложенными объектами, а индексными ссылками.
+- Если ориентироваться только на сырой порядок `objects`, scene будет случайно зависеть от текущего layout output, а не от самой структуры graph/subgraph.
+- Явная проверка membership-индексов делает ошибки payload-а видимыми сразу, а не превращает их в тихую потерю объектов.
+
+Телеметрия / наблюдения:
+- На cluster-примере `dot -Tjson` видно:
+  - root содержит `_subgraph_cnt: 2`;
+  - `objects[0]` для `cluster_outer` ссылается на child subgraph через `subgraphs: [1]`, на nodes через `nodes: [2, 3]` и на edge через `edges: [0]`;
+  - nested структура реально задается именно ссылками по индексам, а не JSON-вложенностью.
+- Добавлены tests:
+  - nested traversal c проверкой порядка `cluster_outer -> cluster_inner -> A -> B -> edge:0`
+  - failure path на битый membership-индекс
+- Проверки:
+  - `dotnet test tests/PSGraphView.Graphviz.Tests/PSGraphView.Graphviz.Tests.csproj --no-restore`
+  - результат: `11 passed`, `0 failed`, `0 skipped`
+  - `dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --no-restore --filter ExportGraphvizView`
+  - результат: `4 passed`, `0 failed`, `0 skipped`
+
+Следствие:
+- Interpreter слой больше не зависит от случайного порядка объектов в payload.
+- Следующий отдельный срез должен быть уже не про subgraph traversal, а про расширенный xdot coverage: `t`, `I`, record/HTML labels и `decorate=true`.
+
+## 2026-04-06 18:38:16 PDT
+
+Решение:
+Считать [Graphviz Library Manual, section 1.1.2 xdot](https://graphviz.org/pdf/libguide.pdf) основной внешней справкой по семантике xdot для interpreter-а в `PSGraphView`.
+
+Причины:
+- Документ прямо фиксирует набор xdot draw-операций и их смысл.
+- Он подтверждает, что все координаты и размеры в xdot задаются в points, что важно для нашего `scene -> Svg` этапа.
+- Он отдельно предупреждает, что Graphviz as a library не thread-safe; это совпало с нашим реальным падением native tests при параллельном запуске.
+- Документ также уточняет, что label-атрибуты не всегда ограничиваются чистым `T`: для `record`, HTML-like label и `decorate=true` там могут появляться и другие draw-операции.
+
+Телеметрия / наблюдения:
+- По `libguide.pdf` section `1.1.2 xdot`:
+  - xdot расширяет dot draw-атрибутами `draw`, `ldraw`, `hdraw`, `tdraw`, `hldraw`, `tldraw`;
+  - среди операций кроме нашего MVP-набора есть `t` и `I`;
+  - все coordinates and sizes use points.
+- По `libguide.pdf` section `1.2`:
+  - есть прямое предупреждение: `Using Graphviz as a library is not thread-safe.`
+- Это подтверждает уже пойманное нами реальное падение:
+  - `Assertion failed: (sym->id >= 0 && sym->id < topdictsize(obj)), function agxget, file attr.c, line 460`
+  - которое возникало при параллельном прогоне native Graphviz tests.
+
+Следствие:
+- В `plan.md` нужно держать прямую ссылку на `libguide.pdf`.
+- После закрытия текущего `2b` нужно отдельно решить, когда добавлять поддержку `t` и `I`.
+- Payload-ы с record/HTML labels и `decorate=true` нужно считать отдельным обязательным coverage-срезом перед завершением interpreter слоя.
+
 ## 2026-04-06 18:24:49 PDT
 
 Решение:

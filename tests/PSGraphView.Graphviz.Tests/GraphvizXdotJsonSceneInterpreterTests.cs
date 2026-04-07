@@ -170,6 +170,122 @@ public sealed class GraphvizXdotJsonSceneInterpreterTests
         Assert.Contains("operation 't'", exception.Message, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Interpret_TraversesNestedSubgraphsUsingMembershipReferences()
+    {
+        const string xdotJson = """
+        {
+          "name": "G",
+          "_subgraph_cnt": 2,
+          "objects": [
+            {
+              "_gvid": 0,
+              "name": "cluster_outer",
+              "subgraphs": [1],
+              "nodes": [2, 3],
+              "edges": [0],
+              "_draw_": [
+                { "op": "c", "grad": "none", "color": "#101010" },
+                { "op": "p", "points": [[0,0], [90,0], [90,90], [0,90]] }
+              ],
+              "_ldraw_": [
+                { "op": "F", "size": 14, "face": "Helvetica" },
+                { "op": "c", "grad": "none", "color": "#202020" },
+                { "op": "T", "pt": [45,80], "align": "c", "width": 40, "text": "Outer" }
+              ]
+            },
+            {
+              "_gvid": 1,
+              "name": "cluster_inner",
+              "nodes": [3],
+              "_draw_": [
+                { "op": "c", "grad": "none", "color": "#303030" },
+                { "op": "p", "points": [[10,10], [60,10], [60,60], [10,60]] }
+              ],
+              "_ldraw_": [
+                { "op": "F", "size": 12, "face": "Helvetica" },
+                { "op": "c", "grad": "none", "color": "#404040" },
+                { "op": "T", "pt": [35,52], "align": "c", "width": 36, "text": "Inner" }
+              ]
+            },
+            {
+              "_gvid": 2,
+              "name": "B",
+              "_draw_": [
+                { "op": "c", "grad": "none", "color": "#505050" },
+                { "op": "e", "rect": [70,20,10,8] }
+              ]
+            },
+            {
+              "_gvid": 3,
+              "name": "A",
+              "_draw_": [
+                { "op": "c", "grad": "none", "color": "#606060" },
+                { "op": "e", "rect": [30,30,10,8] }
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "_gvid": 0,
+              "tail": 3,
+              "head": 2,
+              "_draw_": [
+                { "op": "c", "grad": "none", "color": "#707070" },
+                { "op": "B", "points": [[40,28], [50,24], [58,22], [64,20]] }
+              ]
+            }
+          ]
+        }
+        """;
+
+        var scene = _interpreter.Interpret(xdotJson);
+
+        Assert.Equal(5, scene.Objects.Count);
+        Assert.Equal(
+            ["cluster_outer", "cluster_inner", "A", "B", "edge:0"],
+            scene.Objects.Select(item => item.Name ?? string.Empty).ToArray());
+        Assert.Equal(
+            [SceneObjectKind.Subgraph, SceneObjectKind.Subgraph, SceneObjectKind.Node, SceneObjectKind.Node, SceneObjectKind.Edge],
+            scene.Objects.Select(item => item.Kind).ToArray());
+
+        var outerLabel = Assert.IsType<TextCommand>(scene.Objects[0].Commands[1]);
+        Assert.Equal("Outer", outerLabel.Text);
+
+        var innerLabel = Assert.IsType<TextCommand>(scene.Objects[1].Commands[1]);
+        Assert.Equal("Inner", innerLabel.Text);
+
+        Assert.IsType<EllipseCommand>(Assert.Single(scene.Objects[2].Commands));
+        Assert.IsType<EllipseCommand>(Assert.Single(scene.Objects[3].Commands));
+        Assert.IsType<BezierCommand>(Assert.Single(scene.Objects[4].Commands));
+    }
+
+    [Fact]
+    public void Interpret_ThrowsForOutOfRangeMembershipReference()
+    {
+        const string xdotJson = """
+        {
+          "name": "G",
+          "_subgraph_cnt": 1,
+          "objects": [
+            {
+              "_gvid": 0,
+              "name": "cluster_outer",
+              "nodes": [3]
+            },
+            {
+              "_gvid": 1,
+              "name": "A"
+            }
+          ]
+        }
+        """;
+
+        var exception = Assert.Throws<InvalidDataException>(() => _interpreter.Interpret(xdotJson));
+
+        Assert.Contains("node index '3' is out of range", exception.Message, StringComparison.Ordinal);
+    }
+
 }
 
 [Collection(GraphvizNativeCollection.Name)]

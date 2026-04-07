@@ -40,6 +40,11 @@
   - покрыты top-level graph, `objects`, `edges` и draw-атрибуты `_draw_`, `_ldraw_`, `_hdraw_`, `_tdraw_`, `_hldraw_`, `_tldraw_`
   - для MVP поддержаны `E/e`, `P/p`, `B/b`, `L`, `T`, `c/C`, `F`, `S`
   - добавлены tests на синтетические и native `xdot_json` payload-ы
+- `Патч 2b` закрыт:
+  - interpreter теперь реально обходит membership-ссылки `subgraphs`, `nodes`, `edges`
+  - nested cluster/subgraph payload-ы не зависят от сырого порядка объектов в JSON
+  - добавлена явная проверка на битые membership-индексы
+  - добавлены tests на nested subgraph traversal
 - runtime bundle на стороне `graphviz` подтвержден на:
   - `linux-x64`
   - `osx-arm64`
@@ -52,6 +57,7 @@
 
 Не завершено:
 - полный interpreter `xdot_json -> scene`, включая рекурсивный обход вложенных `subgraphs`
+- расширенный interpreter coverage для `t`, `I`, record/HTML labels и `decorate=true`
 - native `scene -> Svg`
 - native `scene -> Png/Jpg`
 - переключение `Export-GraphvizView -As Svg|Png|Jpg` на native path
@@ -78,6 +84,8 @@
 
 ## Scene Model
 
+- Основная справка по семантике xdot для этого плана:
+  - [Graphviz Library Manual, section 1.1.2 xdot](https://graphviz.org/pdf/libguide.pdf)
 - Между `xdot_json` и renderer backend вводим normalized scene model.
 - Renderer не должен исполнять сырую `xdot` state-machine.
 - Interpreter может держать текущий state (`pen`, `fill`, `font`, `style`), но наружу должен отдавать уже нормализованные draw-команды.
@@ -126,6 +134,11 @@
   - `_tldraw_`
 - у top-level graph есть `objects`, у вложенных graph/subgraph есть `subgraphs`.
 - interpreter должен уметь обходить эту структуру и собирать scene по graph/node/edge/subgraph объектам, а не только читать один список операций.
+- по `libguide.pdf`:
+  - все координаты и размеры в xdot задаются в points;
+  - `T` обычно живет в label-атрибутах;
+  - при `shape=record`, HTML-like label и `decorate=true` в label-атрибутах могут появляться и нетекстовые draw-операции;
+  - кроме MVP-набора есть как минимум `t` и `I`, их нужно учитывать как отдельные follow-up операции, а не забытые edge-case.
 
 ## Последовательность патчей
 
@@ -168,8 +181,14 @@
 - Добавить unit tests на маленьких synthetic и native `xdot_json` payload-ах.
 
 Патч 2b. Доработка interpreter-а
+Статус:
+- выполнен в текущей ветке
 - Добрать рекурсивный обход вложенных `subgraphs`, если они присутствуют в payload.
 - Добавить tests на graph с cluster/subgraph, чтобы scene не теряла group-level draw-команды.
+
+Патч 2c. Расширенный xdot coverage
+- Решить, когда добавлять поддержку `t` и `I`.
+- Проверить payload-ы с record/HTML labels и `decorate=true`, где label draw-атрибуты могут содержать не только `T`.
 - После этого считать interpreter слой достаточно полным для перехода к `Svg`.
 
 Патч 3. Svg renderer
@@ -239,10 +258,11 @@
 - Если пропустить стабилизацию test harness, можно долго чинить не продуктовый код, а окружение тестов.
 - Если жестко привязать первый `Svg` milestone к `SkiaSharp`, можно искусственно увеличить объем первого рабочего среза.
 - Upstream Graphviz native path в тестах сейчас нельзя считать безопасным для параллельного запуска нескольких сессий в одном процессе.
+- По `libguide.pdf` Graphviz as a library не thread-safe, значит parallel native usage нужно считать отдельным риском до явного доказательства обратного.
 
 ## Следующий шаг
 
 Следующий практический шаг в этом репозитории:
-- добрать `Патч 2b`: рекурсивный обход вложенных `subgraphs` и coverage на cluster/subgraph payload-ах;
+- добрать `Патч 2c`: расширенный xdot coverage для `t`, `I`, record/HTML labels и `decorate=true`;
 - после этого переходить к `scene -> Svg`;
 - держать `MSAGL` вне этого изменения.
