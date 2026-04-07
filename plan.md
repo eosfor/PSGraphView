@@ -5,8 +5,17 @@
 Довести `PSGraphView` до полноценного native Graphviz renderer path:
 - вход: DOT из pipeline (`Export-Graph -Format Graphviz | Export-GraphvizView`) или DOT-файл;
 - layout и scene: `libpsgv` (`DOT -> xdot_json`);
-- рендер: `PSGraphView` (`xdot_json -> normalized scene -> SkiaSharp -> Svg/Png/Jpg`);
+- рендер: `PSGraphView` (`xdot_json -> normalized scene -> Svg/Png/Jpg`);
 - без обязательной установки полного Graphviz на машине пользователя.
+
+Для первого полноценного результата:
+- `Svg` считать отдельным milestone и не завязывать его жестко на `SkiaSharp`.
+- backend для `Svg` оставить implementation detail.
+- `SkiaSharp` рассматривать как основной кандидат для raster path и как допустимый backend для будущих renderer-ов, но не как обязательное условие для первого `Svg`.
+
+Ограничение scope для этого плана:
+- `MSAGL` остается на текущем собственном renderer path и не переводится на `SkiaSharp`.
+- `DSM` можно рассматривать как отдельный кандидат на будущий переход к `SkiaSharp`, но это не должно смешиваться с первым Graphviz-срезом.
 
 ## Текущее состояние
 
@@ -20,6 +29,12 @@
 - `Export-GraphvizView -As Json` уже идет по native пути `DOT -> libpsgv -> xdot_json`.
 - publish уже умеет скачивать bundled runtime из private release-ов `eosfor/graphviz-psgv` и раскладывать его в `runtimes/<rid>/native`.
 - `PSGraphView.Graphviz` уже умеет грузить bundled `libpsgv`.
+- `Патч 0` закрыт:
+  - native test harness для `PSGraphView.Graphviz.Tests` работает
+  - cmdlet-level native test для `Export-GraphvizView -As Json` больше не в skip
+- базовый `Патч 1` закрыт:
+  - scene model введена в `PSGraphView.Graphviz`
+  - добавлены tests на форму модели и полиморфную сериализацию
 - runtime bundle на стороне `graphviz` подтвержден на:
   - `linux-x64`
   - `osx-arm64`
@@ -32,8 +47,10 @@
 
 Не завершено:
 - interpreter `xdot_json -> scene`
-- `SkiaSharp` renderer `scene -> Svg/Png/Jpg`
+- native `scene -> Svg`
+- native `scene -> Png/Jpg`
 - переключение `Export-GraphvizView -As Svg|Png|Jpg` на native path
+- явная проверка, что после переключения путь не зависит от системного `dot`
 
 ## Архитектура
 
@@ -43,17 +60,20 @@
 - `PSGraphView.Graphviz` вызывает `libpsgv`.
 - `libpsgv` возвращает `xdot_json`.
 - interpreter в `PSGraphView` превращает `xdot_json` в managed scene model.
-- renderer на `SkiaSharp` рисует scene model в `Svg/Png/Jpg`.
+- renderer backend превращает scene model в `Svg/Png/Jpg`.
 
 Граница ответственности:
 - `PSGraph`: доменная модель графа и DOT-export.
 - `libpsgv`: `DOT -> layout -> xdot_json`.
 - `PSGraphView.Graphviz`: native interop и чтение runtime bundle.
-- новый renderer слой в `PSGraphView`: `xdot_json -> scene -> SkiaSharp`.
+- первый renderer слой для Graphviz логично держать в `PSGraphView.Graphviz`, а не в отдельном новом проекте.
+- новый renderer слой в `PSGraphView`: `xdot_json -> scene -> Svg/Png/Jpg`.
+- `PSGraphView.Msagl`: остается на своем текущем SVG renderer path.
+- `PSGraphView.Dsm`: текущий SVG exporter остается рабочим; возможный `SkiaSharp` path идет отдельным этапом после стабилизации Graphviz.
 
 ## Scene Model
 
-- Между `xdot_json` и `SkiaSharp` вводим normalized scene model.
+- Между `xdot_json` и renderer backend вводим normalized scene model.
 - Renderer не должен исполнять сырую `xdot` state-machine.
 - Interpreter может держать текущий state (`pen`, `fill`, `font`, `style`), но наружу должен отдавать уже нормализованные draw-команды.
 
@@ -91,14 +111,46 @@
   - gradients
   - более экзотические стили
 
+Структура `xdot_json`, которую нужно учитывать сразу:
+- draw-команды живут не только как набор op-кодов, но и внутри атрибутов:
+  - `_draw_`
+  - `_ldraw_`
+  - `_hdraw_`
+  - `_tdraw_`
+  - `_hldraw_`
+  - `_tldraw_`
+- у top-level graph есть `objects`, у вложенных graph/subgraph есть `subgraphs`.
+- interpreter должен уметь обходить эту структуру и собирать scene по graph/node/edge/subgraph объектам, а не только читать один список операций.
+
 ## Последовательность патчей
 
+Правило завершения патча:
+- после каждого патча нужно делать узкую, но реальную проверку именно затронутого поведения;
+- патч считается удачным только если эта проверка прошла и не выявила новый blocker в измененном срезе;
+- удачный патч нужно завершать отдельным commit, а не копить несколько уже проверенных патчей в рабочем дереве;
+- если проверка не прошла, патч не считается завершенным и не должен фиксироваться как завершенный commit.
+
+Патч 0. Стабилизация проверки и тестового контура
+Статус:
+- выполнен в текущей ветке
+- Починить локальную сборку тестовой `libpsgv` из исходников `graphviz` для `PSGraphView.Graphviz.Tests`.
+- Закрыть текущий blocker с include-path до `lib/cdt` и соседних include-dir.
+- Добиться, чтобы native tests падали только по реальным проблемам interop/layout, а не по проблемам test harness.
+
 Патч 1. Scene model
-- Добавить в `PSGraphView.Graphviz` или отдельный renderer-проект базовые scene types.
-- Добавить unit tests на сериализованную/ожидаемую модель команд.
+Статус:
+- базовый срез выполнен в текущей ветке
+- Добавить базовые scene types прямо в `src/PSGraphView.Graphviz`.
+- Не заводить отдельный renderer-проект на первом шаге без явной необходимости.
+- Добавить unit tests на ожидаемую модель команд и state.
 
 Патч 2. Xdot interpreter
 - Реализовать `xdot_json -> normalized scene`.
+- Сразу покрыть обход структуры документа:
+  - top-level graph
+  - `objects`
+  - `subgraphs`
+  - draw-атрибуты `_draw_`, `_ldraw_`, `_hdraw_`, `_tdraw_`, `_hldraw_`, `_tldraw_`
 - Начать с поддержки:
   - ellipse
   - polygon
@@ -109,11 +161,14 @@
 - Добавить unit tests на маленьких реальных `xdot_json` payload-ах.
 
 Патч 3. Svg renderer
-- Реализовать `scene -> Svg` через `SkiaSharp`.
+- Реализовать `scene -> Svg`.
+- Не считать `SkiaSharp` обязательным для этого патча.
 - Подключить его в `Export-GraphvizView -As Svg`.
 - Process fallback оставить временно только для `Png/Jpg`, если это ускоряет доставку первого результата.
 
 Патч 4. Raster renderer
+- Выбрать raster backend после появления стабильного `Svg` path.
+- Базовый кандидат: `SkiaSharp`.
 - Реализовать `scene -> Png/Jpg`.
 - Переключить `Export-GraphvizView -As Png|Jpg` на тот же native path.
 
@@ -127,6 +182,16 @@
   - сначала subgraph
   - затем full graph
 
+Патч 6. Проверка независимости от системного Graphviz
+- Добавить тесты, подтверждающие, что после переключения `Svg/Png/Jpg` идут не через внешний `dot`.
+- Минимум один тест должен падать, если реализация снова начнет звать process renderer.
+- Практический критерий:
+  - отсутствие `dot` в `PATH` или намеренно сломанный путь к `dot` не должны ломать native `Svg/Png/Jpg` path.
+
+Патч 7. Отдельный follow-up по DSM
+- После стабилизации Graphviz path оценить, есть ли смысл перевести `PSGraphView.Dsm` на `SkiaSharp`.
+- Рассматривать это как отдельную задачу с отдельными тестами и без затрагивания `MSAGL`.
+
 ## Основные проверки
 
 Минимальные обязательные проверки:
@@ -134,15 +199,36 @@
 - `Export-GraphvizView -As Svg` отдает валидный SVG на простом DOT
 - `Export-GraphvizView -As Png` и `-As Jpg` создают не пустые бинарные файлы
 - bundled runtime реально используется, без системного Graphviz
+- `Svg/Png/Jpg` после переключения не требуют системный `dot`
+- native tests на `PSGraphView.Graphviz.Tests` проходят через рабочий test harness, а не падают на сборке вспомогательной библиотеки
+
+## Резервный путь
+
+В `graphviz` уже есть отдельный native ABI для render path из нейтрального DTO:
+- `psgv_render_graph`
+- `psgv_render_graph_once`
+- `svg/png/jpg` как primary format
+
+Это не основной путь для текущего этапа.
+
+Его стоит рассматривать только как запасной вариант, если:
+- interpreter `xdot_json -> scene` начнет резко разрастаться;
+- точность или стоимость поддержки окажутся хуже ожидаемого;
+- понадобится временно получить native `Svg/Png/Jpg` быстрее, чем будет готов полноценный managed scene path.
 
 ## Риски
 
 - `xdot_json` содержит state-операции, поэтому нельзя строить renderer прямо поверх raw JSON.
 - Текст и шрифты могут визуально отличаться между платформами, даже если layout уже посчитан.
 - На первом шаге не нужно пытаться закрыть весь визуальный язык Graphviz; лучше сначала стабилизировать основной набор примитивов.
+- Не нужно смешивать в одну серию патчей Graphviz renderer path и возможную миграцию `DSM` на `SkiaSharp`.
+- Не нужно трогать `MSAGL`, пока для него нет отдельной причины и отдельного плана миграции.
+- Если пропустить стабилизацию test harness, можно долго чинить не продуктовый код, а окружение тестов.
+- Если жестко привязать первый `Svg` milestone к `SkiaSharp`, можно искусственно увеличить объем первого рабочего среза.
 
 ## Следующий шаг
 
 Следующий практический шаг в этом репозитории:
-- ввести normalized scene model;
-- затем сделать первый interpreter `xdot_json -> scene`.
+- сделать первый interpreter `xdot_json -> scene` поверх уже введенной scene model;
+- начать с обхода `objects/subgraphs` и draw-атрибутов `_draw_`, `_ldraw_`, `_hdraw_`, `_tdraw_`, `_hldraw_`, `_tldraw_`;
+- держать `MSAGL` вне этого изменения.
