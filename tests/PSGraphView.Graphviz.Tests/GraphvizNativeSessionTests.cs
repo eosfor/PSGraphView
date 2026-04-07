@@ -134,8 +134,7 @@ public sealed class GraphvizNativeSessionTests
             "-fPIC",
             "-o", Quote(outputPath),
             Quote(Path.Combine(graphvizSourceDirectory, "lib", "psgv", "psgv.c")),
-            "-I" + Quote(Path.Combine(graphvizSourceDirectory, "lib")),
-            "-I" + Quote(Path.Combine(graphvizSourceDirectory, "lib", "psgv")),
+            BuildIncludeArguments(graphvizSourceDirectory, graphvizPrefix),
             "-L" + Quote(Path.Combine(graphvizPrefix, "lib")),
             "-lgvc",
             "-lcgraph",
@@ -147,6 +146,29 @@ public sealed class GraphvizNativeSessionTests
 
         RunProcess("clang", arguments);
         return outputPath;
+    }
+
+    private static string BuildIncludeArguments(string graphvizSourceDirectory, string graphvizPrefix)
+    {
+        var includeDirectories = new[]
+        {
+            Path.Combine(graphvizSourceDirectory, "lib"),
+            Path.Combine(graphvizSourceDirectory, "lib", "psgv"),
+            Path.Combine(graphvizSourceDirectory, "lib", "common"),
+            Path.Combine(graphvizSourceDirectory, "lib", "cdt"),
+            Path.Combine(graphvizSourceDirectory, "lib", "cgraph"),
+            Path.Combine(graphvizSourceDirectory, "lib", "gvc"),
+            Path.Combine(graphvizSourceDirectory, "lib", "pathplan"),
+            Path.Combine(graphvizSourceDirectory, "lib", "xdot"),
+            Path.Combine(graphvizPrefix, "include"),
+            Path.Combine(graphvizPrefix, "include", "graphviz")
+        };
+
+        return string.Join(' ',
+            includeDirectories
+                .Where(Directory.Exists)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Select(path => "-I" + Quote(path)));
     }
 
     private static string RunProcess(string fileName, string arguments)

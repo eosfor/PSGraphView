@@ -93,6 +93,8 @@ public sealed class ExportGraphvizViewCmdletTests : IDisposable
     [GraphvizNativeFact]
     public void ExportGraphvizView_InputObjectJson_ReturnsXdotJson()
     {
+        GraphvizNativeTestEnvironment.EnsureNativeLibraryAvailable();
+
         _powerShell.AddCommand("Export-GraphvizView")
             .AddParameter("InputObject", BasicDot)
             .AddParameter("Renderer", GraphvizLayoutEngine.Dot)
