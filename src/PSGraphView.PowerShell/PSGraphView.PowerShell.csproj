@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>PSGraphView.PowerShell</RootNamespace>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
     <IncludeGraphvizRuntimeBundle Condition="'$(IncludeGraphvizRuntimeBundle)' == ''">false</IncludeGraphvizRuntimeBundle>
     <GraphvizRuntimeRepository Condition="'$(GraphvizRuntimeRepository)' == ''">eosfor/graphviz-psgv</GraphvizRuntimeRepository>
     <GraphvizRuntimeVersion Condition="'$(GraphvizRuntimeVersion)' == ''"></GraphvizRuntimeVersion>

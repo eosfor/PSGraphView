@@ -1,5 +1,43 @@
 # Architecture Decision Log
 
+## 2026-04-06 21:47:48 PDT
+
+Решение:
+Закрыть `Патч 4a` через два изменения:
+- включить копирование lockfile assemblies в output модуля PowerShell;
+- добавить явный native loader для `SkiaSharp`, который ищет `libSkiaSharp` в root module path и в `runtimes/<rid>/native`.
+
+Причины:
+- Для реального PowerShell-модуля было недостаточно того, что raster renderer работает в test host и direct `.NET` runner.
+- Standalone import через `PSGraphView.psd1` требует, чтобы модуль сам подтягивал и managed `SkiaSharp.dll`, и native `libSkiaSharp`.
+- Без этого `Png/Jpg` оставались формально реализованными, но не закрывали настоящий пользовательский сценарий.
+
+Телеметрия / наблюдения:
+- Добавлен loader:
+  - [SkiaSharpNativeLoader.cs](/Users/andrei/repo/PSGraphView/src/PSGraphView.Graphviz/SkiaSharpNativeLoader.cs)
+- Обновлен PowerShell module build output:
+  - [PSGraphView.PowerShell.csproj](/Users/andrei/repo/PSGraphView/src/PSGraphView.PowerShell/PSGraphView.PowerShell.csproj)
+- Обновлены standalone tests:
+  - [ExportGraphvizViewCmdletTests.cs](/Users/andrei/repo/PSGraphView/tests/PSGraphView.PowerShell.Tests/ExportGraphvizViewCmdletTests.cs)
+- После исправления в build output появились:
+  - `SkiaSharp.dll`
+  - `libSkiaSharp.dylib`
+  - `runtimes/osx/native/libSkiaSharp.dylib`
+- Проверки:
+  - `PSGRAPHVIEW_GRAPHVIZ_SOURCE_DIR=/Users/andrei/.codex/worktrees/f5d8/graphviz dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --filter ExportGraphvizView`
+  - результат: `7 passed`, `0 failed`, `0 skipped`
+  - `dotnet test tests/PSGraphView.Graphviz.Tests/PSGraphView.Graphviz.Tests.csproj --filter GraphSceneRasterRenderer`
+  - результат: `2 passed`, `0 failed`, `0 skipped`
+  - отдельная standalone-проверка:
+    - `pwsh -NoProfile`
+    - `Import-Module /Users/andrei/repo/PSGraphView/src/PSGraphView.PowerShell/bin/Debug/net9.0/PSGraphView.psd1`
+    - `Export-GraphvizView -As Png|Jpg`
+    - успешно созданы `wiki-vote-standalone-module.png` и `wiki-vote-standalone-module.jpg` даже при битом `PSGRAPHVIEW_GRAPHVIZ_DOT_PATH`
+
+Следствие:
+- Native raster path теперь закрыт не только по коду и unit/cmdlet tests, но и по standalone PowerShell module path через `psd1`.
+- Следующий незакрытый шаг уже действительно про end-to-end сценарий без системного `dot` и без установленного системного Graphviz.
+
 ## 2026-04-06 21:41:30 PDT
 
 Решение:

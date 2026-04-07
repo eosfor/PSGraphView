@@ -7,6 +7,7 @@ public sealed class GraphSceneRasterRenderer
     public byte[] Render(GraphScene scene, RasterOutputKind outputKind)
     {
         ArgumentNullException.ThrowIfNull(scene);
+        SkiaSharpNativeLoader.EnsureLoaded();
 
         var bounds = scene.Bounds ?? new SceneRect(0, 0, 0, 0);
         var width = Math.Max(1, (int)Math.Ceiling(bounds.Width));

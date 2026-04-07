@@ -43,6 +43,7 @@ Bundled Graphviz runtime:
 - `Export-GraphvizView -As Json` already uses this native path and returns the Graphviz JSON layout payload with draw commands.
 - `Export-GraphvizView -As Svg` already uses the native path `DOT -> Graphviz JSON -> scene -> Svg`.
 - `Export-GraphvizView -As Png|Jpg` already uses the native path `DOT -> Graphviz JSON -> scene -> raster`.
+- standalone module import through `PSGraphView.psd1` now also works for raster output in a fresh `pwsh -NoProfile` session.
 - `dotnet publish src/PSGraphView.PowerShell/PSGraphView.PowerShell.csproj` can stage bundled native Graphviz runtimes under `runtimes/<rid>/native` when these MSBuild properties are set:
   - `IncludeGraphvizRuntimeBundle=true`
   - `GraphvizRuntimeVersion=<psgv runtime version>`

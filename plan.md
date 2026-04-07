@@ -78,13 +78,9 @@
 
 Частично завершено:
 - `WikiVote` уже можно прогонять до финального native `Svg/Png/Jpg`, но полноценный test contour для сценария "машина без системного Graphviz" еще не закрыт.
-- Для raster path есть отдельный module/runtime gap:
-  - direct `.NET` runner уже может собирать `Png/Jpg`
-  - но обычный `Import-Module ...psd1` пока не поднимает `SkiaSharp` runtime достаточно надежно для standalone PowerShell-сценария
 
 Не завершено:
 - отдельный follow-up на image-операции, если Graphviz JSON plugin начнет выдавать `xd_image`
-- packaging/runtime patch для `SkiaSharp` в обычном PowerShell module path через `psd1`
 - отдельный end-to-end test contour для сценария "на машине нет системного `dot` и нет установленного системного Graphviz"
 
 ## Архитектура
@@ -240,12 +236,16 @@
 - Это локальная страховка для уже готового `Svg`, а не финальная проверка полной автономности решения.
 
 Патч 4. Raster renderer
+- Статус:
+  - выполнен в текущей ветке
 - Выбрать raster backend после появления стабильного `Svg` path.
 - Базовый кандидат: `SkiaSharp`.
 - Реализовать `scene -> Png/Jpg`.
 - Переключить `Export-GraphvizView -As Png|Jpg` на тот же native path.
 
 Патч 4a. Модульный runtime path для raster
+- Статус:
+  - выполнен в текущей ветке
 - Закрыть standalone PowerShell-сценарий через `Import-Module ...psd1` для `Png/Jpg`.
 - Добиться, чтобы `SkiaSharp.dll` и native `libSkiaSharp` корректно подхватывались в модульном layout, а не только в test host или direct `.NET` runner.
 - После этого повторно проверить:
