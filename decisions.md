@@ -1,5 +1,35 @@
 # Architecture Decision Log
 
+## 2026-04-06 21:41:30 PDT
+
+Решение:
+Добавить в план отдельный ближний patch на module/runtime loading для raster path через `Import-Module ...psd1`.
+
+Причины:
+- Сам managed raster renderer уже работает, но этого недостаточно для реального PowerShell-модуля.
+- Сейчас есть разница между сценариями:
+  - direct `.NET` runner может собрать `Png/Jpg`
+  - а standalone `pwsh` через импорт модуля по `psd1` упирается в загрузку `SkiaSharp`
+- Значит это нужно считать не абстрактной e2e-полировкой, а отдельным техническим gap в module packaging/runtime layout.
+
+Телеметрия / наблюдения:
+- При запуске через временный direct `.NET` runner `WikiVote` raster уже собирается:
+  - [wiki-vote-psgraphview-native.png](/var/folders/1j/j11fjyg16ys35ssgq1kz8d6m0000gn/T/PSGraphView-wikivote-compare/wiki-vote-psgraphview-native.png)
+  - [wiki-vote-psgraphview-native.jpg](/var/folders/1j/j11fjyg16ys35ssgq1kz8d6m0000gn/T/PSGraphView-wikivote-compare/wiki-vote-psgraphview-native.jpg)
+- При standalone `pwsh` через импорт модуля по `psd1` всплывает runtime error:
+  - `The type initializer for 'SkiaSharp.SKImageInfo' threw an exception`
+  - inner error: `Unable to load shared library 'libSkiaSharp'`
+- Наблюдение по layout output:
+  - это не похоже на проблему scene/interpreter-а
+  - это похоже именно на проблему раскладки native dependency для модульного сценария
+
+Следствие:
+- Перед полными end-to-end проверками нужно отдельно закрыть module/runtime loading для `SkiaSharp`.
+- Целевой сценарий проверки должен быть именно таким:
+  - `pwsh -NoProfile`
+  - `Import-Module <path-to-PSGraphView.psd1>`
+  - `Export-GraphvizView -As Png|Jpg`
+
 ## 2026-04-06 21:29:35 PDT
 
 Решение:

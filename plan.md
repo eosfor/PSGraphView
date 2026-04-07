@@ -78,9 +78,13 @@
 
 Частично завершено:
 - `WikiVote` уже можно прогонять до финального native `Svg/Png/Jpg`, но полноценный test contour для сценария "машина без системного Graphviz" еще не закрыт.
+- Для raster path есть отдельный module/runtime gap:
+  - direct `.NET` runner уже может собирать `Png/Jpg`
+  - но обычный `Import-Module ...psd1` пока не поднимает `SkiaSharp` runtime достаточно надежно для standalone PowerShell-сценария
 
 Не завершено:
 - отдельный follow-up на image-операции, если Graphviz JSON plugin начнет выдавать `xd_image`
+- packaging/runtime patch для `SkiaSharp` в обычном PowerShell module path через `psd1`
 - отдельный end-to-end test contour для сценария "на машине нет системного `dot` и нет установленного системного Graphviz"
 
 ## Архитектура
@@ -241,6 +245,14 @@
 - Реализовать `scene -> Png/Jpg`.
 - Переключить `Export-GraphvizView -As Png|Jpg` на тот же native path.
 
+Патч 4a. Модульный runtime path для raster
+- Закрыть standalone PowerShell-сценарий через `Import-Module ...psd1` для `Png/Jpg`.
+- Добиться, чтобы `SkiaSharp.dll` и native `libSkiaSharp` корректно подхватывались в модульном layout, а не только в test host или direct `.NET` runner.
+- После этого повторно проверить:
+  - `Export-GraphvizView -As Png`
+  - `Export-GraphvizView -As Jpg`
+  - запуск из обычного `pwsh -NoProfile` через импорт модуля по `psd1`
+
 Патч 5. End-to-end сценарии
 - Добавить быстрый smoke path:
   - inline DOT
@@ -276,6 +288,7 @@
 - `Export-GraphvizView -As Svg` отдает валидный SVG на простом DOT
 - `Export-GraphvizView -As Svg` не зависит от внешнего `dot`
 - `Export-GraphvizView -As Png` и `-As Jpg` создают валидные бинарные файлы
+- `Export-GraphvizView -As Png` и `-As Jpg` работают в обычном standalone PowerShell module path через `psd1`
 - bundled runtime реально используется, без системного Graphviz
 - целевой end-to-end сценарий проходит на машине без системного `dot` и без установленного системного Graphviz
 - для raster path есть отдельная телеметрия по расхождению между оригинальным `dot` output и managed raster output
