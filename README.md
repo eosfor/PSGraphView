@@ -58,6 +58,12 @@ Demo scripts:
 - `demos/Compare-WikiVote-GraphvizSvg.ps1` builds or reuses one DOT file, writes both `dot -Tsvg` and native `Export-GraphvizView -As Svg` outputs, and saves warm/cold timing results to JSON.
 - For local native Graphviz benchmarking without a bundled runtime, pass `-GraphvizNativeLibraryPath <path-to-libpsgv>` or set `PSGRAPHVIEW_PSGV_LIBRARY_PATH`.
 
+No-system-Graphviz smoke:
+- `eng/Test-GraphvizNoSystemSmoke.ps1` validates `Json|Svg|Png|Jpg` through `PSGraphView.psd1` while the external `dot` path is intentionally broken.
+- For local development against an explicit native library, run `eng/Test-GraphvizNoSystemSmoke.ps1 -ModuleManifestPath <path-to-PSGraphView.psd1> -GraphvizNativeLibraryPath <path-to-libpsgv>`.
+- To emulate a bundled module layout locally without publishing, run `eng/Invoke-LocalNoSystemGraphvizSmoke.ps1 -GraphvizNativeLibraryPath <path-to-libpsgv>`.
+- Cross-platform CI smoke for the bundled module layout lives in `.github/workflows/no-system-graphviz.yml`.
+
 Workspace:
 - Open `/Users/andrei/repo/psgraph-visualization.code-workspace` to work on `PSGraph` and `PSGraphView` side by side in VS Code.
 

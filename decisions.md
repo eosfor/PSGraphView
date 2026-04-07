@@ -1,5 +1,39 @@
 # Architecture Decision Log
 
+## 2026-04-06 23:03:06 PDT
+
+Решение:
+Добавить локальный helper для staged bundled-layout smoke, чтобы можно было прогонять publish-like сценарий без приватного runtime token и без ожидания `GitHub Actions`.
+
+Причины:
+- В текущем локальном окружении нет `PSGRAPHVIEW_GITHUB_TOKEN` и нет `GITHUB_TOKEN`, поэтому отсюда нельзя воспроизвести полный `dotnet publish` с загрузкой приватного Graphviz runtime bundle.
+- При этом перед реальным CI-прогоном полезно иметь локальную проверку именно bundled-path, а не только сценарий с явным `PSGRAPHVIEW_PSGV_LIBRARY_PATH`.
+- Временный staged module layout с `libpsgv` в `runtimes/<rid>/native` достаточно близок к publish-like раскладке, чтобы поймать ошибки поиска native runtime на стороне `psd1`-импорта.
+
+Телеметрия / наблюдения:
+- Добавлен helper:
+  - [Invoke-LocalNoSystemGraphvizSmoke.ps1](/Users/andrei/repo/PSGraphView/eng/Invoke-LocalNoSystemGraphvizSmoke.ps1)
+- Добавлена документация:
+  - [README.md](/Users/andrei/repo/PSGraphView/README.md)
+- Добавлен ignore для локальных smoke-артефактов:
+  - [.gitignore](/Users/andrei/repo/PSGraphView/.gitignore)
+- Локальная bundled-layout проверка пройдена:
+  - `pwsh -NoLogo -NoProfile -File ./eng/Invoke-LocalNoSystemGraphvizSmoke.ps1 -GraphvizNativeLibraryPath /var/folders/1j/j11fjyg16ys35ssgq1kz8d6m0000gn/T/psgraphview-graphviz-native/libpsgv.dylib -OutputDirectory ./artifacts/local-bundled-no-system-graphviz-smoke`
+  - результат: `Graphviz no-system smoke passed`
+  - результат: `Local bundled no-system-graphviz smoke passed`
+  - артефакт результата: `artifacts/local-bundled-no-system-graphviz-smoke/smoke-results.json`
+- Наблюдение по окружению:
+  - `PSGRAPHVIEW_GITHUB_TOKEN`: не задан
+  - `GITHUB_TOKEN`: не задан
+
+Следствие:
+- Теперь у нас есть два локальных уровня проверки `Патча 6`:
+  - explicit native library path через `Test-GraphvizNoSystemSmoke.ps1`
+  - bundled-layout emulation через `Invoke-LocalNoSystemGraphvizSmoke.ps1`
+- Следующий внешний шаг все еще тот же:
+  - реальный прогон `GitHub Actions` workflow
+  - затем разбор cross-platform результатов
+
 ## 2026-04-06 22:54:10 PDT
 
 Решение:
