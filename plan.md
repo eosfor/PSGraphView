@@ -268,6 +268,20 @@
 - Добавить более жесткие тесты и smoke-сценарии для режима, где на машине нет системного `dot` и нет установленного системного Graphviz.
 - Эти проверки должны подтверждать, что решение опирается только на bundled/runtime `libpsgv` и managed renderer-ы.
 - Минимум один тест должен падать, если реализация снова начнет звать process renderer или требовать системный Graphviz.
+- Сначала подготовить один общий smoke-скрипт для сценария:
+  - `pwsh -NoProfile`
+  - `Import-Module <path-to-PSGraphView.psd1>`
+  - `Export-GraphvizView -As Json|Svg|Png|Jpg`
+  - сломанный `PSGRAPHVIEW_GRAPHVIZ_DOT_PATH`
+  - отсутствие `dot` в `PATH`
+- Затем вынести этот сценарий в `GitHub Actions` matrix:
+  - `macos`
+  - `linux`
+  - `windows`
+  - без установки системного `graphviz`
+  - с publish-like или module-like layout, максимально близким к реальному пользовательскому запуску
+- PR-level CI лучше держать на коротком smoke-наборе.
+- Более тяжелые compare/benchmark сценарии лучше оставить отдельно, чтобы не раздувать обычный pipeline.
 - Отдельно добавить compare-step для raster output:
   - сравнить оригинальный raster от `dot` и managed raster от `PSGraphView`
   - зафиксировать численную метрику расхождения, а не только визуальное сравнение
@@ -291,6 +305,7 @@
 - `Export-GraphvizView -As Png` и `-As Jpg` работают в обычном standalone PowerShell module path через `psd1`
 - bundled runtime реально используется, без системного Graphviz
 - целевой end-to-end сценарий проходит на машине без системного `dot` и без установленного системного Graphviz
+- этот end-to-end сценарий проходит в `GitHub Actions` matrix минимум на `macOS`, `Linux` и `Windows`
 - для raster path есть отдельная телеметрия по расхождению между оригинальным `dot` output и managed raster output
 - native tests на `PSGraphView.Graphviz.Tests` проходят через рабочий test harness, а не падают на сборке вспомогательной библиотеки
 - native Graphviz tests не запускаются параллельно, если upstream path падает на assert при одновременных сессиях

@@ -1,5 +1,36 @@
 # Architecture Decision Log
 
+## 2026-04-06 22:46:23 PDT
+
+Решение:
+Для следующего этапа автономных проверок не ограничиваться локальными тестами и сразу планировать publish-like smoke в `GitHub Actions` matrix на трех платформах:
+- `macOS`
+- `Linux`
+- `Windows`
+
+Причины:
+- Локальные tests уже подтверждают кодовый path, но не дают такой же уверенности по реальному module/runtime layout на всех целевых ОС.
+- Главная цель следующего этапа не просто "еще один тест", а доказательство того, что `PSGraphView` работает без системного `dot` и без установленного системного Graphviz.
+- Именно cross-platform `GitHub Actions` smoke лучше всего ловит ошибки в:
+  - поиске native runtime assets
+  - layout модуля вокруг `psd1`
+  - различиях `RID` и загрузки зависимостей между `macOS`, `Linux` и `Windows`
+- При этом тяжелые compare/benchmark сценарии не стоит тащить в обычный PR pipeline, чтобы не сделать его медленным и шумным.
+
+Телеметрия / наблюдения:
+- Уже закрыт standalone module path через `psd1` для raster на локальной машине:
+  - [PSGraphView.PowerShell.csproj](/Users/andrei/repo/PSGraphView/src/PSGraphView.PowerShell/PSGraphView.PowerShell.csproj)
+  - [SkiaSharpNativeLoader.cs](/Users/andrei/repo/PSGraphView/src/PSGraphView.Graphviz/SkiaSharpNativeLoader.cs)
+- Уже есть локальные проверки, подтверждающие native path:
+  - `Export-GraphvizView` tests: `7 passed`
+  - `GraphSceneRasterRenderer` tests: `2 passed`
+- Следующий незакрытый риск уже не в логике scene/interpreter, а в cross-platform packaging/runtime поведении.
+
+Следствие:
+- `Патч 6` нужно строить вокруг одного общего smoke-сценария `pwsh -NoProfile -> Import-Module psd1 -> Export-GraphvizView -As Json|Svg|Png|Jpg`.
+- Этот сценарий нужно запускать и локально, и в `GitHub Actions` matrix.
+- В CI нельзя ставить системный `graphviz`; наоборот, нужно явно подтверждать, что процессный fallback недоступен.
+
 ## 2026-04-06 21:47:48 PDT
 
 Решение:
