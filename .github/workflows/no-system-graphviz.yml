@@ -1,0 +1,108 @@
+name: psgraphview-no-system-graphviz
+
+on:
+  workflow_dispatch:
+    inputs:
+      graphviz_runtime_version:
+        description: 'Bundled Graphviz runtime version, e.g. 0.1.0-beta.3'
+        required: false
+        default: '0.1.0-beta.3'
+
+  push:
+    paths:
+      - '.github/workflows/no-system-graphviz.yml'
+      - 'eng/Test-GraphvizNoSystemSmoke.ps1'
+      - 'eng/Install-GraphvizRuntimeBundle.ps1'
+      - 'src/PSGraphView.Graphviz/**'
+      - 'src/PSGraphView.PowerShell/**'
+      - 'tests/PSGraphView.Graphviz.Tests/**'
+      - 'tests/PSGraphView.PowerShell.Tests/**'
+
+  pull_request:
+    paths:
+      - '.github/workflows/no-system-graphviz.yml'
+      - 'eng/Test-GraphvizNoSystemSmoke.ps1'
+      - 'eng/Install-GraphvizRuntimeBundle.ps1'
+      - 'src/PSGraphView.Graphviz/**'
+      - 'src/PSGraphView.PowerShell/**'
+      - 'tests/PSGraphView.Graphviz.Tests/**'
+      - 'tests/PSGraphView.PowerShell.Tests/**'
+
+jobs:
+  smoke:
+    if: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
+    name: ${{ matrix.os }} / ${{ matrix.rid }}
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            rid: linux-x64
+          - os: windows-2022
+            rid: win-x64
+          - os: macos-14
+            rid: osx-arm64
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Validate Graphviz runtime token
+        shell: pwsh
+        env:
+          PSGRAPHVIEW_GITHUB_TOKEN: ${{ secrets.GRAPHVIZ_RUNTIME_GITHUB_TOKEN }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:PSGRAPHVIEW_GITHUB_TOKEN)) {
+            throw 'GRAPHVIZ_RUNTIME_GITHUB_TOKEN secret is required for the bundled Graphviz smoke workflow.'
+          }
+
+      - name: Restore PowerShell module
+        shell: pwsh
+        run: |
+          dotnet restore ./src/PSGraphView.PowerShell/PSGraphView.PowerShell.csproj
+
+      - name: Publish module with bundled Graphviz runtime
+        shell: pwsh
+        env:
+          PSGRAPHVIEW_GITHUB_TOKEN: ${{ secrets.GRAPHVIZ_RUNTIME_GITHUB_TOKEN }}
+        run: |
+          $graphvizRuntimeVersion = '${{ github.event.inputs.graphviz_runtime_version }}'
+          if ([string]::IsNullOrWhiteSpace($graphvizRuntimeVersion)) {
+            $graphvizRuntimeVersion = '0.1.0-beta.3'
+          }
+
+          $publishDirectory = Join-Path $PWD 'artifacts/PSGraphView/${{ matrix.rid }}'
+          dotnet publish ./src/PSGraphView.PowerShell/PSGraphView.PowerShell.csproj `
+            --configuration Release `
+            --no-restore `
+            -o $publishDirectory `
+            -p:IncludeGraphvizRuntimeBundle=true `
+            -p:GraphvizRuntimeVersion=$graphvizRuntimeVersion
+
+      - name: Run no-system-graphviz smoke
+        shell: pwsh
+        run: |
+          $publishDirectory = Join-Path $PWD 'artifacts/PSGraphView/${{ matrix.rid }}'
+          $manifestPath = Join-Path $publishDirectory 'PSGraphView.psd1'
+          $outputDirectory = Join-Path $PWD 'artifacts/no-system-graphviz/${{ matrix.rid }}'
+
+          pwsh -NoLogo -NoProfile -File ./eng/Test-GraphvizNoSystemSmoke.ps1 `
+            -ModuleManifestPath $manifestPath `
+            -OutputDirectory $outputDirectory `
+            -RequireBundledGraphvizRuntime
+
+      - name: Upload smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: no-system-graphviz-${{ matrix.rid }}
+          path: artifacts/no-system-graphviz/${{ matrix.rid }}
+          if-no-files-found: warn

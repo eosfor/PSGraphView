@@ -78,6 +78,10 @@
 
 Частично завершено:
 - `WikiVote` уже можно прогонять до финального native `Svg/Png/Jpg`, но полноценный test contour для сценария "машина без системного Graphviz" еще не закрыт.
+- Для `Патча 6` уже добавлены:
+  - общий smoke-скрипт для `pwsh -NoProfile -> Import-Module psd1 -> Export-GraphvizView -As Json|Svg|Png|Jpg`
+  - отдельный `GitHub Actions` workflow с matrix на `Linux`, `Windows` и `macOS`
+  - но численное сравнение raster output и фактический прогон этого workflow в CI еще остаются частью незавершенного этапа
 
 Не завершено:
 - отдельный follow-up на image-операции, если Graphviz JSON plugin начнет выдавать `xd_image`
@@ -265,6 +269,10 @@
 - Держать ручной compare/benchmark script для `WikiVote`, чтобы визуальные и временные регрессии проверялись на одном и том же DOT входе.
 
 Патч 6. Автономные проверки без системного Graphviz
+- Статус:
+  - начат в текущей ветке
+  - общий smoke-скрипт и cross-platform CI workflow уже добавлены
+  - compare-step для raster и дальнейшая телеметрия еще не завершены
 - Добавить более жесткие тесты и smoke-сценарии для режима, где на машине нет системного `dot` и нет установленного системного Graphviz.
 - Эти проверки должны подтверждать, что решение опирается только на bundled/runtime `libpsgv` и managed renderer-ы.
 - Минимум один тест должен падать, если реализация снова начнет звать process renderer или требовать системный Graphviz.

@@ -1,5 +1,41 @@
 # Architecture Decision Log
 
+## 2026-04-06 22:54:10 PDT
+
+Решение:
+Начать `Патч 6` с одного общего smoke-скрипта и отдельного `GitHub Actions` workflow, а не пытаться сразу покрыть весь этап только через xUnit tests.
+
+Причины:
+- Для сценария "без системного Graphviz" важнее проверить реальный модульный запуск через `pwsh -NoProfile` и `Import-Module ...psd1`, чем добавлять еще один слой unit tests.
+- Один общий smoke-скрипт удобнее использовать и локально, и в CI, не дублируя логику проверки `Json|Svg|Png|Jpg`.
+- Cross-platform workflow нужен именно на уровне publish-like layout, потому что следующий основной риск уже в packaging/runtime behavior, а не в scene/interpreter логике.
+- Matrix runner-ы выбраны так, чтобы соответствовать текущим bundled `RID`:
+  - `ubuntu-24.04` -> `linux-x64`
+  - `windows-2022` -> `win-x64`
+  - `macos-14` -> `osx-arm64`
+
+Телеметрия / наблюдения:
+- Добавлен общий smoke-скрипт:
+  - [Test-GraphvizNoSystemSmoke.ps1](/Users/andrei/repo/PSGraphView/eng/Test-GraphvizNoSystemSmoke.ps1)
+- Добавлен отдельный workflow:
+  - [no-system-graphviz.yml](/Users/andrei/repo/PSGraphView/.github/workflows/no-system-graphviz.yml)
+- Скрипт делает следующее:
+  - импортирует модуль по `psd1`
+  - подсовывает невалидный `PSGRAPHVIEW_GRAPHVIZ_DOT_PATH`
+  - подменяет `dot` в `PATH` на заведомо падающий shim
+  - проверяет `Export-GraphvizView -As Json|Svg|Png|Jpg`
+  - валидирует `_draw_`, `<svg>`, сигнатуры `PNG` и `JPG`
+- Локальная проверка пройдена:
+  - `pwsh -NoLogo -NoProfile -File ./eng/Test-GraphvizNoSystemSmoke.ps1 -ModuleManifestPath ./src/PSGraphView.PowerShell/bin/Debug/net9.0/PSGraphView.psd1 -GraphvizNativeLibraryPath /var/folders/1j/j11fjyg16ys35ssgq1kz8d6m0000gn/T/psgraphview-graphviz-native/libpsgv.dylib -OutputDirectory ./artifacts/local-no-system-graphviz-smoke`
+  - результат: `Graphviz no-system smoke passed`
+  - артефакт результата: `artifacts/local-no-system-graphviz-smoke/smoke-results.json`
+
+Следствие:
+- Теперь у `Патча 6` есть единый executable smoke path, который можно запускать и вручную, и в `GitHub Actions`.
+- Следующий незакрытый кусок этого этапа:
+  - дождаться реального прогона workflow в CI
+  - отдельно добавить telemetry compare для raster divergence против оригинального `dot`
+
 ## 2026-04-06 22:46:23 PDT
 
 Решение:
