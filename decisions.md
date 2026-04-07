@@ -1,5 +1,58 @@
 # Architecture Decision Log
 
+## 2026-04-07 00:52:06 PDT
+
+Решение:
+Явно добавить Linux native asset package для `SkiaSharp` в `PSGraphView.Graphviz`, а оставшийся cross-platform gap считать уже не проблемой `graphviz runtime`, а проблемой Linux raster packaging в `PSGraphView`.
+
+Причины:
+- Повторный downstream `no-system-graphviz` прогон на новом `graphviz runtime 0.1.0-beta.12` уже закрыл upstream часть проблемы:
+  - `macOS`: success
+  - `Windows`: success
+  - `Linux`: единственный remaining failure
+- Linux failure происходит уже после успешного bundled Graphviz publish/smoke path:
+  - `Json` и `Svg` на Linux создаются
+  - падение начинается на `Export-GraphvizView -As Png`
+- `SkiaSharp 2.88.9` по своему `nuspec` тянет native assets только для `Win32` и `macOS`; Linux native assets туда по умолчанию не входят.
+- Значит Linux publish module layout нельзя считать надежным без явной package-зависимости на Linux native assets.
+
+Телеметрия / наблюдения:
+- Upstream release:
+  - repo: `eosfor/graphviz-psgv`
+  - tag: `psgv-runtime-v0.1.0-beta.12`
+  - release run: `24070196448`
+  - результат:
+    - `linux-x64`: success
+    - `osx-arm64`: success
+    - `win-x64`: success
+- Downstream workflow:
+  - repo: `eosfor/PSGraphView`
+  - run: `24070383134`
+  - результат:
+    - `macos-14 / osx-arm64`: success
+    - `windows-2022 / win-x64`: success
+    - `ubuntu-24.04 / linux-x64`: failure
+- Точный Linux failure:
+  - `Export-GraphvizView -As Png`
+  - `The type initializer for 'SkiaSharp.SKImageInfo' threw an exception.`
+- Linux smoke artifact уже содержит:
+  - `graph.json`
+  - `graph.svg`
+  - но не содержит `graph.png` и `graph.jpg`
+- Проверка `SkiaSharp` package metadata:
+  - в `SkiaSharp.nuspec` для `net6.0/.NETStandard` заявлены только:
+    - `SkiaSharp.NativeAssets.Win32`
+    - `SkiaSharp.NativeAssets.macOS`
+  - Linux native package туда по умолчанию не входит
+- Дополнительная CI-правка:
+  - workflow default для `graphviz_runtime_version` тоже переведен на `0.1.0-beta.12`
+  - иначе push-triggered run-ы продолжали бы смотреть на устаревший `0.1.0-beta.3` и давали бы ложный шум
+
+Следствие:
+- Следующий кодовый патч в `PSGraphView` должен быть минимальным:
+  - явная зависимость на `SkiaSharp.NativeAssets.Linux.NoDependencies`
+- После этого нужно заново прогнать `no-system-graphviz` workflow и проверить, ушел ли Linux raster failure.
+
 ## 2026-04-07 00:29:38 PDT
 
 Решение:

@@ -82,7 +82,12 @@
   - общий smoke-скрипт для `pwsh -NoProfile -> Import-Module psd1 -> Export-GraphvizView -As Json|Svg|Png|Jpg`
   - локальный helper для staged bundled-layout smoke без приватного runtime token
   - отдельный `GitHub Actions` workflow с matrix на `Linux`, `Windows` и `macOS`
-  - но численное сравнение raster output и фактический прогон этого workflow в CI еще остаются частью незавершенного этапа
+  - фактический CI прогон на `graphviz runtime 0.1.0-beta.12` уже дал более узкий срез:
+    - `macOS`: green
+    - `Windows`: green
+    - `Linux`: падает только на raster path в `SkiaSharp`
+  - текущий оставшийся gap сузился до Linux module/publish packaging для `SkiaSharp`
+  - численное сравнение raster output и дальнейшая телеметрия еще остаются частью незавершенного этапа
 
 Не завершено:
 - отдельный follow-up на image-операции, если Graphviz JSON plugin начнет выдавать `xd_image`
@@ -278,6 +283,13 @@
     - `Windows`: green
     - `Linux`: нашел bug в consumer preload order
   - bug в Linux preload order уже исправлен локально, повторный CI прогон обязателен
+  - повторный downstream workflow на `graphviz runtime 0.1.0-beta.12` сузил remaining gap:
+    - `macOS`: green
+    - `Windows`: green
+    - `Linux`: failure только на `Export-GraphvizView -As Png` с `The type initializer for 'SkiaSharp.SKImageInfo' threw an exception.`
+  - следующий ближний шаг внутри этого патча:
+    - закрыть Linux native asset packaging для `SkiaSharp` в publish/module layout
+  - default runtime version в workflow тоже должен смотреть на актуальный preview, чтобы push-run-ы не уходили обратно на устаревший `0.1.0-beta.3`
   - compare-step для raster и дальнейшая телеметрия еще не завершены
 - Добавить более жесткие тесты и smoke-сценарии для режима, где на машине нет системного `dot` и нет установленного системного Graphviz.
 - Эти проверки должны подтверждать, что решение опирается только на bundled/runtime `libpsgv` и managed renderer-ы.
@@ -297,6 +309,9 @@
 - Для Linux bundled path отдельно зафиксировать regression:
   - versioned shared libraries из bundle (`libgts`, `libpango`, и т.д.) должны preloaded раньше `libgvplugin_*`
   - иначе `NativeLibrary.Load(...)` может падать на plugin-е, хотя нужная зависимость уже лежит рядом в том же bundle
+- Для Linux raster path отдельно зафиксировать regression:
+  - publish/module layout должен реально содержать Linux native asset для `SkiaSharp`
+  - smoke-сценарий должен проверять не только `Json/Svg`, но и `Png/Jpg` на Linux runner
 - PR-level CI лучше держать на коротком smoke-наборе.
 - Более тяжелые compare/benchmark сценарии лучше оставить отдельно, чтобы не раздувать обычный pipeline.
 - Отдельно добавить compare-step для raster output:

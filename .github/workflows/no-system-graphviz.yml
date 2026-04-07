@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       graphviz_runtime_version:
-        description: 'Bundled Graphviz runtime version, e.g. 0.1.0-beta.3'
+        description: 'Bundled Graphviz runtime version, e.g. 0.1.0-beta.12'
         required: false
-        default: '0.1.0-beta.3'
+        default: '0.1.0-beta.12'
 
   push:
     paths:
@@ -81,7 +81,7 @@ jobs:
         run: |
           $graphvizRuntimeVersion = '${{ github.event.inputs.graphviz_runtime_version }}'
           if ([string]::IsNullOrWhiteSpace($graphvizRuntimeVersion)) {
-            $graphvizRuntimeVersion = '0.1.0-beta.3'
+            $graphvizRuntimeVersion = '0.1.0-beta.12'
           }
 
           $publishDirectory = Join-Path $PWD 'artifacts/PSGraphView/${{ matrix.rid }}'
