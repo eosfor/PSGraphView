@@ -55,6 +55,11 @@ jobs:
         with:
           dotnet-version: '9.0.x'
 
+      - name: Install PowerShell
+        uses: PSModule/install-powershell@v1
+        with:
+          Version: latest
+
       - name: Validate Graphviz runtime token
         shell: pwsh
         env:
