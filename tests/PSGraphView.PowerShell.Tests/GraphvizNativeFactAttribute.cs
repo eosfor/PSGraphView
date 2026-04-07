@@ -51,6 +51,8 @@ public sealed class GraphvizNativeFactAttribute : FactAttribute
 
 internal static class GraphvizNativeTestEnvironment
 {
+    private static readonly object NativeLibrarySync = new();
+
     public static void EnsureNativeLibraryAvailable()
     {
         if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("PSGRAPHVIEW_PSGV_LIBRARY_PATH")))
@@ -58,14 +60,22 @@ internal static class GraphvizNativeTestEnvironment
             return;
         }
 
-        var sourceDirectory = ResolveGraphvizSourceDirectory();
-        if (sourceDirectory is null)
+        lock (NativeLibrarySync)
         {
-            throw new InvalidOperationException("Graphviz source directory was not found for building libpsgv.dylib.");
-        }
+            if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("PSGRAPHVIEW_PSGV_LIBRARY_PATH")))
+            {
+                return;
+            }
 
-        var libraryPath = BuildNativeLibrary(sourceDirectory);
-        Environment.SetEnvironmentVariable("PSGRAPHVIEW_PSGV_LIBRARY_PATH", libraryPath);
+            var sourceDirectory = ResolveGraphvizSourceDirectory();
+            if (sourceDirectory is null)
+            {
+                throw new InvalidOperationException("Graphviz source directory was not found for building libpsgv.dylib.");
+            }
+
+            var libraryPath = BuildNativeLibrary(sourceDirectory);
+            Environment.SetEnvironmentVariable("PSGRAPHVIEW_PSGV_LIBRARY_PATH", libraryPath);
+        }
     }
 
     private static string? ResolveGraphvizSourceDirectory()
@@ -120,25 +130,51 @@ internal static class GraphvizNativeTestEnvironment
             throw new InvalidOperationException("Homebrew graphviz installation was not found.");
         }
 
-        var arguments = string.Join(' ', new[]
-        {
-            "-dynamiclib",
-            "-std=c17",
-            "-fPIC",
-            "-o", Quote(outputPath),
-            Quote(Path.Combine(graphvizSourceDirectory, "lib", "psgv", "psgv.c")),
-            BuildIncludeArguments(graphvizSourceDirectory, graphvizPrefix),
-            "-L" + Quote(Path.Combine(graphvizPrefix, "lib")),
-            "-lgvc",
-            "-lcgraph",
-            "-lcdt",
-            "-lpathplan",
-            "-lxdot",
-            "-Wl,-rpath," + Quote(Path.Combine(graphvizPrefix, "lib"))
-        });
+        var temporaryOutputPath = Path.Combine(outputDirectory, $"libpsgv.{Guid.NewGuid():N}.dylib");
 
-        RunProcess("clang", arguments);
-        return outputPath;
+        try
+        {
+            var arguments = string.Join(' ', new[]
+            {
+                "-dynamiclib",
+                "-std=c17",
+                "-fPIC",
+                "-o", Quote(temporaryOutputPath),
+                Quote(Path.Combine(graphvizSourceDirectory, "lib", "psgv", "psgv.c")),
+                BuildIncludeArguments(graphvizSourceDirectory, graphvizPrefix),
+                "-L" + Quote(Path.Combine(graphvizPrefix, "lib")),
+                "-lgvc",
+                "-lcgraph",
+                "-lcdt",
+                "-lpathplan",
+                "-lxdot",
+                "-Wl,-rpath," + Quote(Path.Combine(graphvizPrefix, "lib"))
+            });
+
+            RunProcess("clang", arguments);
+
+            if (!File.Exists(outputPath))
+            {
+                try
+                {
+                    File.Move(temporaryOutputPath, outputPath);
+                    temporaryOutputPath = outputPath;
+                }
+                catch (IOException) when (File.Exists(outputPath))
+                {
+                }
+            }
+
+            return outputPath;
+        }
+        finally
+        {
+            if (!string.Equals(temporaryOutputPath, outputPath, StringComparison.Ordinal) &&
+                File.Exists(temporaryOutputPath))
+            {
+                File.Delete(temporaryOutputPath);
+            }
+        }
     }
 
     private static string BuildIncludeArguments(string graphvizSourceDirectory, string graphvizPrefix)

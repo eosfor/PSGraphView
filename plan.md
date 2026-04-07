@@ -35,6 +35,11 @@
 - базовый `Патч 1` закрыт:
   - scene model введена в `PSGraphView.Graphviz`
   - добавлены tests на форму модели и полиморфную сериализацию
+- базовый `Патч 2a` закрыт:
+  - добавлен первый interpreter `xdot_json -> scene` в `PSGraphView.Graphviz`
+  - покрыты top-level graph, `objects`, `edges` и draw-атрибуты `_draw_`, `_ldraw_`, `_hdraw_`, `_tdraw_`, `_hldraw_`, `_tldraw_`
+  - для MVP поддержаны `E/e`, `P/p`, `B/b`, `L`, `T`, `c/C`, `F`, `S`
+  - добавлены tests на синтетические и native `xdot_json` payload-ы
 - runtime bundle на стороне `graphviz` подтвержден на:
   - `linux-x64`
   - `osx-arm64`
@@ -46,7 +51,7 @@
 - `WikiVote` можно прогонять до `xdot_json`, но не до финального native `Svg/Png/Jpg`.
 
 Не завершено:
-- interpreter `xdot_json -> scene`
+- полный interpreter `xdot_json -> scene`, включая рекурсивный обход вложенных `subgraphs`
 - native `scene -> Svg`
 - native `scene -> Png/Jpg`
 - переключение `Export-GraphvizView -As Svg|Png|Jpg` на native path
@@ -144,12 +149,14 @@
 - Не заводить отдельный renderer-проект на первом шаге без явной необходимости.
 - Добавить unit tests на ожидаемую модель команд и state.
 
-Патч 2. Xdot interpreter
-- Реализовать `xdot_json -> normalized scene`.
-- Сразу покрыть обход структуры документа:
+Патч 2a. Первый xdot interpreter
+Статус:
+- выполнен в текущей ветке
+- Реализовать первый `xdot_json -> normalized scene`.
+- Покрыть базовую структуру документа:
   - top-level graph
   - `objects`
-  - `subgraphs`
+  - `edges`
   - draw-атрибуты `_draw_`, `_ldraw_`, `_hdraw_`, `_tdraw_`, `_hldraw_`, `_tldraw_`
 - Начать с поддержки:
   - ellipse
@@ -158,7 +165,12 @@
   - polyline
   - text
   - color/font/style state
-- Добавить unit tests на маленьких реальных `xdot_json` payload-ах.
+- Добавить unit tests на маленьких synthetic и native `xdot_json` payload-ах.
+
+Патч 2b. Доработка interpreter-а
+- Добрать рекурсивный обход вложенных `subgraphs`, если они присутствуют в payload.
+- Добавить tests на graph с cluster/subgraph, чтобы scene не теряла group-level draw-команды.
+- После этого считать interpreter слой достаточно полным для перехода к `Svg`.
 
 Патч 3. Svg renderer
 - Реализовать `scene -> Svg`.
@@ -201,6 +213,7 @@
 - bundled runtime реально используется, без системного Graphviz
 - `Svg/Png/Jpg` после переключения не требуют системный `dot`
 - native tests на `PSGraphView.Graphviz.Tests` проходят через рабочий test harness, а не падают на сборке вспомогательной библиотеки
+- native Graphviz tests не запускаются параллельно, если upstream path падает на assert при одновременных сессиях
 
 ## Резервный путь
 
@@ -225,10 +238,11 @@
 - Не нужно трогать `MSAGL`, пока для него нет отдельной причины и отдельного плана миграции.
 - Если пропустить стабилизацию test harness, можно долго чинить не продуктовый код, а окружение тестов.
 - Если жестко привязать первый `Svg` milestone к `SkiaSharp`, можно искусственно увеличить объем первого рабочего среза.
+- Upstream Graphviz native path в тестах сейчас нельзя считать безопасным для параллельного запуска нескольких сессий в одном процессе.
 
 ## Следующий шаг
 
 Следующий практический шаг в этом репозитории:
-- сделать первый interpreter `xdot_json -> scene` поверх уже введенной scene model;
-- начать с обхода `objects/subgraphs` и draw-атрибутов `_draw_`, `_ldraw_`, `_hdraw_`, `_tdraw_`, `_hldraw_`, `_tldraw_`;
+- добрать `Патч 2b`: рекурсивный обход вложенных `subgraphs` и coverage на cluster/subgraph payload-ах;
+- после этого переходить к `scene -> Svg`;
 - держать `MSAGL` вне этого изменения.

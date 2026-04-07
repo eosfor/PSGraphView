@@ -1,5 +1,64 @@
 # Architecture Decision Log
 
+## 2026-04-06 18:24:49 PDT
+
+Решение:
+Считать базовый interpreter-срез отдельным завершенным `Патчем 2a`:
+- добавить `GraphvizXdotJsonSceneInterpreter` прямо в `PSGraphView.Graphviz`;
+- поддержать первый полезный набор `xdot_json -> scene` для top-level graph, `objects`, `edges`;
+- включить draw-атрибуты `_draw_`, `_ldraw_`, `_hdraw_`, `_tdraw_`, `_hldraw_`, `_tldraw_`;
+- для MVP поддержать `E/e`, `P/p`, `B/b`, `L`, `T`, `c/C`, `F`, `S`.
+
+Причины:
+- Это уже дает рабочий bridge между native `xdot_json` и введенной scene model без преждевременного перехода к `Svg`.
+- Такой срез достаточно мал, чтобы проверить его отдельно и закончить отдельным commit-ом.
+- При этом он уже покрывает реальные node/edge/label сценарии, которые нужны для следующего этапа.
+
+Телеметрия / наблюдения:
+- Добавлены файлы:
+  - [GraphvizXdotJsonSceneInterpreter.cs](/Users/andrei/repo/PSGraphView/src/PSGraphView.Graphviz/GraphvizXdotJsonSceneInterpreter.cs)
+  - [GraphvizXdotJsonSceneInterpreterTests.cs](/Users/andrei/repo/PSGraphView/tests/PSGraphView.Graphviz.Tests/GraphvizXdotJsonSceneInterpreterTests.cs)
+  - [GraphvizNativeCollection.cs](/Users/andrei/repo/PSGraphView/tests/PSGraphView.Graphviz.Tests/GraphvizNativeCollection.cs)
+- Дополнительно скорректированы test helpers:
+  - [GraphvizNativeSessionTests.cs](/Users/andrei/repo/PSGraphView/tests/PSGraphView.Graphviz.Tests/GraphvizNativeSessionTests.cs)
+  - [GraphvizNativeFactAttribute.cs](/Users/andrei/repo/PSGraphView/tests/PSGraphView.PowerShell.Tests/GraphvizNativeFactAttribute.cs)
+- Проверки:
+  - `dotnet test tests/PSGraphView.Graphviz.Tests/PSGraphView.Graphviz.Tests.csproj --no-restore`
+  - результат: `9 passed`, `0 failed`, `0 skipped`
+  - `dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --no-restore --filter ExportGraphvizView`
+  - результат: `4 passed`, `0 failed`, `0 skipped`
+
+Следствие:
+- Полный `Патч 2` нужно считать разделенным на `2a` и `2b`.
+- Следующий шаг перед `Svg` renderer-ом: добрать рекурсивный обход вложенных `subgraphs` и tests на cluster/subgraph payload-ы.
+
+## 2026-04-06 18:24:49 PDT
+
+Решение:
+Native Graphviz tests запускать без параллельного доступа к upstream Graphviz path:
+- сериализовать native tests через отдельную xUnit collection;
+- собирать временную `libpsgv.dylib` под локом и сначала во временный файл, а не сразу в финальный путь.
+
+Причины:
+- Поштучно native tests проходят, а параллельный запуск валит test host уже внутри upstream Graphviz.
+- Без этого любой следующий патч будет давать ложные падения, не связанные с managed-логикой interpreter-а или renderer-а.
+- Временный output path для `libpsgv` убирает риск подхватить частично созданную dylib при гонке.
+
+Телеметрия / наблюдения:
+- До ограничения параллелизма полный прогон `PSGraphView.Graphviz.Tests` падал с assert:
+  - `Assertion failed: (sym->id >= 0 && sym->id < topdictsize(obj)), function agxget, file attr.c, line 460`
+- После сериализации native tests и безопасной сборки временной dylib проходит:
+  - `dotnet test tests/PSGraphView.Graphviz.Tests/PSGraphView.Graphviz.Tests.csproj --no-restore`
+  - результат: `9 passed`, `0 failed`, `0 skipped`
+- Основные файлы:
+  - [GraphvizNativeCollection.cs](/Users/andrei/repo/PSGraphView/tests/PSGraphView.Graphviz.Tests/GraphvizNativeCollection.cs)
+  - [GraphvizNativeSessionTests.cs](/Users/andrei/repo/PSGraphView/tests/PSGraphView.Graphviz.Tests/GraphvizNativeSessionTests.cs)
+  - [GraphvizNativeFactAttribute.cs](/Users/andrei/repo/PSGraphView/tests/PSGraphView.PowerShell.Tests/GraphvizNativeFactAttribute.cs)
+
+Следствие:
+- Native Graphviz path в тестах пока нельзя считать thread-safe внутри одного test host.
+- Для следующих патчей нужно сохранять это ограничение, пока не появится явное подтверждение, что upstream path безопасен для параллельных сессий.
+
 ## 2026-04-06 17:52:05 PDT
 
 Решение:

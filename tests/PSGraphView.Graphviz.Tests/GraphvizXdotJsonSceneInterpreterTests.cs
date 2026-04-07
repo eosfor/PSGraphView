@@ -1,0 +1,197 @@
+namespace PSGraphView.Graphviz.Tests;
+
+public sealed class GraphvizXdotJsonSceneInterpreterTests
+{
+    private readonly GraphvizXdotJsonSceneInterpreter _interpreter = new();
+
+    [Fact]
+    public void Interpret_ParsesGraphNodeSubgraphAndEdgeCommands()
+    {
+        const string xdotJson = """
+        {
+          "name": "G",
+          "directed": true,
+          "strict": false,
+          "_subgraph_cnt": 1,
+          "bb": "0,0,100,50",
+          "_draw_": [
+            { "op": "c", "grad": "none", "color": "#112233" },
+            { "op": "L", "points": [[0,0], [100,0], [100,50], [0,50], [0,0]] }
+          ],
+          "objects": [
+            {
+              "_gvid": 0,
+              "name": "cluster_0",
+              "bb": "5,5,45,25",
+              "_draw_": [
+                { "op": "c", "grad": "none", "color": "#445566" },
+                { "op": "p", "points": [[5,5], [45,5], [45,25], [5,25]] }
+              ]
+            },
+            {
+              "_gvid": 1,
+              "name": "A",
+              "bb": "10,10,30,20",
+              "_draw_": [
+                { "op": "C", "grad": "none", "color": "#ffffff" },
+                { "op": "c", "grad": "none", "color": "#000000" },
+                { "op": "S", "style": "setlinewidth(2),dashed" },
+                { "op": "P", "points": [[10,10], [30,10], [30,20], [10,20]] }
+              ],
+              "_ldraw_": [
+                { "op": "F", "size": 14, "face": "Helvetica" },
+                { "op": "c", "grad": "none", "color": "#123456" },
+                { "op": "T", "pt": [20,15], "align": "c", "width": 22, "text": "Node A" }
+              ]
+            }
+          ],
+          "edges": [
+            {
+              "_gvid": 0,
+              "tail": 1,
+              "head": 1,
+              "_draw_": [
+                { "op": "c", "grad": "none", "color": "#010203" },
+                { "op": "B", "points": [[30,15], [40,20], [50,20], [60,15]] }
+              ],
+              "_hdraw_": [
+                { "op": "C", "grad": "none", "color": "#010203" },
+                { "op": "c", "grad": "none", "color": "#010203" },
+                { "op": "P", "points": [[60,15], [56,17], [56,13]] }
+              ],
+              "_ldraw_": [
+                { "op": "F", "size": 10, "face": "Helvetica" },
+                { "op": "c", "grad": "none", "color": "#0a0b0c" },
+                { "op": "T", "pt": [45,24], "align": "l", "width": 30, "text": "edge" }
+              ]
+            }
+          ]
+        }
+        """;
+
+        var scene = _interpreter.Interpret(xdotJson);
+
+        Assert.Equal("G", scene.Name);
+        Assert.Equal(new SceneRect(0, 0, 100, 50), scene.Bounds);
+
+        var graphLine = Assert.IsType<PolylineCommand>(Assert.Single(scene.Commands));
+        Assert.Equal(5, graphLine.Points.Count);
+        Assert.Equal(new SceneColor(0x11, 0x22, 0x33), graphLine.Stroke);
+
+        Assert.Equal(3, scene.Objects.Count);
+        Assert.Equal(SceneObjectKind.Subgraph, scene.Objects[0].Kind);
+        Assert.Equal(SceneObjectKind.Node, scene.Objects[1].Kind);
+        Assert.Equal(SceneObjectKind.Edge, scene.Objects[2].Kind);
+
+        var subgraphPolygon = Assert.IsType<PolygonCommand>(Assert.Single(scene.Objects[0].Commands));
+        Assert.Equal(new SceneColor(0x44, 0x55, 0x66), subgraphPolygon.Stroke);
+        Assert.Null(subgraphPolygon.Fill);
+
+        Assert.Equal(2, scene.Objects[1].Commands.Count);
+        var nodePolygon = Assert.IsType<PolygonCommand>(scene.Objects[1].Commands[0]);
+        Assert.Equal(new SceneColor(0x00, 0x00, 0x00), nodePolygon.Stroke);
+        Assert.Equal(new SceneColor(0xff, 0xff, 0xff), nodePolygon.Fill);
+        Assert.Equal(new SceneStrokeStyle(2, SceneLinePattern.Dashed), nodePolygon.StrokeStyle);
+
+        var nodeText = Assert.IsType<TextCommand>(scene.Objects[1].Commands[1]);
+        Assert.Equal("Node A", nodeText.Text);
+        Assert.Equal(new SceneFont("Helvetica", 14), nodeText.Font);
+        Assert.Equal(new SceneColor(0x12, 0x34, 0x56), nodeText.Color);
+        Assert.Equal(SceneTextAlignment.Center, nodeText.Alignment);
+
+        Assert.Equal(3, scene.Objects[2].Commands.Count);
+        var edgeBezier = Assert.IsType<BezierCommand>(scene.Objects[2].Commands[0]);
+        Assert.Equal(new SceneColor(0x01, 0x02, 0x03), edgeBezier.Stroke);
+
+        var edgeArrow = Assert.IsType<PolygonCommand>(scene.Objects[2].Commands[1]);
+        Assert.Equal(new SceneColor(0x01, 0x02, 0x03), edgeArrow.Fill);
+
+        var edgeText = Assert.IsType<TextCommand>(scene.Objects[2].Commands[2]);
+        Assert.Equal("edge", edgeText.Text);
+        Assert.Equal(SceneTextAlignment.Left, edgeText.Alignment);
+        Assert.Equal(new SceneColor(0x0a, 0x0b, 0x0c), edgeText.Color);
+    }
+
+    [Fact]
+    public void Interpret_ParsesGradientPaint()
+    {
+        const string xdotJson = """
+        {
+          "name": "G",
+          "directed": true,
+          "strict": false,
+          "_subgraph_cnt": 0,
+          "objects": [
+            {
+              "_gvid": 0,
+              "name": "A",
+              "_draw_": [
+                { "op": "C", "grad": "linear", "p0": [0,0], "p1": [10,10], "stops": [ { "frac": 0.0, "color": "#000000" }, { "frac": 1.0, "color": "#ffffff" } ] },
+                { "op": "c", "grad": "none", "color": "#111111" },
+                { "op": "E", "rect": [5,5,4,3] }
+              ]
+            }
+          ]
+        }
+        """;
+
+        var scene = _interpreter.Interpret(xdotJson);
+
+        var ellipse = Assert.IsType<EllipseCommand>(Assert.Single(scene.Objects[0].Commands));
+        var gradient = Assert.IsType<SceneGradient>(ellipse.Fill);
+        Assert.Equal(SceneGradientKind.Linear, gradient.Kind);
+        Assert.Equal(2, gradient.Stops.Count);
+        Assert.Equal(new SceneColor(0x11, 0x11, 0x11), ellipse.Stroke);
+    }
+
+    [Fact]
+    public void Interpret_ThrowsForUnsupportedOperation()
+    {
+        const string xdotJson = """
+        {
+          "name": "G",
+          "directed": true,
+          "strict": false,
+          "_subgraph_cnt": 0,
+          "objects": [
+            {
+              "_gvid": 0,
+              "name": "A",
+              "_draw_": [
+                { "op": "t", "fontchar": 65 }
+              ]
+            }
+          ]
+        }
+        """;
+
+        var exception = Assert.Throws<NotSupportedException>(() => _interpreter.Interpret(xdotJson));
+
+        Assert.Contains("operation 't'", exception.Message, StringComparison.Ordinal);
+    }
+
+}
+
+[Collection(GraphvizNativeCollection.Name)]
+public sealed class GraphvizXdotJsonSceneInterpreterNativeTests
+{
+    private readonly GraphvizXdotJsonSceneInterpreter _interpreter = new();
+
+    [GraphvizNativeFact]
+    public void Interpret_CanHandleNativeXdotJsonPayload()
+    {
+        GraphvizNativeSessionTests.EnsureNativeLibraryAvailable();
+
+        using var session = new GraphvizNativeSession();
+        var result = session.LayoutDot(
+            "digraph G { graph [rankdir=LR]; A [shape=box]; A -> B [label=\"edge\"]; }",
+            new GraphvizNativeLayoutRequest("dot", IncludeXdot: true));
+
+        var scene = _interpreter.Interpret(result.XdotJson);
+
+        Assert.Equal("G", scene.Name);
+        Assert.NotEmpty(scene.Objects);
+        Assert.Contains(scene.Objects, item => item.Kind == SceneObjectKind.Node);
+        Assert.Contains(scene.Objects, item => item.Kind == SceneObjectKind.Edge);
+    }
+}
