@@ -77,6 +77,35 @@ function Get-GraphvizNativeLibraryFileNames {
     throw 'Unsupported operating system.'
 }
 
+function Find-BundledGraphvizNativeLibraryPath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ModuleRoot,
+
+        [Parameter(Mandatory = $true)]
+        [string]$RuntimeIdentifier
+    )
+
+    $nativeRoot = Join-Path $ModuleRoot "runtimes/$RuntimeIdentifier/native"
+    foreach ($relativeDirectory in @('', 'lib', 'bin')) {
+        $searchRoot = if ([string]::IsNullOrWhiteSpace($relativeDirectory)) {
+            $nativeRoot
+        }
+        else {
+            Join-Path $nativeRoot $relativeDirectory
+        }
+
+        foreach ($fileName in Get-GraphvizNativeLibraryFileNames) {
+            $candidatePath = Join-Path $searchRoot $fileName
+            if (Test-Path -LiteralPath $candidatePath) {
+                return (Resolve-Path -LiteralPath $candidatePath).Path
+            }
+        }
+    }
+
+    return $null
+}
+
 function New-FailingDotShim {
     param(
         [Parameter(Mandatory = $true)]
@@ -170,13 +199,7 @@ $bundledGraphvizPath = $null
 if ($RequireBundledGraphvizRuntime) {
     $runtimeIdentifier = Get-CurrentRuntimeIdentifier
     $nativeRoot = Join-Path $moduleRoot "runtimes/$runtimeIdentifier/native"
-    foreach ($fileName in Get-GraphvizNativeLibraryFileNames) {
-        $candidatePath = Join-Path $nativeRoot $fileName
-        if (Test-Path -LiteralPath $candidatePath) {
-            $bundledGraphvizPath = (Resolve-Path -LiteralPath $candidatePath).Path
-            break
-        }
-    }
+    $bundledGraphvizPath = Find-BundledGraphvizNativeLibraryPath -ModuleRoot $moduleRoot -RuntimeIdentifier $runtimeIdentifier
 
     if ($null -eq $bundledGraphvizPath) {
         throw "Bundled Graphviz runtime was not found under '$nativeRoot'."

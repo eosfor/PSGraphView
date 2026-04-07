@@ -37,8 +37,11 @@
 
   <Target Name="StageGraphvizRuntimeBundle" AfterTargets="Publish" Condition="'$(IncludeGraphvizRuntimeBundle)' == 'true'">
     <Error Condition="'$(GraphvizRuntimeVersion)' == ''" Text="GraphvizRuntimeVersion must be set when IncludeGraphvizRuntimeBundle=true." />
+    <PropertyGroup>
+      <GraphvizRuntimeDestinationDirectory>$([System.Text.RegularExpressions.Regex]::Replace('$(PublishDir)', '[\\/]+$', ''))</GraphvizRuntimeDestinationDirectory>
+    </PropertyGroup>
     <Exec
-      Command="pwsh -NoLogo -NoProfile -File &quot;$(MSBuildProjectDirectory)/../../eng/Install-GraphvizRuntimeBundle.ps1&quot; -Repository &quot;$(GraphvizRuntimeRepository)&quot; -Version &quot;$(GraphvizRuntimeVersion)&quot; -DestinationDirectory &quot;$(PublishDir)&quot;"
+      Command="pwsh -NoLogo -NoProfile -File &quot;$(MSBuildProjectDirectory)/../../eng/Install-GraphvizRuntimeBundle.ps1&quot; -Repository &quot;$(GraphvizRuntimeRepository)&quot; -Version &quot;$(GraphvizRuntimeVersion)&quot; -DestinationDirectory &quot;$(GraphvizRuntimeDestinationDirectory)&quot;"
       EnvironmentVariables="PSGRAPHVIEW_GITHUB_TOKEN=$(GraphvizRuntimeToken)" />
   </Target>
 
