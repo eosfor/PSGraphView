@@ -1,5 +1,34 @@
 # Architecture Decision Log
 
+## 2026-04-06 18:49:46 PDT
+
+Решение:
+Закрыть `Патч 3` через собственный managed `scene -> Svg` renderer в `PSGraphView.Graphviz` и перевести `Export-GraphvizView -As Svg` на native path.
+
+Причины:
+- После завершения interpreter-а `Svg` уже можно строить внутри `PSGraphView`, не дергая внешний `dot`.
+- Для текущего набора примитивов достаточно обычного `XDocument`; новый пакет для SVG здесь не нужен.
+- Это дает первый полноценный пользовательский результат без зависимости от системного Graphviz для `Svg`, при этом `Png/Jpg` можно пока оставить на process fallback.
+
+Телеметрия / наблюдения:
+- Добавлен renderer:
+  - [GraphSceneSvgRenderer.cs](/Users/andrei/repo/PSGraphView/src/PSGraphView.Graphviz/GraphSceneSvgRenderer.cs)
+- Добавлены tests:
+  - [GraphSceneSvgRendererTests.cs](/Users/andrei/repo/PSGraphView/tests/PSGraphView.Graphviz.Tests/GraphSceneSvgRendererTests.cs)
+- Переключен cmdlet:
+  - [ExportGraphvizViewCmdlet.cs](/Users/andrei/repo/PSGraphView/src/PSGraphView.PowerShell/ExportGraphvizViewCmdlet.cs)
+- Обновлены PowerShell tests на native `Svg` path:
+  - [ExportGraphvizViewCmdletTests.cs](/Users/andrei/repo/PSGraphView/tests/PSGraphView.PowerShell.Tests/ExportGraphvizViewCmdletTests.cs)
+- Проверки:
+  - `dotnet test tests/PSGraphView.Graphviz.Tests/PSGraphView.Graphviz.Tests.csproj --no-restore`
+  - результат: `14 passed`, `0 failed`, `0 skipped`
+  - `dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --no-restore --filter ExportGraphvizView`
+  - результат: `4 passed`, `0 failed`, `0 skipped`
+
+Следствие:
+- `Svg` больше не должен идти через `GraphvizProcessRenderer`.
+- Следующий отдельный этап уже про `scene -> Png/Jpg`, а не про повторное чтение `xdot_json`.
+
 ## 2026-04-06 18:44:03 PDT
 
 Решение:

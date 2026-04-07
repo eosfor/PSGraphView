@@ -49,6 +49,11 @@
   - добавлена поддержка `t` через font-style flags в scene model
   - подтверждено, что label draw-атрибуты могут содержать не только `T`, и этот path покрыт tests
   - `I` оставлен отдельным follow-up, потому что текущий `xdot_json` plugin `xd_image` не сериализует
+- `Патч 3` закрыт:
+  - добавлен managed `scene -> Svg` renderer
+  - `Export-GraphvizView -As Svg` переключен на native path `DOT -> libpsgv -> xdot_json -> scene -> Svg`
+  - process renderer оставлен только для `Png/Jpg`
+  - `MSAGL` не затронут
 - runtime bundle на стороне `graphviz` подтвержден на:
   - `linux-x64`
   - `osx-arm64`
@@ -63,9 +68,8 @@
 - полный interpreter `xdot_json -> scene`, включая рекурсивный обход вложенных `subgraphs`
 - расширенный interpreter coverage для `t`, `I`, record/HTML labels и `decorate=true`
 - отдельный follow-up на image-операции, если `xdot_json` plugin начнет выдавать `xd_image`
-- native `scene -> Svg`
 - native `scene -> Png/Jpg`
-- переключение `Export-GraphvizView -As Svg|Png|Jpg` на native path
+- переключение `Export-GraphvizView -As Png|Jpg` на native path
 - явная проверка, что после переключения путь не зависит от системного `dot`
 
 ## Архитектура
@@ -200,6 +204,8 @@
 - После этого считать interpreter слой достаточно полным для перехода к `Svg`.
 
 Патч 3. Svg renderer
+Статус:
+- выполнен в текущей ветке
 - Реализовать `scene -> Svg`.
 - Не считать `SkiaSharp` обязательным для этого патча.
 - Подключить его в `Export-GraphvizView -As Svg`.
@@ -271,6 +277,6 @@
 ## Следующий шаг
 
 Следующий практический шаг в этом репозитории:
-- переходить к `Патчу 3`: `scene -> Svg`;
+- переходить к `Патчу 4`: выбрать и реализовать raster backend для `scene -> Png/Jpg`;
 - image-операции `I` возвращать в план только если они реально начнут приходить из `xdot_json`;
 - держать `MSAGL` вне этого изменения.

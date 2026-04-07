@@ -31,9 +31,11 @@ public sealed class ExportGraphvizViewCmdletTests : IDisposable
         }
     }
 
-    [Fact]
+    [GraphvizNativeFact]
     public void ExportGraphvizView_InputObjectSvg_ReturnsSvg()
     {
+        GraphvizNativeTestEnvironment.EnsureNativeLibraryAvailable();
+
         _powerShell.AddCommand("Export-GraphvizView")
             .AddParameter("InputObject", BasicDot)
             .AddParameter("Renderer", GraphvizLayoutEngine.Sfdp)
@@ -47,9 +49,11 @@ public sealed class ExportGraphvizViewCmdletTests : IDisposable
         Assert.Contains("<g", svg, StringComparison.OrdinalIgnoreCase);
     }
 
-    [Fact]
+    [GraphvizNativeFact]
     public void ExportGraphvizView_DotPathSvgOutputPath_WritesSvg()
     {
+        GraphvizNativeTestEnvironment.EnsureNativeLibraryAvailable();
+
         var dotPath = System.IO.Path.Combine(_tempDirectory, "graph.dot");
         var svgPath = System.IO.Path.Combine(_tempDirectory, "graph.svg");
         File.WriteAllText(dotPath, BasicDot);

@@ -77,13 +77,16 @@ public sealed class ExportGraphvizViewCmdlet : PSCmdlet
                 return;
             }
 
-            var data = GraphvizProcessRenderer.Render(dot, Renderer, outputKind);
-
             if (outputKind == ViewOutputKind.Svg)
             {
-                CmdletOutputHelpers.WriteResult(this, Encoding.UTF8.GetString(data), OutputPath);
+                var xdotJson = GraphvizNativeLayoutRenderer.RenderXdotJson(dot, Renderer);
+                var scene = new GraphvizXdotJsonSceneInterpreter().Interpret(xdotJson);
+                var svg = new GraphSceneSvgRenderer().Render(scene);
+                CmdletOutputHelpers.WriteResult(this, svg, OutputPath);
                 return;
             }
+
+            var data = GraphvizProcessRenderer.Render(dot, Renderer, outputKind);
 
             CmdletOutputHelpers.WriteResult(this, data, OutputPath);
         }
@@ -133,6 +136,14 @@ public sealed class ExportGraphvizViewCmdlet : PSCmdlet
                 ex,
                 "PSGraphView.GraphvizRenderFailed",
                 ErrorCategory.InvalidOperation,
+                Renderer));
+        }
+        catch (InvalidDataException ex)
+        {
+            ThrowTerminatingError(new ErrorRecord(
+                ex,
+                "PSGraphView.GraphvizSceneDecodeFailed",
+                ErrorCategory.InvalidData,
                 Renderer));
         }
         catch (ArgumentException ex)
