@@ -1,5 +1,44 @@
 # Architecture Decision Log
 
+## 2026-04-07 00:29:38 PDT
+
+Решение:
+Чинить оставшийся Linux failure в `PSGraphView`, а не в published `graphviz` bundle: preload bundled native libraries должен сначала поднимать обычные shared libraries, и только потом `libgvplugin_*`.
+
+Причины:
+- Первый downstream `no-system-graphviz` прогон на `graphviz runtime 0.1.0-beta.11` уже показал, что новый bundle сам по себе достаточно хороший:
+  - `macOS`: success
+  - `Windows`: success
+  - `Linux`: единственный failure
+- Linux log упал не на отсутствии файла в archive, а на порядке загрузки:
+  - `libgvplugin_neato_layout.so` пытался подняться раньше, чем процесс увидел `libgts-0.7.so.5`
+- Сам release archive `graphviz-psgv-runtime-0.1.0-beta.11-linux-x64.tar.gz` уже содержит `libgts-0.7.so.5`, значит ошибка не в публикации asset-а, а в consumer preload logic.
+
+Телеметрия / наблюдения:
+- Downstream workflow:
+  - `eosfor/PSGraphView`
+  - run `24068945588`
+  - `macos-14 / osx-arm64`: success
+  - `windows-2022 / win-x64`: success
+  - `ubuntu-24.04 / linux-x64`: failure
+- Точный Linux failure:
+  - `Unable to load shared library '.../libgvplugin_neato_layout.so' ... libgts-0.7.so.5: cannot open shared object file`
+- Проверка archive:
+  - `gh release download psgv-runtime-v0.1.0-beta.11 --repo eosfor/graphviz-psgv --pattern 'graphviz-psgv-runtime-0.1.0-beta.11-linux-x64.tar.gz'`
+  - внутри archive уже есть `lib/libgts-0.7.so.5`
+- Локальная regression-проверка:
+  - добавлен test на порядок preload-а:
+    - [GraphvizNativeApiTests.cs](/Users/andrei/repo/PSGraphView/tests/PSGraphView.Graphviz.Tests/GraphvizNativeApiTests.cs)
+  - локально пройдено:
+    - `dotnet test tests/PSGraphView.Graphviz.Tests/PSGraphView.Graphviz.Tests.csproj --filter GraphvizNativeApiTests --no-restore`
+    - `PSGRAPHVIEW_GRAPHVIZ_SOURCE_DIR=/Users/andrei/.codex/worktrees/f5d8/graphviz dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --filter ExportGraphvizView --no-restore`
+
+Следствие:
+- Следующий внешний шаг:
+  - закоммитить consumer-side fix в `PSGraphView`
+  - повторно прогнать `no-system-graphviz` workflow на `0.1.0-beta.11`
+- Если Linux после этого все еще будет падать, тогда уже возвращаться к upstream bundle и смотреть на следующий отсутствующий transitive dependency.
+
 ## 2026-04-06 23:03:06 PDT
 
 Решение:

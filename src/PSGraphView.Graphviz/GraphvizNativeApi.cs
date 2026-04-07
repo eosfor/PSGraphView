@@ -267,22 +267,28 @@ internal static class GraphvizNativeApi
                     ? new[] { "*.dylib" }
                     : new[] { "*.so", "*.so.*" };
 
-            foreach (var pattern in patterns)
-            {
-                foreach (var libraryPath in Directory
-                    .EnumerateFiles(directory, pattern)
-                    .OrderBy(GetLibraryPreloadRank)
-                    .ThenBy(path => path, StringComparer.OrdinalIgnoreCase))
-                {
-                    if (string.Equals(Path.GetFullPath(libraryPath), Path.GetFullPath(mainLibraryPath), StringComparison.OrdinalIgnoreCase))
-                    {
-                        continue;
-                    }
+            var libraryPaths = patterns
+                .SelectMany(pattern => Directory.EnumerateFiles(directory, pattern));
 
-                    yield return libraryPath;
-                }
+            foreach (var libraryPath in OrderDependencyLibraryPaths(libraryPaths, mainLibraryPath))
+            {
+                yield return libraryPath;
             }
         }
+    }
+
+    private static IEnumerable<string> OrderDependencyLibraryPaths(
+        IEnumerable<string> libraryPaths,
+        string mainLibraryPath)
+    {
+        var mainLibraryFullPath = Path.GetFullPath(mainLibraryPath);
+
+        return libraryPaths
+            .Select(Path.GetFullPath)
+            .Where(path => !string.Equals(path, mainLibraryFullPath, StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(GetLibraryPreloadRank)
+            .ThenBy(path => path, StringComparer.OrdinalIgnoreCase);
     }
 
     private static int GetLibraryPreloadRank(string libraryPath)
@@ -323,7 +329,12 @@ internal static class GraphvizNativeApi
             return 6;
         }
 
-        return 100;
+        if (fileName.Contains("gvplugin", StringComparison.OrdinalIgnoreCase))
+        {
+            return 100;
+        }
+
+        return 50;
     }
 
     [StructLayout(LayoutKind.Sequential)]

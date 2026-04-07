@@ -273,6 +273,11 @@
 - Статус:
   - начат в текущей ветке
   - общий smoke-скрипт, локальный bundled-layout helper и cross-platform CI workflow уже добавлены
+  - первый downstream workflow на `graphviz runtime 0.1.0-beta.11` уже дал полезный срез:
+    - `macOS`: green
+    - `Windows`: green
+    - `Linux`: нашел bug в consumer preload order
+  - bug в Linux preload order уже исправлен локально, повторный CI прогон обязателен
   - compare-step для raster и дальнейшая телеметрия еще не завершены
 - Добавить более жесткие тесты и smoke-сценарии для режима, где на машине нет системного `dot` и нет установленного системного Graphviz.
 - Эти проверки должны подтверждать, что решение опирается только на bundled/runtime `libpsgv` и managed renderer-ы.
@@ -289,6 +294,9 @@
   - `windows`
   - без установки системного `graphviz`
   - с publish-like или module-like layout, максимально близким к реальному пользовательскому запуску
+- Для Linux bundled path отдельно зафиксировать regression:
+  - versioned shared libraries из bundle (`libgts`, `libpango`, и т.д.) должны preloaded раньше `libgvplugin_*`
+  - иначе `NativeLibrary.Load(...)` может падать на plugin-е, хотя нужная зависимость уже лежит рядом в том же bundle
 - PR-level CI лучше держать на коротком smoke-наборе.
 - Более тяжелые compare/benchmark сценарии лучше оставить отдельно, чтобы не раздувать обычный pipeline.
 - Отдельно добавить compare-step для raster output:
