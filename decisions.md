@@ -1,5 +1,36 @@
 # Architecture Decision Log
 
+## 2026-04-06 18:44:03 PDT
+
+Решение:
+Закрыть текущий `Патч 2c` через поддержку `t` и mixed label draw-операций, но не добавлять `I`, пока его нет в фактическом `xdot_json` output.
+
+Причины:
+- `libguide.pdf` перечисляет и `t`, и `I`, но реальный `xdot_json` plugin сейчас расходится с полным xdot-набором.
+- `t` уже имеет явное представление в JSON schema через `fontchar`, и это влияет на рендер текста.
+- Для record/HTML labels и `decorate=true` критично не только уметь читать `T`, но и не ломаться на нетекстовых операциях внутри label draw-атрибутов.
+- Добавлять `ImageCommand` сейчас преждевременно: это усложнит scene model без подтвержденного входного payload-а.
+
+Телеметрия / наблюдения:
+- По [Graphviz Library Manual, section 1.1.2 xdot](https://graphviz.org/pdf/libguide.pdf):
+  - `t` задает font characteristics;
+  - `I` существует в полном xdot-формате;
+  - label attrs при `record`, HTML-like label и `decorate=true` могут содержать не только `T`.
+- По `graphviz` JSON schema:
+  - в [graphviz_json_schema.json](/Users/andrei/.codex/worktrees/f5d8/graphviz/doc/infosrc/graphviz_json_schema.json) есть `font_style` с `op: "t"` и `fontchar`.
+- По текущей реализации JSON plugin:
+  - в [gvrender_core_json.c](/Users/andrei/.codex/worktrees/f5d8/graphviz/plugin/core/gvrender_core_json.c#L294) `xd_image` сейчас не сериализуется, там стоит `break;`
+  - `xd_fontchar` сериализуется как `op: "t"` и `fontchar`.
+- Проверки:
+  - `dotnet test tests/PSGraphView.Graphviz.Tests/PSGraphView.Graphviz.Tests.csproj --no-restore`
+  - результат: `12 passed`, `0 failed`, `0 skipped`
+  - `dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --no-restore --filter ExportGraphvizView`
+  - результат: `4 passed`, `0 failed`, `0 skipped`
+
+Следствие:
+- Interpreter слой для текущего `xdot_json` можно считать достаточно полным, чтобы переходить к `scene -> Svg`.
+- `I` нужно возвращать в план только если upstream JSON plugin начнет реально его отдавать.
+
 ## 2026-04-06 18:40:36 PDT
 
 Решение:

@@ -45,6 +45,10 @@
   - nested cluster/subgraph payload-ы не зависят от сырого порядка объектов в JSON
   - добавлена явная проверка на битые membership-индексы
   - добавлены tests на nested subgraph traversal
+- `Патч 2c` закрыт:
+  - добавлена поддержка `t` через font-style flags в scene model
+  - подтверждено, что label draw-атрибуты могут содержать не только `T`, и этот path покрыт tests
+  - `I` оставлен отдельным follow-up, потому что текущий `xdot_json` plugin `xd_image` не сериализует
 - runtime bundle на стороне `graphviz` подтвержден на:
   - `linux-x64`
   - `osx-arm64`
@@ -58,6 +62,7 @@
 Не завершено:
 - полный interpreter `xdot_json -> scene`, включая рекурсивный обход вложенных `subgraphs`
 - расширенный interpreter coverage для `t`, `I`, record/HTML labels и `decorate=true`
+- отдельный follow-up на image-операции, если `xdot_json` plugin начнет выдавать `xd_image`
 - native `scene -> Svg`
 - native `scene -> Png/Jpg`
 - переключение `Export-GraphvizView -As Svg|Png|Jpg` на native path
@@ -187,8 +192,11 @@
 - Добавить tests на graph с cluster/subgraph, чтобы scene не теряла group-level draw-команды.
 
 Патч 2c. Расширенный xdot coverage
-- Решить, когда добавлять поддержку `t` и `I`.
+Статус:
+- выполнен в текущей ветке
+- Добавить поддержку `t`.
 - Проверить payload-ы с record/HTML labels и `decorate=true`, где label draw-атрибуты могут содержать не только `T`.
+- `I` оставить отдельным follow-up, пока текущий `xdot_json` plugin не сериализует `xd_image`.
 - После этого считать interpreter слой достаточно полным для перехода к `Svg`.
 
 Патч 3. Svg renderer
@@ -263,6 +271,6 @@
 ## Следующий шаг
 
 Следующий практический шаг в этом репозитории:
-- добрать `Патч 2c`: расширенный xdot coverage для `t`, `I`, record/HTML labels и `decorate=true`;
-- после этого переходить к `scene -> Svg`;
+- переходить к `Патчу 3`: `scene -> Svg`;
+- image-операции `I` возвращать в план только если они реально начнут приходить из `xdot_json`;
 - держать `MSAGL` вне этого изменения.

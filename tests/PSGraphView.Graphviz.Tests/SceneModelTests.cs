@@ -30,7 +30,7 @@ public sealed class SceneModelTests
                         new TextCommand(
                             new ScenePoint(12, 14),
                             "node-A",
-                            new SceneFont("Helvetica", 12),
+                            new SceneFont("Helvetica", 12, SceneFontStyle.Bold | SceneFontStyle.Italic),
                             new SceneColor(10, 20, 30),
                             42,
                             SceneTextAlignment.Center)
@@ -44,6 +44,7 @@ public sealed class SceneModelTests
         Assert.Contains("\"$type\":\"color\"", json, StringComparison.Ordinal);
         Assert.Contains("\"Name\":\"G\"", json, StringComparison.Ordinal);
         Assert.Contains("\"Kind\":1", json, StringComparison.Ordinal);
+        Assert.Contains("\"Style\":3", json, StringComparison.Ordinal);
     }
 
     [Fact]

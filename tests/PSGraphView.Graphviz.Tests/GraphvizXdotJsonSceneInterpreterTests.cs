@@ -145,6 +145,43 @@ public sealed class GraphvizXdotJsonSceneInterpreterTests
     }
 
     [Fact]
+    public void Interpret_ParsesFontCharacterFlagsAndMixedLabelDrawCommands()
+    {
+        const string xdotJson = """
+        {
+          "name": "G",
+          "_subgraph_cnt": 0,
+          "objects": [
+            {
+              "_gvid": 0,
+              "name": "RecordNode",
+              "_ldraw_": [
+                { "op": "c", "grad": "none", "color": "#222222" },
+                { "op": "L", "points": [[10,10], [50,10], [50,30], [10,30], [10,10]] },
+                { "op": "F", "size": 11, "face": "Helvetica" },
+                { "op": "t", "fontchar": 5 },
+                { "op": "T", "pt": [30,20], "align": "c", "width": 26, "text": "Cell" }
+              ]
+            }
+          ]
+        }
+        """;
+
+        var scene = _interpreter.Interpret(xdotJson);
+
+        Assert.Equal(2, scene.Objects[0].Commands.Count);
+
+        var outline = Assert.IsType<PolylineCommand>(scene.Objects[0].Commands[0]);
+        Assert.Equal(5, outline.Points.Count);
+        Assert.Equal(new SceneColor(0x22, 0x22, 0x22), outline.Stroke);
+
+        var label = Assert.IsType<TextCommand>(scene.Objects[0].Commands[1]);
+        Assert.Equal("Cell", label.Text);
+        Assert.Equal(new SceneFont("Helvetica", 11, SceneFontStyle.Bold | SceneFontStyle.Underline), label.Font);
+        Assert.Equal(SceneTextAlignment.Center, label.Alignment);
+    }
+
+    [Fact]
     public void Interpret_ThrowsForUnsupportedOperation()
     {
         const string xdotJson = """
@@ -158,7 +195,7 @@ public sealed class GraphvizXdotJsonSceneInterpreterTests
               "_gvid": 0,
               "name": "A",
               "_draw_": [
-                { "op": "t", "fontchar": 65 }
+                { "op": "I", "x": 1, "y": 2, "w": 3, "h": 4, "name": "icon.png" }
               ]
             }
           ]
@@ -167,7 +204,7 @@ public sealed class GraphvizXdotJsonSceneInterpreterTests
 
         var exception = Assert.Throws<NotSupportedException>(() => _interpreter.Interpret(xdotJson));
 
-        Assert.Contains("operation 't'", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("operation 'I'", exception.Message, StringComparison.Ordinal);
     }
 
     [Fact]

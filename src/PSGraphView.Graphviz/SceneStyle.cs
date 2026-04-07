@@ -50,7 +50,7 @@ public enum SceneGradientKind
 
 public sealed record SceneFont
 {
-    public SceneFont(string family, double size)
+    public SceneFont(string family, double size, SceneFontStyle style = SceneFontStyle.Regular)
     {
         Family = string.IsNullOrWhiteSpace(family)
             ? throw new ArgumentException("Font family is required.", nameof(family))
@@ -58,11 +58,26 @@ public sealed record SceneFont
         Size = size > 0
             ? size
             : throw new ArgumentOutOfRangeException(nameof(size), "Font size must be positive.");
+        Style = style;
     }
 
     public string Family { get; }
 
     public double Size { get; }
+
+    public SceneFontStyle Style { get; }
+}
+
+[Flags]
+public enum SceneFontStyle
+{
+    Regular = 0,
+    Bold = 1,
+    Italic = 2,
+    Underline = 4,
+    Superscript = 8,
+    Subscript = 16,
+    Strikethrough = 32
 }
 
 public sealed record SceneStrokeStyle

@@ -170,6 +170,9 @@ public sealed class GraphvizXdotJsonSceneInterpreter
             case "F":
                 state.Font = ParseFont(operation);
                 return;
+            case "t":
+                state.Font = ApplyFontStyle(state.Font, operation);
+                return;
             case "S":
                 state.StrokeStyle = ApplyStyle(state.StrokeStyle, GetRequiredString(operation, "style"));
                 return;
@@ -272,6 +275,19 @@ public sealed class GraphvizXdotJsonSceneInterpreter
         return new SceneFont(
             GetRequiredString(operation, "face"),
             GetRequiredDouble(operation, "size"));
+    }
+
+    private static SceneFont ApplyFontStyle(SceneFont current, JsonElement operation)
+    {
+        if (!operation.TryGetProperty("fontchar", out var fontchar) || fontchar.ValueKind != JsonValueKind.Number)
+        {
+            throw new InvalidDataException("The 'fontchar' property is required and must be numeric.");
+        }
+
+        return new SceneFont(
+            current.Family,
+            current.Size,
+            (SceneFontStyle)fontchar.GetInt32());
     }
 
     private static ScenePaint ParsePaint(JsonElement operation)
