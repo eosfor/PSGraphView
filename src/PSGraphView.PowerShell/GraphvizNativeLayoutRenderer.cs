@@ -9,7 +9,7 @@ internal static class GraphvizNativeLayoutRenderer
         ArgumentException.ThrowIfNullOrWhiteSpace(dot);
 
         using var session = new GraphvizNativeSession();
-        var result = session.LayoutDot(dot, new GraphvizNativeLayoutRequest(ToNativeEngine(engine)));
+        var result = session.LayoutDot(dot, new GraphvizNativeLayoutRequest(ToNativeEngine(engine), IncludeXdot: true));
         return result.XdotJson;
     }
 

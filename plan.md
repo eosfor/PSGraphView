@@ -4,7 +4,7 @@
 
 Довести `PSGraphView` до полноценного native Graphviz renderer path:
 - вход: DOT из pipeline (`Export-Graph -Format Graphviz | Export-GraphvizView`) или DOT-файл;
-- layout и scene: `libpsgv` (`DOT -> xdot_json`);
+- layout и scene: `libpsgv` (`DOT -> Graphviz JSON draw payload`);
 - рендер: `PSGraphView` (`xdot_json -> normalized scene -> Svg/Png/Jpg`);
 - без обязательной установки полного Graphviz на машине пользователя.
 
@@ -27,6 +27,9 @@
   - `-As`
   - `-OutputPath`
 - `Export-GraphvizView -As Json` уже идет по native пути `DOT -> libpsgv -> xdot_json`.
+- native layout payload скорректирован:
+  - для draw-команд используется Graphviz `json`, а не `xdot_json`
+  - текущие managed имена `XdotJson` пока оставлены ради совместимости, но фактический payload нужно считать Graphviz JSON с `_draw_`/`_ldraw_`
 - publish уже умеет скачивать bundled runtime из private release-ов `eosfor/graphviz-psgv` и раскладывать его в `runtimes/<rid>/native`.
 - `PSGraphView.Graphviz` уже умеет грузить bundled `libpsgv`.
 - `Патч 0` закрыт:
@@ -79,7 +82,7 @@
 - `Export-GraphvizView` принимает DOT.
 - `PSGraphView.Graphviz` вызывает `libpsgv`.
 - `libpsgv` возвращает `xdot_json`.
-- interpreter в `PSGraphView` превращает `xdot_json` в managed scene model.
+- interpreter в `PSGraphView` превращает Graphviz JSON draw payload в managed scene model.
 - renderer backend превращает scene model в `Svg/Png/Jpg`.
 
 Граница ответственности:
@@ -95,6 +98,8 @@
 
 - Основная справка по семантике xdot для этого плана:
   - [Graphviz Library Manual, section 1.1.2 xdot](https://graphviz.org/pdf/libguide.pdf)
+- Практическое замечание для текущего `libpsgv`:
+  - для draw-операций в этом проекте нужно ориентироваться на Graphviz `json`, потому что `xdot_json` в текущем native path не несет `_draw_`/`_ldraw_`.
 - Между `xdot_json` и renderer backend вводим normalized scene model.
 - Renderer не должен исполнять сырую `xdot` state-machine.
 - Interpreter может держать текущий state (`pen`, `fill`, `font`, `style`), но наружу должен отдавать уже нормализованные draw-команды.

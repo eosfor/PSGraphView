@@ -1,5 +1,32 @@
 # Architecture Decision Log
 
+## 2026-04-06 19:00:55 PDT
+
+Решение:
+Исправить ранее принятое предположение про входной payload для interpreter-а:
+- для текущего `libpsgv` draw-команды нужно читать не из `xdot_json`, а из Graphviz `json`;
+- managed имена `XdotJson` в `PSGraphView` пока оставить как технический legacy-name, чтобы не смешивать bug fix и массовое переименование.
+
+Причины:
+- На практике `xdot_json` из текущего native path не содержит `_draw_` и `_ldraw_`, из-за чего `scene -> Svg` дает почти пустой документ.
+- Тот же graph через `dot -Tjson` содержит draw-операции, которые как раз и нужны interpreter-у.
+- Это и есть ошибка предыдущего решения: мы слишком рано зафиксировали именно `xdot_json` как обязательный layout payload, не проверив его на реальном large graph сценарии.
+
+Телеметрия / наблюдения:
+- На WikiVote subgraph native `Svg` выглядел как белый лист.
+- Диагностика показала:
+  - `Export-GraphvizView -As Json` через текущий `libpsgv` возвращал graph/object/edge metadata без `_draw_`;
+  - из-за этого generated `Svg` был около `8.3K`, тогда как родной `dot -Tsvg` был около `68K`.
+- После переключения `libpsgv` на Graphviz `json`:
+  - native `Svg` для того же WikiVote subgraph стал около `64K`;
+  - `ExportGraphvizView` tests снова проходят и уже проверяют наличие `_draw_` и реальных SVG primitives.
+- Источник различия в related project:
+  - в [psgv.c](/Users/andrei/.codex/worktrees/f5d8/graphviz/lib/psgv/psgv.c) `DEFAULT_LAYOUT_FORMAT` был `xdot_json` и был изменен на `json`.
+
+Следствие:
+- Для текущего этапа `scene` нужно считать интерпретацией Graphviz JSON draw payload.
+- Переименование public/managed символов (`XdotJson`, `GraphvizXdotJsonSceneInterpreter`) можно вынести в отдельный cleanup, если это действительно понадобится.
+
 ## 2026-04-06 18:49:46 PDT
 
 Решение:

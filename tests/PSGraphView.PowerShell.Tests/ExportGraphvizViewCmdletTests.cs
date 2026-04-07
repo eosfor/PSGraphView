@@ -47,6 +47,8 @@ public sealed class ExportGraphvizViewCmdletTests : IDisposable
         var svg = Assert.IsType<string>(result[0].BaseObject);
         Assert.Contains("<svg", svg, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("<g", svg, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("<ellipse", svg, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("<path", svg, StringComparison.OrdinalIgnoreCase);
     }
 
     [GraphvizNativeFact]
@@ -69,6 +71,8 @@ public sealed class ExportGraphvizViewCmdletTests : IDisposable
         Assert.True(File.Exists(svgPath));
         var svg = File.ReadAllText(svgPath);
         Assert.Contains("<svg", svg, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("<ellipse", svg, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("<path", svg, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -110,5 +114,6 @@ public sealed class ExportGraphvizViewCmdletTests : IDisposable
         var json = Assert.IsType<string>(result[0].BaseObject);
         Assert.Contains("\"name\": \"G\"", json, StringComparison.Ordinal);
         Assert.Contains("\"edges\"", json, StringComparison.Ordinal);
+        Assert.Contains("\"_draw_\"", json, StringComparison.Ordinal);
     }
 }

@@ -346,5 +346,6 @@ public sealed class GraphvizXdotJsonSceneInterpreterNativeTests
         Assert.NotEmpty(scene.Objects);
         Assert.Contains(scene.Objects, item => item.Kind == SceneObjectKind.Node);
         Assert.Contains(scene.Objects, item => item.Kind == SceneObjectKind.Edge);
+        Assert.Contains(scene.Objects, item => item.Commands.Count > 0);
     }
 }

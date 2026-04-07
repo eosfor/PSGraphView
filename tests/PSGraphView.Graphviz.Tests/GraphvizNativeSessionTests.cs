@@ -20,6 +20,7 @@ public sealed class GraphvizNativeSessionTests
         Assert.Contains("\"name\": \"G\"", result.XdotJson, StringComparison.Ordinal);
         Assert.Contains("\"directed\": true", result.XdotJson, StringComparison.Ordinal);
         Assert.Contains("\"label\": \"edge\"", result.XdotJson, StringComparison.Ordinal);
+        Assert.Contains("\"_draw_\"", result.XdotJson, StringComparison.Ordinal);
         Assert.NotNull(result.Xdot);
         Assert.Contains("_draw_", result.Xdot, StringComparison.Ordinal);
     }

@@ -23,7 +23,7 @@ Current status:
 
 Repository layout:
 - `src/PSGraphView.Dsm`: DSM-specific visualization library for SVG rendering.
-- `src/PSGraphView.Graphviz`: native Graphviz interop library for `DOT -> xdot_json`.
+- `src/PSGraphView.Graphviz`: native Graphviz interop library for `DOT -> Graphviz JSON draw payload`.
 - `src/PSGraphView.Vega`: visualization library for `GraphView`-based Vega export.
 - `src/PSGraphView.Msagl`: visualization library for `GraphView`-based MSAGL export.
 - `src/PSGraphView.PowerShell`: PowerShell cmdlet surface over the extracted graph and DSM renderers.
@@ -39,9 +39,9 @@ Current PowerShell surface:
 - `Export-DSMView -Dsm|Result|SequencedDsm <object> -Renderer <renderer> [-As Html|Json|Svg] [-Path <file>]`
 
 Bundled Graphviz runtime:
-- `src/PSGraphView.Graphviz` contains the native `libpsgv` interop layer for `DOT -> xdot_json`.
-- `Export-GraphvizView -As Json` already uses this native path and returns `xdot_json`.
-- `Export-GraphvizView -As Svg` already uses the native path `DOT -> xdot_json -> scene -> Svg`.
+- `src/PSGraphView.Graphviz` contains the native `libpsgv` interop layer for `DOT -> Graphviz JSON draw payload`.
+- `Export-GraphvizView -As Json` already uses this native path and returns the Graphviz JSON layout payload with draw commands.
+- `Export-GraphvizView -As Svg` already uses the native path `DOT -> Graphviz JSON -> scene -> Svg`.
 - `Export-GraphvizView -As Png|Jpg` still uses the process-based Graphviz fallback until the raster renderer is implemented.
 - `dotnet publish src/PSGraphView.PowerShell/PSGraphView.PowerShell.csproj` can stage bundled native Graphviz runtimes under `runtimes/<rid>/native` when these MSBuild properties are set:
   - `IncludeGraphvizRuntimeBundle=true`
