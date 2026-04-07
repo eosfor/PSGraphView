@@ -41,7 +41,8 @@ Current PowerShell surface:
 Bundled Graphviz runtime:
 - `src/PSGraphView.Graphviz` contains the native `libpsgv` interop layer for `DOT -> xdot_json`.
 - `Export-GraphvizView -As Json` already uses this native path and returns `xdot_json`.
-- `Export-GraphvizView -As Svg|Png|Jpg` still uses the process-based Graphviz fallback until the `xdot_json -> scene -> SkiaSharp` renderer is implemented.
+- `Export-GraphvizView -As Svg` already uses the native path `DOT -> xdot_json -> scene -> Svg`.
+- `Export-GraphvizView -As Png|Jpg` still uses the process-based Graphviz fallback until the raster renderer is implemented.
 - `dotnet publish src/PSGraphView.PowerShell/PSGraphView.PowerShell.csproj` can stage bundled native Graphviz runtimes under `runtimes/<rid>/native` when these MSBuild properties are set:
   - `IncludeGraphvizRuntimeBundle=true`
   - `GraphvizRuntimeVersion=<psgv runtime version>`
