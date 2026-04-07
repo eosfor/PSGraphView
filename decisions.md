@@ -1,5 +1,37 @@
 # Architecture Decision Log
 
+## 2026-04-06 19:50:50 PDT
+
+Решение:
+Вынести сравнение `dot -Tsvg` и native `Export-GraphvizView -As Svg` в отдельный повторяемый demo-скрипт:
+- [Compare-WikiVote-GraphvizSvg.ps1](/Users/andrei/repo/PSGraphView/demos/Compare-WikiVote-GraphvizSvg.ps1)
+- скрипт должен уметь как сам построить `wiki-vote` subgraph DOT, так и принять уже готовый `-DotPath`
+- на выходе он должен сохранять оба `Svg` и JSON с warm/cold timing-ами
+
+Причины:
+- После перехода `Svg` на native path нужен быстрый способ повторять и визуальное сравнение, и сравнение по скорости на одном и том же входе.
+- Разовые ad-hoc команды в shell неудобно переиспользовать после каждого следующего патча.
+- Для этой серии изменений важно сравнивать оба пути на общем DOT, иначе выводы по скорости и размеру выходных файлов легко искажаются.
+
+Телеметрия / наблюдения:
+- Базовый замер для `wiki-vote` subgraph с `SubgraphSeedCount = 30`:
+  - warm `Export-GraphvizView -As Svg`: `35.71 ms` avg, `35.70 ms` median
+  - warm `dot -Kdot -Tsvg`: `90.83 ms` avg, `90.47 ms` median
+  - cold `pwsh + Import-Module + Export-GraphvizView`: `358.41 ms` avg, `356.30 ms` median
+  - cold `dot -Kdot -Tsvg`: `90.13 ms` avg, `89.95 ms` median
+- Вывод по текущему состоянию:
+  - в уже живой PowerShell-сессии native `Svg` path быстрее внешнего `dot`
+  - в разовом запуске доминирует startup overhead `pwsh` и импорта модуля, поэтому direct `dot` быстрее
+- Скрипт сохраняет baseline-файлы:
+  - общий `wiki-vote.dot`
+  - `wiki-vote-graphviz-dot.svg`
+  - `wiki-vote-psgraphview-native.svg`
+  - `wiki-vote-svg-benchmark.json`
+
+Следствие:
+- После патчей, затрагивающих Graphviz JSON payload, interpreter или `scene -> Svg`, этот demo-скрипт нужно использовать как ручную проверку регрессий.
+- Результаты сравнения из этого скрипта нужно при необходимости дописывать в decision log как телеметрию для следующих решений.
+
 ## 2026-04-06 19:00:55 PDT
 
 Решение:

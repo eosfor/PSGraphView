@@ -62,6 +62,10 @@
   - `osx-arm64`
   - `win-x64`
   - preview release run `24019580372`
+- есть повторяемый manual compare/benchmark script:
+  - `demos/Compare-WikiVote-GraphvizSvg.ps1`
+  - он строит общий `wiki-vote.dot` или берет готовый `-DotPath`
+  - пишет оба `Svg` и `wiki-vote-svg-benchmark.json` с warm/cold замерами
 
 Частично завершено:
 - `Export-GraphvizView -As Svg|Png|Jpg` существует, но пока использует process-based Graphviz fallback.
@@ -231,6 +235,7 @@
   - `WikiVote`
   - сначала subgraph
   - затем full graph
+- Держать ручной compare/benchmark script для `WikiVote`, чтобы визуальные и временные регрессии проверялись на одном и том же DOT входе.
 
 Патч 6. Проверка независимости от системного Graphviz
 - Добавить тесты, подтверждающие, что после переключения `Svg/Png/Jpg` идут не через внешний `dot`.

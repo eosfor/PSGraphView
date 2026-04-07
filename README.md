@@ -54,6 +54,8 @@ Demo scripts:
 - Install them for demo use with `Install-Module PSQuickGraph -Scope CurrentUser` and `Install-Module PSGraphView -Scope CurrentUser`.
 - For local development before publishing, rerun a demo with `-UseLocalModules` to prefer repo build outputs when available.
 - You can also point directly at build outputs with `-PSQuickGraphManifestPath <path-to-PSQuickGraph.psd1>` and `-PSGraphViewManifestPath <path-to-PSGraphView.psd1>`.
+- `demos/Compare-WikiVote-GraphvizSvg.ps1` builds or reuses one DOT file, writes both `dot -Tsvg` and native `Export-GraphvizView -As Svg` outputs, and saves warm/cold timing results to JSON.
+- For local native Graphviz benchmarking without a bundled runtime, pass `-GraphvizNativeLibraryPath <path-to-libpsgv>` or set `PSGRAPHVIEW_PSGV_LIBRARY_PATH`.
 
 Workspace:
 - Open `/Users/andrei/repo/psgraph-visualization.code-workspace` to work on `PSGraph` and `PSGraphView` side by side in VS Code.
