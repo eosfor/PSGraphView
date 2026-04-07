@@ -60,6 +60,12 @@
   - `Export-GraphvizView -As Svg` переключен на native path `DOT -> libpsgv -> xdot_json -> scene -> Svg`
   - process renderer оставлен только для `Png/Jpg`
   - `MSAGL` не затронут
+- `Патч 3a` закрыт:
+  - добавлен cmdlet-level regression-test, который подтверждает, что `Export-GraphvizView -As Svg` не зависит от внешнего `dot`
+- `Патч 4` закрыт:
+  - добавлен managed `scene -> Png/Jpg` renderer на `SkiaSharp`
+  - `Export-GraphvizView -As Png|Jpg` переключен на native path `DOT -> libpsgv -> xdot_json -> scene -> raster`
+  - cmdlet-level tests на `Png/Jpg` теперь тоже ломают путь к `dot`, но ожидают успешный native render
 - runtime bundle на стороне `graphviz` подтвержден на:
   - `linux-x64`
   - `osx-arm64`
@@ -71,13 +77,10 @@
   - пишет оба `Svg` и `wiki-vote-svg-benchmark.json` с warm/cold замерами
 
 Частично завершено:
-- `Export-GraphvizView -As Png|Jpg` существует, но пока использует process-based Graphviz fallback.
-- `WikiVote` уже можно прогонять до финального native `Svg`, но еще не до native `Png/Jpg`.
+- `WikiVote` уже можно прогонять до финального native `Svg/Png/Jpg`, но полноценный test contour для сценария "машина без системного Graphviz" еще не закрыт.
 
 Не завершено:
 - отдельный follow-up на image-операции, если Graphviz JSON plugin начнет выдавать `xd_image`
-- native `scene -> Png/Jpg`
-- переключение `Export-GraphvizView -As Png|Jpg` на native path
 - отдельный end-to-end test contour для сценария "на машине нет системного `dot` и нет установленного системного Graphviz"
 
 ## Архитектура
@@ -268,7 +271,7 @@
 - `Export-GraphvizView -As Json` не ломается после введения interpreter-а
 - `Export-GraphvizView -As Svg` отдает валидный SVG на простом DOT
 - `Export-GraphvizView -As Svg` не зависит от внешнего `dot`
-- `Export-GraphvizView -As Png` и `-As Jpg` создают не пустые бинарные файлы
+- `Export-GraphvizView -As Png` и `-As Jpg` создают валидные бинарные файлы
 - bundled runtime реально используется, без системного Graphviz
 - целевой end-to-end сценарий проходит на машине без системного `dot` и без установленного системного Graphviz
 - native tests на `PSGraphView.Graphviz.Tests` проходят через рабочий test harness, а не падают на сборке вспомогательной библиотеки

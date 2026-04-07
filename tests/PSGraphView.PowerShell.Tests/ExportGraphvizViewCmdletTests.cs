@@ -100,9 +100,14 @@ public sealed class ExportGraphvizViewCmdletTests : IDisposable
         Assert.Contains("<path", svg, StringComparison.OrdinalIgnoreCase);
     }
 
-    [Fact]
+    [GraphvizNativeFact]
     public void ExportGraphvizView_InputObjectPngOutputPath_WritesPng()
     {
+        GraphvizNativeTestEnvironment.EnsureNativeLibraryAvailable();
+
+        var missingDotPath = System.IO.Path.Combine(_tempDirectory, "missing-dot");
+        using var _ = new EnvironmentVariableScope(GraphvizDotPathEnvironmentVariable, missingDotPath);
+
         var pngPath = System.IO.Path.Combine(_tempDirectory, "graph.png");
 
         _powerShell.AddCommand("Export-GraphvizView")
@@ -114,6 +119,8 @@ public sealed class ExportGraphvizViewCmdletTests : IDisposable
         var result = _powerShell.Invoke();
 
         Assert.Empty(result);
+        Assert.False(_powerShell.HadErrors);
+        Assert.Empty(_powerShell.Streams.Error);
         Assert.True(File.Exists(pngPath));
         var bytes = File.ReadAllBytes(pngPath);
         Assert.True(bytes.Length >= 8);
@@ -121,6 +128,34 @@ public sealed class ExportGraphvizViewCmdletTests : IDisposable
         Assert.Equal((byte)'P', bytes[1]);
         Assert.Equal((byte)'N', bytes[2]);
         Assert.Equal((byte)'G', bytes[3]);
+    }
+
+    [GraphvizNativeFact]
+    public void ExportGraphvizView_InputObjectJpgOutputPath_WritesJpg()
+    {
+        GraphvizNativeTestEnvironment.EnsureNativeLibraryAvailable();
+
+        var missingDotPath = System.IO.Path.Combine(_tempDirectory, "missing-dot");
+        using var _ = new EnvironmentVariableScope(GraphvizDotPathEnvironmentVariable, missingDotPath);
+
+        var jpgPath = System.IO.Path.Combine(_tempDirectory, "graph.jpg");
+
+        _powerShell.AddCommand("Export-GraphvizView")
+            .AddParameter("InputObject", BasicDot)
+            .AddParameter("Renderer", GraphvizLayoutEngine.Dot)
+            .AddParameter("As", ViewOutputKind.Jpg)
+            .AddParameter("OutputPath", jpgPath);
+
+        var result = _powerShell.Invoke();
+
+        Assert.Empty(result);
+        Assert.False(_powerShell.HadErrors);
+        Assert.Empty(_powerShell.Streams.Error);
+        Assert.True(File.Exists(jpgPath));
+        var bytes = File.ReadAllBytes(jpgPath);
+        Assert.True(bytes.Length >= 4);
+        Assert.Equal(0xFF, bytes[0]);
+        Assert.Equal(0xD8, bytes[1]);
     }
 
     [GraphvizNativeFact]

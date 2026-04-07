@@ -1,5 +1,35 @@
 # Architecture Decision Log
 
+## 2026-04-06 21:12:32 PDT
+
+Решение:
+Закрыть `Патч 4` через отдельный managed raster renderer в `PSGraphView.Graphviz` и перевести `Export-GraphvizView -As Png|Jpg` на тот же native path, что уже используется для `Svg`.
+
+Причины:
+- После стабилизации `Svg` уже не было смысла держать `Png/Jpg` на process fallback.
+- Scene model уже покрывает нужный набор фигур, линий, bezier и текста, поэтому raster path логично строить поверх нее, а не вводить второй независимый decode/render слой.
+- Для первого raster-среза `SkiaSharp` дает достаточно прямой путь к `Png/Jpg` без привязки к системному Graphviz.
+
+Телеметрия / наблюдения:
+- Добавлен renderer:
+  - [GraphSceneRasterRenderer.cs](/Users/andrei/repo/PSGraphView/src/PSGraphView.Graphviz/GraphSceneRasterRenderer.cs)
+- Добавлены unit tests:
+  - [GraphSceneRasterRendererTests.cs](/Users/andrei/repo/PSGraphView/tests/PSGraphView.Graphviz.Tests/GraphSceneRasterRendererTests.cs)
+- Обновлен cmdlet:
+  - [ExportGraphvizViewCmdlet.cs](/Users/andrei/repo/PSGraphView/src/PSGraphView.PowerShell/ExportGraphvizViewCmdlet.cs)
+- Обновлены cmdlet tests:
+  - [ExportGraphvizViewCmdletTests.cs](/Users/andrei/repo/PSGraphView/tests/PSGraphView.PowerShell.Tests/ExportGraphvizViewCmdletTests.cs)
+  - `Png` и `Jpg` tests теперь тоже задают битый `PSGRAPHVIEW_GRAPHVIZ_DOT_PATH` и ожидают успешный render
+- Проверки:
+  - `PSGRAPHVIEW_GRAPHVIZ_SOURCE_DIR=/Users/andrei/.codex/worktrees/f5d8/graphviz dotnet test tests/PSGraphView.Graphviz.Tests/PSGraphView.Graphviz.Tests.csproj`
+  - результат: `16 passed`, `0 failed`, `0 skipped`
+  - `PSGRAPHVIEW_GRAPHVIZ_SOURCE_DIR=/Users/andrei/.codex/worktrees/f5d8/graphviz dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --filter ExportGraphvizView`
+  - результат: `6 passed`, `0 failed`, `0 skipped`
+
+Следствие:
+- `Json`, `Svg`, `Png` и `Jpg` теперь идут через общий native path `DOT -> libpsgv -> Graphviz JSON -> scene -> renderer`.
+- Следующий незакрытый технический шаг уже не про process fallback, а про более жесткие end-to-end проверки для сценария без системного `dot` и без установленного системного Graphviz.
+
 ## 2026-04-06 21:07:30 PDT
 
 Решение:

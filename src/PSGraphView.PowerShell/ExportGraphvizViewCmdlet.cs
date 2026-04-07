@@ -86,6 +86,17 @@ public sealed class ExportGraphvizViewCmdlet : PSCmdlet
                 return;
             }
 
+            if (outputKind is ViewOutputKind.Png or ViewOutputKind.Jpg)
+            {
+                var xdotJson = GraphvizNativeLayoutRenderer.RenderXdotJson(dot, Renderer);
+                var scene = new GraphvizXdotJsonSceneInterpreter().Interpret(xdotJson);
+                var rasterData = new GraphSceneRasterRenderer().Render(
+                    scene,
+                    outputKind == ViewOutputKind.Png ? RasterOutputKind.Png : RasterOutputKind.Jpeg);
+                CmdletOutputHelpers.WriteResult(this, rasterData, OutputPath);
+                return;
+            }
+
             var data = GraphvizProcessRenderer.Render(dot, Renderer, outputKind);
 
             CmdletOutputHelpers.WriteResult(this, data, OutputPath);
