@@ -6,7 +6,10 @@
 - вход: DOT из pipeline (`Export-Graph -Format Graphviz | Export-GraphvizView`) или DOT-файл;
 - layout и scene: `libpsgv` (`DOT -> Graphviz JSON draw payload`);
 - рендер: `PSGraphView` (`xdot_json -> normalized scene -> Svg/Png/Jpg`);
-- без обязательной установки полного Graphviz на машине пользователя.
+- без обязательной установки системного `dot` или полного системного Graphviz на машине пользователя.
+- целевой конечный сценарий:
+  - все поддержанные native output-path должны работать только на bundled/runtime `libpsgv` и нашем managed renderer-е
+  - ключевые проверки должны уметь подтверждать это на машине без системного `dot` и без установленного системного Graphviz
 
 Для первого полноценного результата:
 - `Svg` считать отдельным milestone и не завязывать его жестко на `SkiaSharp`.
@@ -76,7 +79,7 @@
 - отдельный follow-up на image-операции, если Graphviz JSON plugin начнет выдавать `xd_image`
 - native `scene -> Png/Jpg`
 - переключение `Export-GraphvizView -As Png|Jpg` на native path
-- явная проверка, что после переключения `Png/Jpg` путь не зависит от системного `dot`
+- отдельный end-to-end test contour для сценария "на машине нет системного `dot` и нет установленного системного Graphviz"
 
 ## Архитектура
 
@@ -226,6 +229,7 @@
   - сломанный `PATH` для `dot`
   - или намеренно невалидный путь к `dot`
   - при этом native `Svg` должен оставаться рабочим
+- Это локальная страховка для уже готового `Svg`, а не финальная проверка полной автономности решения.
 
 Патч 4. Raster renderer
 - Выбрать raster backend после появления стабильного `Svg` path.
@@ -244,11 +248,14 @@
   - затем full graph
 - Держать ручной compare/benchmark script для `WikiVote`, чтобы визуальные и временные регрессии проверялись на одном и том же DOT входе.
 
-Патч 6. Проверка независимости от системного Graphviz
-- Добавить тесты, подтверждающие, что после переключения `Png/Jpg` идут не через внешний `dot`.
-- Минимум один тест должен падать, если реализация снова начнет звать process renderer.
+Патч 6. Автономные проверки без системного Graphviz
+- Добавить более жесткие тесты и smoke-сценарии для режима, где на машине нет системного `dot` и нет установленного системного Graphviz.
+- Эти проверки должны подтверждать, что решение опирается только на bundled/runtime `libpsgv` и managed renderer-ы.
+- Минимум один тест должен падать, если реализация снова начнет звать process renderer или требовать системный Graphviz.
 - Практический критерий:
-  - отсутствие `dot` в `PATH` или намеренно сломанный путь к `dot` не должны ломать native `Png/Jpg` path.
+  - отсутствие `dot` в `PATH` не должно ломать native `Svg/Png/Jpg` path
+  - отсутствие установленного системного Graphviz не должно ломать native `Svg/Png/Jpg` path
+  - `Export-GraphvizView` должен оставаться работоспособным при наличии только bundled/runtime native assets
 
 Патч 7. Отдельный follow-up по DSM
 - После стабилизации Graphviz path оценить, есть ли смысл перевести `PSGraphView.Dsm` на `SkiaSharp`.
@@ -262,7 +269,7 @@
 - `Export-GraphvizView -As Svg` не зависит от внешнего `dot`
 - `Export-GraphvizView -As Png` и `-As Jpg` создают не пустые бинарные файлы
 - bundled runtime реально используется, без системного Graphviz
-- `Png/Jpg` после переключения не требуют системный `dot`
+- целевой end-to-end сценарий проходит на машине без системного `dot` и без установленного системного Graphviz
 - native tests на `PSGraphView.Graphviz.Tests` проходят через рабочий test harness, а не падают на сборке вспомогательной библиотеки
 - native Graphviz tests не запускаются параллельно, если upstream path падает на assert при одновременных сессиях
 
