@@ -256,6 +256,10 @@
 - Добавить более жесткие тесты и smoke-сценарии для режима, где на машине нет системного `dot` и нет установленного системного Graphviz.
 - Эти проверки должны подтверждать, что решение опирается только на bundled/runtime `libpsgv` и managed renderer-ы.
 - Минимум один тест должен падать, если реализация снова начнет звать process renderer или требовать системный Graphviz.
+- Отдельно добавить compare-step для raster output:
+  - сравнить оригинальный raster от `dot` и managed raster от `PSGraphView`
+  - зафиксировать численную метрику расхождения, а не только визуальное сравнение
+  - начать минимум с `WikiVote` subgraph и одного простого smoke graph
 - Практический критерий:
   - отсутствие `dot` в `PATH` не должно ломать native `Svg/Png/Jpg` path
   - отсутствие установленного системного Graphviz не должно ломать native `Svg/Png/Jpg` path
@@ -274,6 +278,7 @@
 - `Export-GraphvizView -As Png` и `-As Jpg` создают валидные бинарные файлы
 - bundled runtime реально используется, без системного Graphviz
 - целевой end-to-end сценарий проходит на машине без системного `dot` и без установленного системного Graphviz
+- для raster path есть отдельная телеметрия по расхождению между оригинальным `dot` output и managed raster output
 - native tests на `PSGraphView.Graphviz.Tests` проходят через рабочий test harness, а не падают на сборке вспомогательной библиотеки
 - native Graphviz tests не запускаются параллельно, если upstream path падает на assert при одновременных сессиях
 
