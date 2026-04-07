@@ -68,16 +68,15 @@
   - пишет оба `Svg` и `wiki-vote-svg-benchmark.json` с warm/cold замерами
 
 Частично завершено:
-- `Export-GraphvizView -As Svg|Png|Jpg` существует, но пока использует process-based Graphviz fallback.
-- `WikiVote` можно прогонять до `xdot_json`, но не до финального native `Svg/Png/Jpg`.
+- `Export-GraphvizView -As Png|Jpg` существует, но пока использует process-based Graphviz fallback.
+- `WikiVote` уже можно прогонять до финального native `Svg`, но еще не до native `Png/Jpg`.
 
 Не завершено:
-- полный interpreter `xdot_json -> scene`, включая рекурсивный обход вложенных `subgraphs`
-- расширенный interpreter coverage для `t`, `I`, record/HTML labels и `decorate=true`
-- отдельный follow-up на image-операции, если `xdot_json` plugin начнет выдавать `xd_image`
+- короткий защитный патч для `Svg`, который подтверждает, что native `Svg` path не зависит от внешнего `dot`
+- отдельный follow-up на image-операции, если Graphviz JSON plugin начнет выдавать `xd_image`
 - native `scene -> Png/Jpg`
 - переключение `Export-GraphvizView -As Png|Jpg` на native path
-- явная проверка, что после переключения путь не зависит от системного `dot`
+- явная проверка, что после переключения `Png/Jpg` путь не зависит от системного `dot`
 
 ## Архитектура
 
@@ -85,16 +84,16 @@
 - `PSGraph` строит граф и экспортирует DOT.
 - `Export-GraphvizView` принимает DOT.
 - `PSGraphView.Graphviz` вызывает `libpsgv`.
-- `libpsgv` возвращает `xdot_json`.
+- `libpsgv` возвращает Graphviz JSON draw payload.
 - interpreter в `PSGraphView` превращает Graphviz JSON draw payload в managed scene model.
 - renderer backend превращает scene model в `Svg/Png/Jpg`.
 
 Граница ответственности:
 - `PSGraph`: доменная модель графа и DOT-export.
-- `libpsgv`: `DOT -> layout -> xdot_json`.
+- `libpsgv`: `DOT -> layout -> Graphviz JSON draw payload`.
 - `PSGraphView.Graphviz`: native interop и чтение runtime bundle.
 - первый renderer слой для Graphviz логично держать в `PSGraphView.Graphviz`, а не в отдельном новом проекте.
-- новый renderer слой в `PSGraphView`: `xdot_json -> scene -> Svg/Png/Jpg`.
+- новый renderer слой в `PSGraphView`: `Graphviz JSON -> scene -> Svg/Png/Jpg`.
 - `PSGraphView.Msagl`: остается на своем текущем SVG renderer path.
 - `PSGraphView.Dsm`: текущий SVG exporter остается рабочим; возможный `SkiaSharp` path идет отдельным этапом после стабилизации Graphviz.
 
@@ -220,6 +219,14 @@
 - Подключить его в `Export-GraphvizView -As Svg`.
 - Process fallback оставить временно только для `Png/Jpg`, если это ускоряет доставку первого результата.
 
+Патч 3a. Защитная проверка Svg
+- Добавить узкий regression-test, который подтверждает, что `Export-GraphvizView -As Svg` не зависит от внешнего `dot`.
+- Проверка должна ломаться, если `Svg` path снова начнет уходить в `GraphvizProcessRenderer`.
+- Практический сценарий:
+  - сломанный `PATH` для `dot`
+  - или намеренно невалидный путь к `dot`
+  - при этом native `Svg` должен оставаться рабочим
+
 Патч 4. Raster renderer
 - Выбрать raster backend после появления стабильного `Svg` path.
 - Базовый кандидат: `SkiaSharp`.
@@ -238,10 +245,10 @@
 - Держать ручной compare/benchmark script для `WikiVote`, чтобы визуальные и временные регрессии проверялись на одном и том же DOT входе.
 
 Патч 6. Проверка независимости от системного Graphviz
-- Добавить тесты, подтверждающие, что после переключения `Svg/Png/Jpg` идут не через внешний `dot`.
+- Добавить тесты, подтверждающие, что после переключения `Png/Jpg` идут не через внешний `dot`.
 - Минимум один тест должен падать, если реализация снова начнет звать process renderer.
 - Практический критерий:
-  - отсутствие `dot` в `PATH` или намеренно сломанный путь к `dot` не должны ломать native `Svg/Png/Jpg` path.
+  - отсутствие `dot` в `PATH` или намеренно сломанный путь к `dot` не должны ломать native `Png/Jpg` path.
 
 Патч 7. Отдельный follow-up по DSM
 - После стабилизации Graphviz path оценить, есть ли смысл перевести `PSGraphView.Dsm` на `SkiaSharp`.
@@ -252,9 +259,10 @@
 Минимальные обязательные проверки:
 - `Export-GraphvizView -As Json` не ломается после введения interpreter-а
 - `Export-GraphvizView -As Svg` отдает валидный SVG на простом DOT
+- `Export-GraphvizView -As Svg` не зависит от внешнего `dot`
 - `Export-GraphvizView -As Png` и `-As Jpg` создают не пустые бинарные файлы
 - bundled runtime реально используется, без системного Graphviz
-- `Svg/Png/Jpg` после переключения не требуют системный `dot`
+- `Png/Jpg` после переключения не требуют системный `dot`
 - native tests на `PSGraphView.Graphviz.Tests` проходят через рабочий test harness, а не падают на сборке вспомогательной библиотеки
 - native Graphviz tests не запускаются параллельно, если upstream path падает на assert при одновременных сессиях
 
