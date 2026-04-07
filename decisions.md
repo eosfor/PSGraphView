@@ -1,5 +1,40 @@
 # Architecture Decision Log
 
+## 2026-04-07 00:59:39 PDT
+
+Решение:
+Считать Linux raster packaging gap закрытым: явная зависимость на `SkiaSharp.NativeAssets.Linux.NoDependencies` и перевод workflow default на `0.1.0-beta.12` дали полностью зеленый `no-system-graphviz` matrix в `PSGraphView`.
+
+Причины:
+- Предыдущий remaining failure уже не был связан с `graphviz runtime` и сводился к Linux raster path в `SkiaSharp`.
+- После явного включения Linux native assets publish на Linux runner начал реально раскладывать `libSkiaSharp.so` в модульный layout.
+- Повторный `GitHub Actions` прогон подтвердил, что bundled-path теперь одинаково работает на всех трех целевых ОС.
+
+Телеметрия / наблюдения:
+- Кодовый патч:
+  - [PSGraphView.Graphviz.csproj](/Users/andrei/repo/PSGraphView/src/PSGraphView.Graphviz/PSGraphView.Graphviz.csproj)
+  - добавлен `SkiaSharp.NativeAssets.Linux.NoDependencies`
+- CI workflow:
+  - [no-system-graphviz.yml](/Users/andrei/repo/PSGraphView/.github/workflows/no-system-graphviz.yml)
+  - default `graphviz_runtime_version` переведен на `0.1.0-beta.12`
+- Локальная проверка publish в Linux container:
+  - `dotnet publish ./src/PSGraphView.PowerShell/PSGraphView.PowerShell.csproj -c Release --no-restore -o /tmp/psgv-publish`
+  - в publish output появились:
+    - `SkiaSharp.dll`
+    - `runtimes/linux-x64/native/libSkiaSharp.so`
+- Downstream workflow:
+  - repo: `eosfor/PSGraphView`
+  - run: `24070711886`
+  - итог:
+    - `ubuntu-24.04 / linux-x64`: success
+    - `macos-14 / osx-arm64`: success
+    - `windows-2022 / win-x64`: success
+    - workflow conclusion: `success`
+
+Следствие:
+- Этап cross-platform no-system smoke теперь можно считать подтвержденным по основному сценарию.
+- Следующий оставшийся кусок плана уже не про packaging/runtime, а про compare-step и численную телеметрию расхождения raster output.
+
 ## 2026-04-07 00:52:06 PDT
 
 Решение:

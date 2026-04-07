@@ -82,11 +82,11 @@
   - общий smoke-скрипт для `pwsh -NoProfile -> Import-Module psd1 -> Export-GraphvizView -As Json|Svg|Png|Jpg`
   - локальный helper для staged bundled-layout smoke без приватного runtime token
   - отдельный `GitHub Actions` workflow с matrix на `Linux`, `Windows` и `macOS`
-  - фактический CI прогон на `graphviz runtime 0.1.0-beta.12` уже дал более узкий срез:
+  - фактический CI прогон на `graphviz runtime 0.1.0-beta.12` уже подтвержден полностью:
     - `macOS`: green
     - `Windows`: green
-    - `Linux`: падает только на raster path в `SkiaSharp`
-  - текущий оставшийся gap сузился до Linux module/publish packaging для `SkiaSharp`
+    - `Linux`: green
+  - no-system smoke теперь подтверждает и bundled `libpsgv`, и managed `Svg/Png/Jpg` path на всех трех runner-ах
   - численное сравнение raster output и дальнейшая телеметрия еще остаются частью незавершенного этапа
 
 Не завершено:
@@ -283,13 +283,12 @@
     - `Windows`: green
     - `Linux`: нашел bug в consumer preload order
   - bug в Linux preload order уже исправлен локально, повторный CI прогон обязателен
-  - повторный downstream workflow на `graphviz runtime 0.1.0-beta.12` сузил remaining gap:
+  - Linux native asset packaging для `SkiaSharp` уже закрыт в текущей ветке
+  - default runtime version в workflow уже переведен на актуальный preview, чтобы push-run-ы не уходили обратно на устаревший `0.1.0-beta.3`
+  - downstream workflow на `graphviz runtime 0.1.0-beta.12` теперь полностью green:
+    - `Linux`: green
     - `macOS`: green
     - `Windows`: green
-    - `Linux`: failure только на `Export-GraphvizView -As Png` с `The type initializer for 'SkiaSharp.SKImageInfo' threw an exception.`
-  - следующий ближний шаг внутри этого патча:
-    - закрыть Linux native asset packaging для `SkiaSharp` в publish/module layout
-  - default runtime version в workflow тоже должен смотреть на актуальный preview, чтобы push-run-ы не уходили обратно на устаревший `0.1.0-beta.3`
   - compare-step для raster и дальнейшая телеметрия еще не завершены
 - Добавить более жесткие тесты и smoke-сценарии для режима, где на машине нет системного `dot` и нет установленного системного Graphviz.
 - Эти проверки должны подтверждать, что решение опирается только на bundled/runtime `libpsgv` и managed renderer-ы.
