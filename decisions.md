@@ -1,5 +1,28 @@
 # Architecture Decision Log
 
+## 2026-04-06 21:07:30 PDT
+
+Решение:
+Закрыть `Патч 3a` через узкий cmdlet-level regression-test, который специально ломает путь к `dot`, но все равно требует успешный `Export-GraphvizView -As Svg`.
+
+Причины:
+- Нам нужно было закрепить уже работающий native `Svg` path до перехода к `Png/Jpg`.
+- Такой тест срабатывает ровно на нужной границе: если `Svg` снова начнет пользоваться `GraphvizProcessRenderer`, он упадет сразу.
+- Для этого шага не нужен полный сценарий "машина без Graphviz"; достаточно намеренно сломанного `dot`, чтобы поймать откат к process renderer.
+
+Телеметрия / наблюдения:
+- Добавлен regression-test:
+  - [ExportGraphvizViewCmdletTests.cs](/Users/andrei/repo/PSGraphView/tests/PSGraphView.PowerShell.Tests/ExportGraphvizViewCmdletTests.cs)
+  - тест задает битый `PSGRAPHVIEW_GRAPHVIZ_DOT_PATH` и проверяет, что `Export-GraphvizView -As Svg` все равно возвращает валидный `Svg`
+- Для изоляции используется локальный scope, который восстанавливает env var после теста.
+- Проверка:
+  - `PSGRAPHVIEW_GRAPHVIZ_SOURCE_DIR=/Users/andrei/.codex/worktrees/f5d8/graphviz dotnet test tests/PSGraphView.PowerShell.Tests/PSGraphView.PowerShell.Tests.csproj --no-restore --filter ExportGraphvizView`
+  - результат: `5 passed`, `0 failed`, `0 skipped`
+
+Следствие:
+- Native `Svg` path теперь закреплен отдельным regression-test.
+- Следующий практический шаг уже можно брать как `scene -> Png/Jpg`, не смешивая его с защитой уже работающего `Svg`.
+
 ## 2026-04-06 20:52:08 PDT
 
 Решение:

@@ -75,7 +75,6 @@
 - `WikiVote` уже можно прогонять до финального native `Svg`, но еще не до native `Png/Jpg`.
 
 Не завершено:
-- короткий защитный патч для `Svg`, который подтверждает, что native `Svg` path не зависит от внешнего `dot`
 - отдельный follow-up на image-операции, если Graphviz JSON plugin начнет выдавать `xd_image`
 - native `scene -> Png/Jpg`
 - переключение `Export-GraphvizView -As Png|Jpg` на native path
@@ -223,6 +222,8 @@
 - Process fallback оставить временно только для `Png/Jpg`, если это ускоряет доставку первого результата.
 
 Патч 3a. Защитная проверка Svg
+- Статус:
+  - выполнен в текущей ветке
 - Добавить узкий regression-test, который подтверждает, что `Export-GraphvizView -As Svg` не зависит от внешнего `dot`.
 - Проверка должна ломаться, если `Svg` path снова начнет уходить в `GraphvizProcessRenderer`.
 - Практический сценарий:

@@ -6,6 +6,7 @@ namespace PSGraphView.PowerShell.Tests;
 public sealed class ExportGraphvizViewCmdletTests : IDisposable
 {
     private const string BasicDot = "digraph G { A -> B; }";
+    private const string GraphvizDotPathEnvironmentVariable = "PSGRAPHVIEW_GRAPHVIZ_DOT_PATH";
 
     private readonly PowerShellInstance _powerShell;
     private readonly string _tempDirectory;
@@ -75,6 +76,30 @@ public sealed class ExportGraphvizViewCmdletTests : IDisposable
         Assert.Contains("<path", svg, StringComparison.OrdinalIgnoreCase);
     }
 
+    [GraphvizNativeFact]
+    public void ExportGraphvizView_InputObjectSvg_DoesNotRequireDotExecutable()
+    {
+        GraphvizNativeTestEnvironment.EnsureNativeLibraryAvailable();
+
+        var missingDotPath = System.IO.Path.Combine(_tempDirectory, "missing-dot");
+        using var _ = new EnvironmentVariableScope(GraphvizDotPathEnvironmentVariable, missingDotPath);
+
+        _powerShell.AddCommand("Export-GraphvizView")
+            .AddParameter("InputObject", BasicDot)
+            .AddParameter("Renderer", GraphvizLayoutEngine.Dot)
+            .AddParameter("As", ViewOutputKind.Svg);
+
+        var result = _powerShell.Invoke();
+
+        Assert.False(_powerShell.HadErrors);
+        Assert.Empty(_powerShell.Streams.Error);
+        Assert.Single(result);
+        var svg = Assert.IsType<string>(result[0].BaseObject);
+        Assert.Contains("<svg", svg, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("<ellipse", svg, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("<path", svg, StringComparison.OrdinalIgnoreCase);
+    }
+
     [Fact]
     public void ExportGraphvizView_InputObjectPngOutputPath_WritesPng()
     {
@@ -115,5 +140,23 @@ public sealed class ExportGraphvizViewCmdletTests : IDisposable
         Assert.Contains("\"name\": \"G\"", json, StringComparison.Ordinal);
         Assert.Contains("\"edges\"", json, StringComparison.Ordinal);
         Assert.Contains("\"_draw_\"", json, StringComparison.Ordinal);
+    }
+
+    private sealed class EnvironmentVariableScope : IDisposable
+    {
+        private readonly string _name;
+        private readonly string? _originalValue;
+
+        public EnvironmentVariableScope(string name, string value)
+        {
+            _name = name;
+            _originalValue = Environment.GetEnvironmentVariable(name);
+            Environment.SetEnvironmentVariable(name, value);
+        }
+
+        public void Dispose()
+        {
+            Environment.SetEnvironmentVariable(_name, _originalValue);
+        }
     }
 }
