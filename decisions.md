@@ -1,5 +1,38 @@
 # Architecture Decision Log
 
+## 2026-04-09 22:53:45 PDT
+
+Решение:
+Оставить `records.gv` в `core` fixture-наборе и считать пустые text draw-команды допустимым Graphviz-сценарием, который должен проходить через managed scene path без исключения.
+
+Причины:
+- Первый локальный прогон `core` fixture-suite показал, что `records.gv` падает не из-за runner-а, а из-за слишком строгой валидации `TextCommand`.
+- Для record labels Graphviz может отдавать `T`-операции с пустым `text`, например для пустых ячеек.
+- Понижать такой fixture из `core` в `extended` было бы неверно:
+  - `record`-формы уже входят в целевой coverage
+  - ошибка была в нашем scene model, а не в случайности upstream sample
+
+Телеметрия / наблюдения:
+- Первый failing run:
+  - fixture: `records`
+  - log: `/Users/andrei/repo/PSGraphView/artifacts/local-graphviz-fixture-suite-core/records/smoke.log`
+  - ошибка:
+    - `Text is required. (Parameter 'text')`
+- Корень проблемы:
+  - [SceneCommands.cs](/Users/andrei/repo/PSGraphView/src/PSGraphView.Graphviz/SceneCommands.cs)
+  - `TextCommand` запрещал пустую строку через `string.IsNullOrWhiteSpace(text)`
+- Regression test добавлен в:
+  - [GraphvizXdotJsonSceneInterpreterTests.cs](/Users/andrei/repo/PSGraphView/tests/PSGraphView.Graphviz.Tests/GraphvizXdotJsonSceneInterpreterTests.cs)
+  - локально пройдено:
+    - `dotnet test tests/PSGraphView.Graphviz.Tests/PSGraphView.Graphviz.Tests.csproj --filter GraphvizXdotJsonSceneInterpreterTests`
+    - результат: `7 passed`
+- После фикса локальный `core` suite прошел полностью:
+  - summary: `/Users/andrei/repo/PSGraphView/artifacts/local-graphviz-fixture-suite-core/fixture-suite-results.json`
+
+Следствие:
+- Scene model должен сохранять `""` как корректное значение текста.
+- `records.gv` остается в `core` наборе и продолжает быть полезным regression fixture-ом.
+
 ## 2026-04-09 22:47:56 PDT
 
 Решение:

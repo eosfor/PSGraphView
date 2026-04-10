@@ -182,6 +182,34 @@ public sealed class GraphvizXdotJsonSceneInterpreterTests
     }
 
     [Fact]
+    public void Interpret_AllowsEmptyTextDrawCommands()
+    {
+        const string xdotJson = """
+        {
+          "name": "G",
+          "_subgraph_cnt": 0,
+          "objects": [
+            {
+              "_gvid": 0,
+              "name": "RecordNode",
+              "_ldraw_": [
+                { "op": "F", "size": 11, "face": "Helvetica" },
+                { "op": "c", "grad": "none", "color": "#222222" },
+                { "op": "T", "pt": [30,20], "align": "c", "width": 26, "text": "" }
+              ]
+            }
+          ]
+        }
+        """;
+
+        var scene = _interpreter.Interpret(xdotJson);
+
+        var label = Assert.IsType<TextCommand>(Assert.Single(scene.Objects[0].Commands));
+        Assert.Equal(string.Empty, label.Text);
+        Assert.Equal(new SceneColor(0x22, 0x22, 0x22), label.Color);
+    }
+
+    [Fact]
     public void Interpret_ThrowsForUnsupportedOperation()
     {
         const string xdotJson = """

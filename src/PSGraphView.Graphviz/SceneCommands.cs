@@ -97,9 +97,7 @@ public sealed record TextCommand : SceneCommand
         SceneTextAlignment alignment = SceneTextAlignment.Center)
     {
         Anchor = anchor;
-        Text = string.IsNullOrWhiteSpace(text)
-            ? throw new ArgumentException("Text is required.", nameof(text))
-            : text;
+        Text = text ?? throw new ArgumentNullException(nameof(text));
         Font = font ?? throw new ArgumentNullException(nameof(font));
         Color = color ?? throw new ArgumentNullException(nameof(color));
         Width = width >= 0
