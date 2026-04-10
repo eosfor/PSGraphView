@@ -1,5 +1,45 @@
 # Architecture Decision Log
 
+## 2026-04-09 22:57:03 PDT
+
+Решение:
+Вынести `core` fixture-suite в отдельный `GitHub Actions` workflow, а не встраивать его в уже существующий `no-system-graphviz` smoke workflow.
+
+Причины:
+- `no-system-graphviz` уже выполняет роль короткого smoke на одной строке DOT.
+- Fixture-suite по природе тяжелее:
+  - несколько входов
+  - per-fixture артефакты
+  - отдельная suite summary
+- Значит смешивать его с базовым smoke невыгодно:
+  - сложнее читать падения
+  - сложнее управлять tier-ами `core/extended`
+  - обычный быстрый smoke теряет простоту
+
+Телеметрия / наблюдения:
+- Добавлен workflow:
+  - [graphviz-fixture-suite.yml](/Users/andrei/repo/PSGraphView/.github/workflows/graphviz-fixture-suite.yml)
+- Workflow использует:
+  - тот же publish path с bundled runtime
+  - тот же matrix:
+    - `ubuntu-24.04 / linux-x64`
+    - `windows-2022 / win-x64`
+    - `macos-14 / osx-arm64`
+- Workflow вызывает:
+  - [Invoke-GraphvizFixtureSuite.ps1](/Users/andrei/repo/PSGraphView/eng/Invoke-GraphvizFixtureSuite.ps1)
+  - с `-RequireBundledGraphvizRuntime`
+- Локальная синтаксическая проверка YAML пройдена:
+  - `ruby -e 'require "yaml"; YAML.load_file(".../graphviz-fixture-suite.yml"); puts "YAML OK"'`
+  - результат: `YAML OK`
+- README обновлен:
+  - [README.md](/Users/andrei/repo/PSGraphView/README.md)
+
+Следствие:
+- Следующий шаг теперь уже внешний:
+  - первый реальный `GitHub Actions` прогон нового workflow
+  - разбор platform-specific падений, если они появятся
+- До этого момента `Патч 6a` можно считать реализованным по коду, но еще не подтвержденным в hosted CI.
+
 ## 2026-04-09 22:54:15 PDT
 
 Решение:
