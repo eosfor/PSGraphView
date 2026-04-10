@@ -1,5 +1,46 @@
 # Architecture Decision Log
 
+## 2026-04-09 22:54:15 PDT
+
+Решение:
+Сделать fixture runner отдельным `eng`-скриптом поверх уже существующего `Test-GraphvizNoSystemSmoke.ps1`, а не дублировать format-specific проверки заново.
+
+Причины:
+- В `Test-GraphvizNoSystemSmoke.ps1` уже была правильная базовая проверка нужного нам пользовательского сценария:
+  - `Import-Module ...psd1`
+  - сломанный внешний `dot`
+  - прогон `Json|Svg|Png|Jpg`
+- Значит новый runner должен был заниматься только orchestration:
+  - пройти по manifest
+  - запускать smoke по каждому fixture-у
+  - собирать per-fixture summary и артефакты
+- Такой подход уменьшает риск расхождения между одиночным smoke и fixture-suite.
+
+Телеметрия / наблюдения:
+- Добавлен runner:
+  - [Invoke-GraphvizFixtureSuite.ps1](/Users/andrei/repo/PSGraphView/eng/Invoke-GraphvizFixtureSuite.ps1)
+- Runner делает:
+  - tier/filter selection по `manifest.json`
+  - отдельный `pwsh -NoProfile` запуск smoke на каждый fixture
+  - `smoke.log` и `smoke-results.json` на каждый fixture
+  - общий summary:
+    - `fixture-suite-results.json`
+- Локальная проверка пройдена:
+  - `dotnet build src/PSGraphView.PowerShell/PSGraphView.PowerShell.csproj`
+  - `pwsh -NoLogo -NoProfile -File ./eng/Invoke-GraphvizFixtureSuite.ps1 -ModuleManifestPath ./src/PSGraphView.PowerShell/bin/Debug/net9.0/PSGraphView.psd1 -GraphvizNativeLibraryPath /var/folders/1j/j11fjyg16ys35ssgq1kz8d6m0000gn/T/psgraphview-graphviz-native/libpsgv.dylib -Tier core -OutputDirectory ./artifacts/local-graphviz-fixture-suite-core`
+  - итог:
+    - `8/8` fixture-ов `core` прошли
+    - summary: `/Users/andrei/repo/PSGraphView/artifacts/local-graphviz-fixture-suite-core/fixture-suite-results.json`
+- README обновлен:
+  - [README.md](/Users/andrei/repo/PSGraphView/README.md)
+
+Следствие:
+- Следующий шаг уже не про локальную orchestration-логику.
+- Следующий патч этого этапа:
+  - новый `GitHub Actions` workflow для `core` fixture-suite
+  - reuse того же runner-а на `Linux`, `Windows`, `macOS`
+  - загрузка suite summary и per-fixture артефактов при падении
+
 ## 2026-04-09 22:53:45 PDT
 
 Решение:

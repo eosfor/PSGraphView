@@ -348,7 +348,8 @@
 Статус:
 - этап начат
 - manifest и локальный fixture-каталог уже добавлены в текущей ветке
-- следующий подшаг: единый runner поверх этого manifest
+- единый runner поверх manifest уже добавлен в текущей ветке
+- следующий подшаг: вынести `core` suite в отдельный workflow на трех платформах
 - Подготовить небольшой curated fixture-набор на основе уже существующих `.gv/.dot` из related `graphviz` repo.
 - Не читать fixture-ы из соседнего checkout прямо в CI:
   - выбранные входы должны быть синхронизированы в этот репозиторий
@@ -442,7 +443,8 @@
 - начать curated fixture-suite для cross-platform CI:
   - manifest выбранных upstream `.gv/.dot` уже добавлен
   - sync-скрипт и локальный `core` fixture-каталог уже добавлены
-  - следующий подшаг: поднять единый runner и новый workflow для `core` fixture-набора
+  - единый runner уже добавлен и локально прогнан на `core`
+  - следующий подшаг: поднять новый workflow для `core` fixture-набора на трех платформах
 - затем вернуться к repeatable baseline для raster compare:
   - зафиксировать рабочие baseline/thresholds для `RMSE`, `different-pixel %` и `SSIM`
   - начать с уже снятых чисел для `WikiVote` subgraph и простого smoke graph

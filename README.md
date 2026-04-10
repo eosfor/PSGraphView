@@ -70,6 +70,7 @@ Graphviz fixture inputs:
 - The fixture manifest is `tests/Fixtures/Graphviz/manifest.json`.
 - To resync the local fixture catalog from a checked-out `graphviz` repo, run `eng/Sync-GraphvizFixtures.ps1 -GraphvizSourceRoot <path-to-graphviz> -Clean`.
 - The script also honors `PSGRAPHVIEW_GRAPHVIZ_SOURCE_DIR` if you do not want to pass `-GraphvizSourceRoot`.
+- To run the local `core` or `extended` fixture suite through `PSGraphView.psd1`, use `eng/Invoke-GraphvizFixtureSuite.ps1 -ModuleManifestPath <path-to-PSGraphView.psd1>`.
 
 Workspace:
 - Open `/Users/andrei/repo/psgraph-visualization.code-workspace` to work on `PSGraph` and `PSGraphView` side by side in VS Code.
