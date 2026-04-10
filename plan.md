@@ -80,7 +80,9 @@
 - `Патч 5` уже закрыт частично:
   - есть manual compare/benchmark script для `WikiVote`
   - `WikiVote` можно прогонять до финального native `Svg/Png/Jpg`
-  - но отдельный automated integration contour для более крупных графов и численная метрика расхождения raster output еще не закрыты
+  - для raster compare теперь есть отдельный metric helper и demo-скрипт
+  - первые численные метрики уже сняты на простом DOT smoke graph и на `WikiVote` subgraph
+  - но отдельный automated integration contour для более крупных графов и acceptance-thresholds для raster divergence еще не закрыты
 - Для `Патча 6` уже добавлены:
   - общий smoke-скрипт для `pwsh -NoProfile -> Import-Module psd1 -> Export-GraphvizView -As Json|Svg|Png|Jpg`
   - локальный helper для staged bundled-layout smoke без приватного runtime token
@@ -94,7 +96,7 @@
 
 Не завершено:
 - отдельный follow-up на image-операции, если Graphviz JSON plugin начнет выдавать `xd_image`
-- отдельный compare-step с численной метрикой расхождения между оригинальным raster от `dot` и managed raster от `PSGraphView`
+- отдельный thresholded regression-step для raster compare, чтобы численные метрики можно было использовать не только вручную
 - отдельный более крупный integration contour для `WikiVote` и других больших графов поверх уже работающего no-system smoke
 
 ## Архитектура
@@ -271,7 +273,11 @@
 - Статус:
   - выполнен частично в текущей ветке
   - есть общий smoke path и manual compare/benchmark script для `WikiVote`
-  - automated contour для больших графов и численная raster telemetry еще не завершены
+  - добавлен отдельный raster compare path:
+    - `RasterImageComparer`
+    - `demos/Compare-WikiVote-GraphvizRaster.ps1`
+  - первые численные raster metrics уже сняты
+  - automated contour для больших графов и acceptance-thresholds еще не завершены
 - Добавить быстрый smoke path:
   - inline DOT
   - `Json`
@@ -323,9 +329,11 @@
 - PR-level CI лучше держать на коротком smoke-наборе.
 - Более тяжелые compare/benchmark сценарии лучше оставить отдельно, чтобы не раздувать обычный pipeline.
 - Отдельно добавить compare-step для raster output:
-  - сравнить оригинальный raster от `dot` и managed raster от `PSGraphView`
-  - зафиксировать численную метрику расхождения, а не только визуальное сравнение
-  - начать минимум с `WikiVote` subgraph и одного простого smoke graph
+  - базовый manual compare-step уже есть в текущей ветке
+  - сейчас нужно расширить его до repeatable regression-step:
+    - сравнить оригинальный raster от `dot` и managed raster от `PSGraphView`
+    - использовать уже введенные численные метрики, а не только визуальное сравнение
+    - определить рабочие baseline/thresholds минимум для `WikiVote` subgraph и одного простого smoke graph
 - Практический критерий:
   - отсутствие `dot` в `PATH` не должно ломать native `Svg/Png/Jpg` path
   - отсутствие установленного системного Graphviz не должно ломать native `Svg/Png/Jpg` path
@@ -379,10 +387,9 @@
 ## Следующий шаг
 
 Следующий практический шаг в этом репозитории:
-- перейти к compare-step для raster output:
-  - собрать оригинальный raster от `dot` и managed raster от `PSGraphView` на одном и том же входе
-  - зафиксировать численную метрику расхождения
-  - начать с `WikiVote` subgraph и одного простого smoke graph
-- затем, если будет нужно, расширить integration contour на более крупные графы;
+- перейти от ручного raster compare к repeatable baseline:
+  - зафиксировать рабочие baseline/thresholds для `RMSE`, `different-pixel %` и `SSIM`
+  - начать с уже снятых чисел для `WikiVote` subgraph и простого smoke graph
+- затем расширить integration contour на более крупные графы;
 - image-операции `I` возвращать в план только если они реально начнут приходить из `xdot_json`;
 - `MSAGL` по-прежнему держать вне этого изменения.

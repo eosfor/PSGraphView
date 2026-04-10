@@ -1,5 +1,63 @@
 # Architecture Decision Log
 
+## 2026-04-09 22:04:27 PDT
+
+Решение:
+Перевести raster compare из идеи в рабочий manual step: добавить metric helper в `PSGraphView.Graphviz`, отдельный demo-скрипт для `WikiVote` raster compare и начать собирать телеметрию для последующих thresholds.
+
+Причины:
+- После закрытия native path и cross-platform no-system smoke главный оставшийся вопрос уже не "работает ли путь вообще", а "насколько managed raster расходится с оригинальным `dot`".
+- Для этого мало визуального сравнения: нужен повторяемый численный compare-step, который можно запускать на одном и том же DOT входе.
+- Отдельный helper внутри `PSGraphView.Graphviz` удобнее, чем внешний tool-chain:
+  - не нужен ImageMagick или другой внешний diff tool
+  - одни и те же метрики доступны и из tests, и из demo-script
+
+Телеметрия / наблюдения:
+- Добавлен helper:
+  - [RasterImageComparer.cs](/Users/andrei/repo/PSGraphView/src/PSGraphView.Graphviz/RasterImageComparer.cs)
+  - текущие метрики:
+    - `MeanAbsoluteDifference`
+    - `RootMeanSquareDifference`
+    - `MaxAbsoluteDifference`
+    - `DifferentPixelRatio`
+    - `GlobalStructuralSimilarity`
+- Добавлены tests:
+  - [RasterImageComparerTests.cs](/Users/andrei/repo/PSGraphView/tests/PSGraphView.Graphviz.Tests/RasterImageComparerTests.cs)
+  - локально пройдено:
+    - `dotnet test tests/PSGraphView.Graphviz.Tests/PSGraphView.Graphviz.Tests.csproj --filter RasterImageComparerTests --no-restore`
+    - результат: `4 passed`
+    - `dotnet test tests/PSGraphView.Graphviz.Tests/PSGraphView.Graphviz.Tests.csproj --filter GraphSceneRasterRendererTests --no-restore`
+    - результат: `2 passed`
+- Добавлен demo-script:
+  - [Compare-WikiVote-GraphvizRaster.ps1](/Users/andrei/repo/PSGraphView/demos/Compare-WikiVote-GraphvizRaster.ps1)
+- README обновлен:
+  - [README.md](/Users/andrei/repo/PSGraphView/README.md)
+- Smoke-проверка на простом DOT через локальный `libpsgv.dylib`:
+  - `PNG`: `rmse=48.0042`, `diff%=19.6615`, `ssim=0.501966`
+  - `JPG`: `rmse=44.2855`, `diff%=19.8103`, `ssim=0.559741`
+  - compare JSON:
+    - `/var/folders/1j/j11fjyg16ys35ssgq1kz8d6m0000gn/T/tmp.DQmhNvKZX3/out/wiki-vote-raster-compare.json`
+- Первый реальный `WikiVote` subgraph compare:
+  - параметры:
+    - `SubgraphSeedCount=20`
+    - `MaxComparisonDimension=1024`
+  - graph telemetry:
+    - `FullGraphVertexCount=7115`
+    - `FullGraphEdgeCount=103689`
+    - `SubgraphVertexCount=20`
+    - `SubgraphEdgeCount=103`
+  - `PNG`: `rmse=31.6704`, `diff%=17.0028`, `ssim=0.568433`
+  - `JPG`: `rmse=38.2482`, `diff%=15.3318`, `ssim=0.459697`
+  - compare JSON:
+    - `/var/folders/1j/j11fjyg16ys35ssgq1kz8d6m0000gn/T/psgv-raster-compare-wikivote.qdGnZV/wiki-vote-raster-compare.json`
+
+Следствие:
+- Compare-step теперь уже существует и дает первые реальные числа.
+- Следующий шаг уже не "сделать compare", а:
+  - решить, какие baseline/thresholds считать приемлемыми;
+  - расширить compare на еще один-два representative graph scenario;
+  - только потом думать про автоматизацию этого compare в regression contour.
+
 ## 2026-04-09 21:21:09 PDT
 
 Решение:
