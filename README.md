@@ -65,6 +65,12 @@ No-system-Graphviz smoke:
 - To emulate a bundled module layout locally without publishing, run `eng/Invoke-LocalNoSystemGraphvizSmoke.ps1 -GraphvizNativeLibraryPath <path-to-libpsgv>`.
 - Cross-platform CI smoke for the bundled module layout lives in `.github/workflows/no-system-graphviz.yml`.
 
+Graphviz fixture inputs:
+- Curated fixture inputs for cross-platform Graphviz regression live under `tests/Fixtures/Graphviz`.
+- The fixture manifest is `tests/Fixtures/Graphviz/manifest.json`.
+- To resync the local fixture catalog from a checked-out `graphviz` repo, run `eng/Sync-GraphvizFixtures.ps1 -GraphvizSourceRoot <path-to-graphviz> -Clean`.
+- The script also honors `PSGRAPHVIEW_GRAPHVIZ_SOURCE_DIR` if you do not want to pass `-GraphvizSourceRoot`.
+
 Workspace:
 - Open `/Users/andrei/repo/psgraph-visualization.code-workspace` to work on `PSGraph` and `PSGraphView` side by side in VS Code.
 

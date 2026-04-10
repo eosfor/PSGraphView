@@ -1,0 +1,101 @@
+{
+  "version": 1,
+  "fixtures": [
+    {
+      "id": "clust1",
+      "tier": "core",
+      "renderer": "Dot",
+      "sourcePath": "graphs/directed/clust1.gv",
+      "destinationPath": "core/clust1.gv",
+      "tags": ["cluster", "subgraph"]
+    },
+    {
+      "id": "clust2",
+      "tier": "core",
+      "renderer": "Dot",
+      "sourcePath": "graphs/directed/clust2.gv",
+      "destinationPath": "core/clust2.gv",
+      "tags": ["cluster", "nested-subgraph"]
+    },
+    {
+      "id": "records",
+      "tier": "core",
+      "renderer": "Dot",
+      "sourcePath": "graphs/directed/records.gv",
+      "destinationPath": "core/records.gv",
+      "tags": ["record", "label"]
+    },
+    {
+      "id": "record2",
+      "tier": "core",
+      "renderer": "Dot",
+      "sourcePath": "graphs/directed/record2.gv",
+      "destinationPath": "core/record2.gv",
+      "tags": ["record", "label"]
+    },
+    {
+      "id": "arrows",
+      "tier": "core",
+      "renderer": "Dot",
+      "sourcePath": "graphs/directed/arrows.gv",
+      "destinationPath": "core/arrows.gv",
+      "tags": ["arrow", "style"]
+    },
+    {
+      "id": "fsm",
+      "tier": "core",
+      "renderer": "Dot",
+      "sourcePath": "graphs/directed/fsm.gv",
+      "destinationPath": "core/fsm.gv",
+      "tags": ["label", "state-machine"]
+    },
+    {
+      "id": "petersen",
+      "tier": "core",
+      "renderer": "Dot",
+      "sourcePath": "graphs/undirected/Petersen.gv",
+      "destinationPath": "core/Petersen.gv",
+      "tags": ["undirected", "geometry"]
+    },
+    {
+      "id": "poly",
+      "tier": "core",
+      "renderer": "Dot",
+      "sourcePath": "doc/dotguide/poly.dot",
+      "destinationPath": "core/poly.dot",
+      "tags": ["polygon", "shape"]
+    },
+    {
+      "id": "states",
+      "tier": "extended",
+      "renderer": "Dot",
+      "sourcePath": "graphs/directed/states.gv",
+      "destinationPath": "extended/states.gv",
+      "tags": ["label", "style"]
+    },
+    {
+      "id": "table",
+      "tier": "extended",
+      "renderer": "Dot",
+      "sourcePath": "graphs/directed/table.gv",
+      "destinationPath": "extended/table.gv",
+      "tags": ["html-like", "table"]
+    },
+    {
+      "id": "heawood",
+      "tier": "extended",
+      "renderer": "Dot",
+      "sourcePath": "graphs/undirected/Heawood.gv",
+      "destinationPath": "extended/Heawood.gv",
+      "tags": ["undirected", "geometry"]
+    },
+    {
+      "id": "structs",
+      "tier": "extended",
+      "renderer": "Dot",
+      "sourcePath": "doc/dotguide/structs.dot",
+      "destinationPath": "extended/structs.dot",
+      "tags": ["record", "shape"]
+    }
+  ]
+}

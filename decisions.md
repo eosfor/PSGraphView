@@ -1,5 +1,53 @@
 # Architecture Decision Log
 
+## 2026-04-09 22:47:56 PDT
+
+Решение:
+Начать fixture-suite этап с локального manifest-а и sync-скрипта, а не сразу с runner-а или workflow.
+
+Причины:
+- Без локально зафиксированного набора входов runner и CI были бы завязаны либо на соседний checkout `graphviz`, либо на неявный список файлов в коде.
+- Manifest нужен как единый источник правды:
+  - какие upstream файлы входят в `core`
+  - какие входят в `extended`
+  - каким renderer-ом их предполагается гонять
+- Sync-скрипт делает curated набор воспроизводимым:
+  - можно быстро обновить локальный fixture-каталог из related `graphviz`
+  - можно явно увидеть diff, если upstream sample изменился
+
+Телеметрия / наблюдения:
+- Добавлен manifest:
+  - [manifest.json](/Users/andrei/repo/PSGraphView/tests/Fixtures/Graphviz/manifest.json)
+- Добавлен sync-скрипт:
+  - [Sync-GraphvizFixtures.ps1](/Users/andrei/repo/PSGraphView/eng/Sync-GraphvizFixtures.ps1)
+- В первый curated набор вошли:
+  - `core`: `8` fixture-ов
+  - `extended`: `4` fixture-а
+- Локальная синхронизация пройдена:
+  - `pwsh -NoLogo -NoProfile -File ./eng/Sync-GraphvizFixtures.ps1 -GraphvizSourceRoot /Users/andrei/.codex/worktrees/f5d8/graphviz -Clean -Tier all`
+  - результат:
+    - `core/clust1.gv`
+    - `core/clust2.gv`
+    - `core/records.gv`
+    - `core/record2.gv`
+    - `core/arrows.gv`
+    - `core/fsm.gv`
+    - `core/Petersen.gv`
+    - `core/poly.dot`
+    - `extended/states.gv`
+    - `extended/table.gv`
+    - `extended/Heawood.gv`
+    - `extended/structs.dot`
+- README обновлен:
+  - [README.md](/Users/andrei/repo/PSGraphView/README.md)
+
+Следствие:
+- Следующий патч этого этапа должен уже строиться поверх локального каталога `tests/Fixtures/Graphviz`, а не читать исходники напрямую из related repo.
+- Следующий практический шаг:
+  - единый runner, который проходит по manifest
+  - рендерит `Json|Svg|Png|Jpg`
+  - пишет per-fixture summary и артефакты для будущего workflow
+
 ## 2026-04-09 22:45:14 PDT
 
 Решение:

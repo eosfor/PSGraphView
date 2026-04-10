@@ -346,7 +346,9 @@
 
 Патч 6a. Curated Graphviz fixture-suite для cross-platform CI
 Статус:
-- следующий практический этап
+- этап начат
+- manifest и локальный fixture-каталог уже добавлены в текущей ветке
+- следующий подшаг: единый runner поверх этого manifest
 - Подготовить небольшой curated fixture-набор на основе уже существующих `.gv/.dot` из related `graphviz` repo.
 - Не читать fixture-ы из соседнего checkout прямо в CI:
   - выбранные входы должны быть синхронизированы в этот репозиторий
@@ -438,9 +440,9 @@
 
 Следующий практический шаг в этом репозитории:
 - начать curated fixture-suite для cross-platform CI:
-  - завести manifest выбранных upstream `.gv/.dot`
-  - добавить sync-скрипт и локальный `core` fixture-каталог
-  - после этого поднять единый runner и новый workflow для `core` fixture-набора
+  - manifest выбранных upstream `.gv/.dot` уже добавлен
+  - sync-скрипт и локальный `core` fixture-каталог уже добавлены
+  - следующий подшаг: поднять единый runner и новый workflow для `core` fixture-набора
 - затем вернуться к repeatable baseline для raster compare:
   - зафиксировать рабочие baseline/thresholds для `RMSE`, `different-pixel %` и `SSIM`
   - начать с уже снятых чисел для `WikiVote` subgraph и простого smoke graph
