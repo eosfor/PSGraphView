@@ -77,7 +77,10 @@
   - пишет оба `Svg` и `wiki-vote-svg-benchmark.json` с warm/cold замерами
 
 Частично завершено:
-- `WikiVote` уже можно прогонять до финального native `Svg/Png/Jpg`, но полноценный test contour для сценария "машина без системного Graphviz" еще не закрыт.
+- `Патч 5` уже закрыт частично:
+  - есть manual compare/benchmark script для `WikiVote`
+  - `WikiVote` можно прогонять до финального native `Svg/Png/Jpg`
+  - но отдельный automated integration contour для более крупных графов и численная метрика расхождения raster output еще не закрыты
 - Для `Патча 6` уже добавлены:
   - общий smoke-скрипт для `pwsh -NoProfile -> Import-Module psd1 -> Export-GraphvizView -As Json|Svg|Png|Jpg`
   - локальный helper для staged bundled-layout smoke без приватного runtime token
@@ -91,7 +94,8 @@
 
 Не завершено:
 - отдельный follow-up на image-операции, если Graphviz JSON plugin начнет выдавать `xd_image`
-- отдельный end-to-end test contour для сценария "на машине нет системного `dot` и нет установленного системного Graphviz"
+- отдельный compare-step с численной метрикой расхождения между оригинальным raster от `dot` и managed raster от `PSGraphView`
+- отдельный более крупный integration contour для `WikiVote` и других больших графов поверх уже работающего no-system smoke
 
 ## Архитектура
 
@@ -264,6 +268,10 @@
   - запуск из обычного `pwsh -NoProfile` через импорт модуля по `psd1`
 
 Патч 5. End-to-end сценарии
+- Статус:
+  - выполнен частично в текущей ветке
+  - есть общий smoke path и manual compare/benchmark script для `WikiVote`
+  - automated contour для больших графов и численная raster telemetry еще не завершены
 - Добавить быстрый smoke path:
   - inline DOT
   - `Json`
@@ -276,7 +284,7 @@
 
 Патч 6. Автономные проверки без системного Graphviz
 - Статус:
-  - начат в текущей ветке
+  - основной сценарий выполнен в текущей ветке
   - общий smoke-скрипт, локальный bundled-layout helper и cross-platform CI workflow уже добавлены
   - первый downstream workflow на `graphviz runtime 0.1.0-beta.11` уже дал полезный срез:
     - `macOS`: green
@@ -289,7 +297,8 @@
     - `Linux`: green
     - `macOS`: green
     - `Windows`: green
-  - compare-step для raster и дальнейшая телеметрия еще не завершены
+  - run: `24070711886`
+  - compare-step для raster и дальнейшая телеметрия остаются отдельным следующим этапом, а не blocker для автономного native path
 - Добавить более жесткие тесты и smoke-сценарии для режима, где на машине нет системного `dot` и нет установленного системного Graphviz.
 - Эти проверки должны подтверждать, что решение опирается только на bundled/runtime `libpsgv` и managed renderer-ы.
 - Минимум один тест должен падать, если реализация снова начнет звать process renderer или требовать системный Graphviz.
@@ -370,6 +379,10 @@
 ## Следующий шаг
 
 Следующий практический шаг в этом репозитории:
-- переходить к `Патчу 4`: выбрать и реализовать raster backend для `scene -> Png/Jpg`;
+- перейти к compare-step для raster output:
+  - собрать оригинальный raster от `dot` и managed raster от `PSGraphView` на одном и том же входе
+  - зафиксировать численную метрику расхождения
+  - начать с `WikiVote` subgraph и одного простого smoke graph
+- затем, если будет нужно, расширить integration contour на более крупные графы;
 - image-операции `I` возвращать в план только если они реально начнут приходить из `xdot_json`;
-- держать `MSAGL` вне этого изменения.
+- `MSAGL` по-прежнему держать вне этого изменения.

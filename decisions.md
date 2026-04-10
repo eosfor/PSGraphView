@@ -1,5 +1,41 @@
 # Architecture Decision Log
 
+## 2026-04-09 21:21:09 PDT
+
+Решение:
+Считать текущую ветку находящейся уже не на этапе внедрения native path, а на этапе его измерения и расширения: основной Graphviz native path и cross-platform no-system smoke подтверждены, следующий шаг теперь про raster compare и более крупные integration-сценарии.
+
+Причины:
+- Ветка уже прошла дальше, чем старые формулировки в плане:
+  - `Json`, `Svg`, `Png`, `Jpg` идут по native path
+  - standalone module path через `psd1` закрыт
+  - no-system-graphviz matrix уже зеленый на трех ОС
+- Значит оставлять в плане старый `Следующий шаг` про выбор raster backend или про незакрытый no-system contour было бы неверно и вводило бы в заблуждение.
+- После закрытия packaging/runtime вопросов основной оставшийся риск уже не в работоспособности пути, а в качестве и воспроизводимости raster output по сравнению с оригинальным `dot`.
+
+Телеметрия / наблюдения:
+- Рабочая ветка:
+  - `feature/direct-graphviz-integration`
+- Текущее состояние рабочего дерева:
+  - чисто, кроме не тронутого `AGENTS.md`
+- Подтверждающий CI run:
+  - repo: `eosfor/PSGraphView`
+  - run: `24070711886`
+  - итог:
+    - `ubuntu-24.04 / linux-x64`: success
+    - `macos-14 / osx-arm64`: success
+    - `windows-2022 / win-x64`: success
+    - workflow conclusion: `success`
+- Уже есть база для следующего этапа:
+  - [Compare-WikiVote-GraphvizSvg.ps1](/Users/andrei/repo/PSGraphView/demos/Compare-WikiVote-GraphvizSvg.ps1)
+  - [Test-GraphvizNoSystemSmoke.ps1](/Users/andrei/repo/PSGraphView/eng/Test-GraphvizNoSystemSmoke.ps1)
+
+Следствие:
+- План нужно синхронизировать так:
+  - `Патч 5` считать частично выполненным
+  - `Патч 6` считать выполненным по основному сценарию
+  - следующим практическим шагом считать compare-step для raster divergence, а не runtime/package fixes
+
 ## 2026-04-07 00:59:39 PDT
 
 Решение:
