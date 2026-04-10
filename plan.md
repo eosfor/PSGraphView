@@ -98,6 +98,7 @@
 - отдельный follow-up на image-операции, если Graphviz JSON plugin начнет выдавать `xd_image`
 - отдельный thresholded regression-step для raster compare, чтобы численные метрики можно было использовать не только вручную
 - отдельный более крупный integration contour для `WikiVote` и других больших графов поверх уже работающего no-system smoke
+- curated fixture-suite из существующих `.gv/.dot` входов `graphviz` для repeatable cross-platform regression в `GitHub Actions`
 
 ## Архитектура
 
@@ -343,6 +344,49 @@
 - После стабилизации Graphviz path оценить, есть ли смысл перевести `PSGraphView.Dsm` на `SkiaSharp`.
 - Рассматривать это как отдельную задачу с отдельными тестами и без затрагивания `MSAGL`.
 
+Патч 6a. Curated Graphviz fixture-suite для cross-platform CI
+Статус:
+- следующий практический этап
+- Подготовить небольшой curated fixture-набор на основе уже существующих `.gv/.dot` из related `graphviz` repo.
+- Не читать fixture-ы из соседнего checkout прямо в CI:
+  - выбранные входы должны быть синхронизированы в этот репозиторий
+  - источник каждого fixture-а должен оставаться записан в manifest
+- Первый срез разделить на два уровня:
+  - `core`: короткий, стабильный, обязательный для PR на `Linux`, `Windows`, `macOS`
+  - `extended`: более широкий и потенциально более шумный, для `workflow_dispatch` и/или nightly
+- Для первого `core` набора брать графы, которые закрывают разные draw-сценарии, но не вносят лишнюю платформенную случайность:
+  - clusters/subgraphs
+  - records
+  - arrow styles
+  - обычные text labels
+  - простой undirected graph
+- Кандидаты для первого `core` набора:
+  - `graphs/directed/clust1.gv`
+  - `graphs/directed/clust2.gv`
+  - `graphs/directed/records.gv`
+  - `graphs/directed/record2.gv`
+  - `graphs/directed/arrows.gv`
+  - `graphs/directed/fsm.gv` или `graphs/directed/states.gv`
+  - `graphs/undirected/Petersen.gv`
+  - `doc/dotguide/poly.dot` или `doc/dotguide/structs.dot`
+- Что пока не включать в обязательный `core` gate:
+  - графы с нестабильной межплатформенной font-зависимостью:
+    - `graphs/directed/japanese.gv`
+    - `graphs/directed/russian.gv`
+    - `graphs/directed/Latin1.gv`
+  - графы с внешними image asset-ами:
+    - `tests/usershape.dot`
+- Первый практический патч этого этапа:
+  - добавить manifest со списком fixture-ов и их upstream source path
+  - добавить sync-скрипт, который копирует выбранные `.gv/.dot` из related `graphviz` repo в локальный fixture-каталог
+  - завести локальный `core` fixture-каталог в этом репозитории
+- Второй патч этого этапа:
+  - добавить единый runner, который проходит по manifest и прогоняет fixture-ы через `PSGraphView.psd1`
+  - сохраняет per-fixture summary JSON и артефакты
+- Третий патч этого этапа:
+  - вынести `core` suite в отдельный `GitHub Actions` workflow на трех платформах
+  - `extended` suite оставить необязательным и более тяжелым
+
 ## Основные проверки
 
 Минимальные обязательные проверки:
@@ -354,6 +398,9 @@
 - bundled runtime реально используется, без системного Graphviz
 - целевой end-to-end сценарий проходит на машине без системного `dot` и без установленного системного Graphviz
 - этот end-to-end сценарий проходит в `GitHub Actions` matrix минимум на `macOS`, `Linux` и `Windows`
+- curated `core` fixture-suite проходит в `GitHub Actions` на `macOS`, `Linux` и `Windows`
+- каждый fixture из `core` набора успешно отдает `Json|Svg|Png|Jpg` без внешнего `dot`
+- fixture-suite публикует summary JSON и артефакты так, чтобы падение можно было разобрать без локального воспроизведения
 - для raster path есть отдельная телеметрия по расхождению между оригинальным `dot` output и managed raster output
 - native tests на `PSGraphView.Graphviz.Tests` проходят через рабочий test harness, а не падают на сборке вспомогательной библиотеки
 - native Graphviz tests не запускаются параллельно, если upstream path падает на assert при одновременных сессиях
@@ -383,13 +430,19 @@
 - Если жестко привязать первый `Svg` milestone к `SkiaSharp`, можно искусственно увеличить объем первого рабочего среза.
 - Upstream Graphviz native path в тестах сейчас нельзя считать безопасным для параллельного запуска нескольких сессий в одном процессе.
 - По `libguide.pdf` Graphviz as a library не thread-safe, значит parallel native usage нужно считать отдельным риском до явного доказательства обратного.
+- Не все upstream `.gv/.dot` одинаково подходят для обязательного cross-platform gate:
+  - font-heavy и locale-heavy примеры могут шуметь между ОС даже при корректной работе renderer-а
+  - fixture-suite нужно начинать с curated stable subset, а не со случайного массового прогона всего upstream набора
 
 ## Следующий шаг
 
 Следующий практический шаг в этом репозитории:
-- перейти от ручного raster compare к repeatable baseline:
+- начать curated fixture-suite для cross-platform CI:
+  - завести manifest выбранных upstream `.gv/.dot`
+  - добавить sync-скрипт и локальный `core` fixture-каталог
+  - после этого поднять единый runner и новый workflow для `core` fixture-набора
+- затем вернуться к repeatable baseline для raster compare:
   - зафиксировать рабочие baseline/thresholds для `RMSE`, `different-pixel %` и `SSIM`
   - начать с уже снятых чисел для `WikiVote` subgraph и простого smoke graph
-- затем расширить integration contour на более крупные графы;
 - image-операции `I` возвращать в план только если они реально начнут приходить из `xdot_json`;
 - `MSAGL` по-прежнему держать вне этого изменения.

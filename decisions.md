@@ -1,5 +1,54 @@
 # Architecture Decision Log
 
+## 2026-04-09 22:45:14 PDT
+
+Решение:
+Следующим этапом после уже зеленого `no-system-graphviz` smoke сделать curated cross-platform fixture-suite на базе существующих `.gv/.dot` из related `graphviz` repo, а не пытаться сразу прогонять весь upstream набор без отбора.
+
+Причины:
+- Текущий smoke уже подтверждает основной пользовательский сценарий, но он слишком маленький, чтобы уверенно ловить регрессии в более широком наборе Graphviz-примитивов.
+- При этом "просто взять все `.gv/.dot` из graphviz" для обязательного PR-gate было бы слишком шумно:
+  - часть входов завязана на шрифты, locale и platform-specific text layout
+  - часть входов использует внешние image asset-ы
+  - часть входов просто слишком тяжела для короткого обязательного CI
+- Поэтому нужен curated набор с явным manifest:
+  - `core` для обязательного быстрого прогона на трех ОС
+  - `extended` для ручного или nightly прогона
+- Fixture-ы лучше синхронизировать в `PSGraphView`, а не читать из соседнего checkout в CI:
+  - так workflow остается самодостаточным
+  - входы версиионируются вместе с потребляющими их тестами и runner-ами
+
+Телеметрия / наблюдения:
+- Проверенный текущий CI baseline:
+  - [no-system-graphviz.yml](/Users/andrei/repo/PSGraphView/.github/workflows/no-system-graphviz.yml)
+  - matrix:
+    - `ubuntu-24.04 / linux-x64`
+    - `windows-2022 / win-x64`
+    - `macos-14 / osx-arm64`
+- Просмотренный upstream pool `.gv/.dot` в related repo:
+  - [graphviz](/Users/andrei/.codex/worktrees/f5d8/graphviz)
+  - примеры подходящих кандидатов:
+    - [clust1.gv](/Users/andrei/.codex/worktrees/f5d8/graphviz/graphs/directed/clust1.gv)
+    - [clust2.gv](/Users/andrei/.codex/worktrees/f5d8/graphviz/graphs/directed/clust2.gv)
+    - [records.gv](/Users/andrei/.codex/worktrees/f5d8/graphviz/graphs/directed/records.gv)
+    - [record2.gv](/Users/andrei/.codex/worktrees/f5d8/graphviz/graphs/directed/record2.gv)
+    - [arrows.gv](/Users/andrei/.codex/worktrees/f5d8/graphviz/graphs/directed/arrows.gv)
+    - [fsm.gv](/Users/andrei/.codex/worktrees/f5d8/graphviz/graphs/directed/fsm.gv)
+    - [Petersen.gv](/Users/andrei/.codex/worktrees/f5d8/graphviz/graphs/undirected/Petersen.gv)
+    - [poly.dot](/Users/andrei/.codex/worktrees/f5d8/graphviz/doc/dotguide/poly.dot)
+- Примеры, которые пока решено не включать в обязательный `core`:
+  - [japanese.gv](/Users/andrei/.codex/worktrees/f5d8/graphviz/graphs/directed/japanese.gv)
+  - [russian.gv](/Users/andrei/.codex/worktrees/f5d8/graphviz/graphs/directed/russian.gv)
+  - [Latin1.gv](/Users/andrei/.codex/worktrees/f5d8/graphviz/graphs/directed/Latin1.gv)
+  - [usershape.dot](/Users/andrei/.codex/worktrees/f5d8/graphviz/tests/usershape.dot)
+
+Следствие:
+- Первый патч этого этапа должен быть не про workflow, а про данные:
+  - manifest выбранных fixture-ов
+  - sync-скрипт из related `graphviz`
+  - локальный fixture-каталог в этом репозитории
+- Только после этого имеет смысл добавлять единый runner и новый fixture workflow в `GitHub Actions`.
+
 ## 2026-04-09 22:04:27 PDT
 
 Решение:
