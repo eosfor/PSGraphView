@@ -1,5 +1,55 @@
 # Architecture Decision Log
 
+## 2026-04-11 12:02:45 PDT
+
+Решение:
+Считать `Патч 6a` закрытым: curated `core` fixture-suite уже подтвержден не только локально, но и реальным hosted `GitHub Actions` matrix run на трех платформах.
+
+Причины:
+- До этого момента fixture-suite был реализован по коду, но его еще не было смысла считать завершенным, пока не пройдет настоящий hosted прогон с bundled runtime.
+- Первый push-triggered run уже дал именно эту проверку:
+  - тот же publish path, что будет у пользователя в CI
+  - тот же `psd1` import path
+  - тот же bundled `libpsgv`
+  - три реальные платформы
+- Значит этап “подготовить curated cross-platform regression contour” по основному сценарию можно считать закрытым.
+
+Телеметрия / наблюдения:
+- Hosted workflow:
+  - [graphviz-fixture-suite.yml](/Users/andrei/repo/PSGraphView/.github/workflows/graphviz-fixture-suite.yml)
+  - run: `24273975962`
+  - ссылка: [GitHub Actions run 24273975962](https://github.com/eosfor/PSGraphView/actions/runs/24273975962)
+- Итог matrix:
+  - `macos-14 / osx-arm64`: `success`, `36s`
+  - `ubuntu-24.04 / linux-x64`: `success`, `41s`
+  - `windows-2022 / win-x64`: `success`, `4m12s`
+- Артефакты опубликованы для всех трех платформ:
+  - `graphviz-fixture-suite-osx-arm64`
+  - `graphviz-fixture-suite-linux-x64`
+  - `graphviz-fixture-suite-win-x64`
+- В каждом artifact есть:
+  - `fixture-suite-results.json`
+  - per-fixture `graph.json`
+  - per-fixture `graph.svg`
+  - per-fixture `graph.png`
+  - per-fixture `graph.jpg`
+  - per-fixture `smoke.log`
+  - per-fixture `smoke-results.json`
+- Дополнительное наблюдение по CI:
+  - GitHub показал предупреждение про будущую deprecation `Node.js 20` для:
+    - `actions/checkout@v4`
+    - `actions/setup-dotnet@v4`
+    - `actions/upload-artifact@v4`
+  - это не сломало текущий прогон, но это уже отдельный небольшой CI follow-up, а не blocker по Graphviz path
+
+Следствие:
+- Следующий шаг теперь уже не про саму кроссплатформенную работоспособность.
+- Новый практический фокус:
+  - thresholds и regression-step для raster compare
+  - `extended` tier и/или большие representative graph scenario
+  - мелкий CI follow-up по Node 20 warning
+- Предыдущая запись от `2026-04-09 22:57:03 PDT`, где hosted run еще считался будущим шагом, теперь исторически верна, но уже устарела по статусу.
+
 ## 2026-04-09 22:57:03 PDT
 
 Решение:

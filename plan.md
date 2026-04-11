@@ -92,13 +92,26 @@
     - `Windows`: green
     - `Linux`: green
   - no-system smoke теперь подтверждает и bundled `libpsgv`, и managed `Svg/Png/Jpg` path на всех трех runner-ах
-  - численное сравнение raster output и дальнейшая телеметрия еще остаются частью незавершенного этапа
+- `Патч 6a` закрыт:
+  - curated fixture catalog из upstream `graphviz` уже добавлен в репозиторий
+  - есть sync-скрипт и отдельный runner для fixture-suite
+  - есть hosted `GitHub Actions` workflow для `core` fixture tier
+  - первый реальный matrix run уже подтвержден полностью:
+    - workflow: `psgraphview-graphviz-fixture-suite`
+    - run: `24273975962`
+    - `macOS`: green
+    - `Windows`: green
+    - `Linux`: green
 
 Не завершено:
 - отдельный follow-up на image-операции, если Graphviz JSON plugin начнет выдавать `xd_image`
 - отдельный thresholded regression-step для raster compare, чтобы численные метрики можно было использовать не только вручную
 - отдельный более крупный integration contour для `WikiVote` и других больших графов поверх уже работающего no-system smoke
-- curated fixture-suite из существующих `.gv/.dot` входов `graphviz` для repeatable cross-platform regression в `GitHub Actions`
+- расширение fixture-suite за пределы текущего `core` tier:
+  - `extended` tier
+  - отдельные более крупные representative graphs
+- небольшой CI follow-up:
+  - обновить GitHub Actions, чтобы убрать предупреждение про будущую deprecation `Node.js 20`
 
 ## Архитектура
 
@@ -346,11 +359,16 @@
 
 Патч 6a. Curated Graphviz fixture-suite для cross-platform CI
 Статус:
-- этап начат
+- выполнен в текущей ветке
 - manifest и локальный fixture-каталог уже добавлены в текущей ветке
 - единый runner поверх manifest уже добавлен в текущей ветке
 - workflow для `core` suite уже добавлен в текущей ветке
-- следующий подшаг: первый реальный `GitHub Actions` прогон и разбор platform-specific падений, если они будут
+- первый реальный `GitHub Actions` прогон уже подтвержден:
+  - workflow: `psgraphview-graphviz-fixture-suite`
+  - run: `24273975962`
+  - `linux-x64`: success
+  - `osx-arm64`: success
+  - `win-x64`: success
 - Подготовить небольшой curated fixture-набор на основе уже существующих `.gv/.dot` из related `graphviz` repo.
 - Не читать fixture-ы из соседнего checkout прямо в CI:
   - выбранные входы должны быть синхронизированы в этот репозиторий
@@ -441,14 +459,13 @@
 ## Следующий шаг
 
 Следующий практический шаг в этом репозитории:
-- начать curated fixture-suite для cross-platform CI:
-  - manifest выбранных upstream `.gv/.dot` уже добавлен
-  - sync-скрипт и локальный `core` fixture-каталог уже добавлены
-  - единый runner уже добавлен и локально прогнан на `core`
-  - workflow для `core` fixture-набора уже добавлен
-  - следующий подшаг: прогнать его на трех платформах и разобрать результаты
-- затем вернуться к repeatable baseline для raster compare:
+- перейти от ручного raster compare к repeatable baseline:
   - зафиксировать рабочие baseline/thresholds для `RMSE`, `different-pixel %` и `SSIM`
   - начать с уже снятых чисел для `WikiVote` subgraph и простого smoke graph
+- затем расширить integration contour:
+  - добавить `extended` fixture tier в hosted CI как отдельный, необязательный или nightly слой
+  - отдельно решить, какие большие графы вроде `WikiVote` стоит держать как representative integration scenario
+- после этого закрыть маленький CI follow-up:
+  - обновить action-ы или workflow-конфигурацию под будущий переход GitHub Actions с `Node.js 20`
 - image-операции `I` возвращать в план только если они реально начнут приходить из `xdot_json`;
 - `MSAGL` по-прежнему держать вне этого изменения.
