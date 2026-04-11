@@ -10,6 +10,11 @@ on:
         description: 'Module version without prerelease suffix, e.g. 0.1.0'
         required: true
         default: '0.1.0'
+      dry_run:
+        description: 'Run the full publish validation but skip Publish-Module'
+        required: false
+        default: true
+        type: boolean
       prerelease:
         description: 'Optional prerelease label, e.g. beta1'
         required: false
@@ -148,7 +153,24 @@ jobs:
             -OutputDirectory $outputDirectory `
             -RequireBundledGraphvizRuntime
 
+      - name: Upload dry-run artifacts
+        if: ${{ always() && github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: psgraphview-publish-dry-run
+          path: |
+            PSGraphView
+            artifacts/publish-smoke
+          if-no-files-found: error
+
+      - name: Skip PSGallery publish in dry-run
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+        shell: bash
+        run: |
+          echo "Dry-run mode is enabled. Skipping Publish-Module."
+
       - name: Publish PowerShell module to PSGallery
+        if: ${{ github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && !inputs.dry_run) }}
         shell: pwsh
         run: |
           Publish-Module -Path './PSGraphView' -NuGetApiKey '${{ secrets.PS_GALLERY_SECRET }}'
