@@ -1,5 +1,48 @@
 # Architecture Decision Log
 
+## 2026-04-11 12:09:54 PDT
+
+Решение:
+Усилить `PSGallery` publish workflow минимальным, но практическим патчем:
+- перевести bundled Graphviz runtime по умолчанию на актуальный `0.1.0-beta.12`
+- после `dotnet publish` и обновления manifest запускать узкий bundled smoke
+- явно проверять, что итоговый manifest в publish output содержит ожидаемые `ModuleVersion` и `Prerelease`
+
+Причины:
+- Текущий publish workflow уже умел публиковать модуль, но был слабее `PSGraph` по защищенности от release-сюрпризов.
+- Самый заметный технический риск был в устаревшем default runtime:
+  - workflow по умолчанию все еще ссылался на `0.1.0-beta.3`
+  - при этом реальная кроссплатформенная проверка уже давно подтверждена на `0.1.0-beta.12`
+- Для `PSGraphView` одной сборки перед `Publish-Module` недостаточно:
+  - publish output включает bundled `libpsgv`
+  - значит перед отправкой в `PSGallery` полезно проверить именно уже опубликованный layout через `psd1` import path
+- Проверка итогового manifest после `Update-ModuleManifest` снижает риск тихого расхождения между вычисленной версией release и тем, что реально попадет в галерею.
+
+Телеметрия / наблюдения:
+- Обновлен workflow:
+  - [publish.yml](/Users/andrei/repo/PSGraphView/.github/workflows/publish.yml)
+- Что изменено:
+  - default `graphviz_runtime_version`:
+    - было: `0.1.0-beta.3`
+    - стало: `0.1.0-beta.12`
+  - fallback `graphviz_runtime_version` внутри shell step:
+    - было: `0.1.0-beta.3`
+    - стало: `0.1.0-beta.12`
+  - после `Update-ModuleManifest` workflow теперь явно проверяет:
+    - `ModuleVersion`
+    - `PrivateData.PSData.Prerelease`
+  - перед `Publish-Module` добавлен шаг:
+    - `Smoke published module bundle`
+    - использует [Test-GraphvizNoSystemSmoke.ps1](/Users/andrei/repo/PSGraphView/eng/Test-GraphvizNoSystemSmoke.ps1)
+    - проверяет published module через `PSGraphView.psd1` и `-RequireBundledGraphvizRuntime`
+- Локальная проверка workflow syntax:
+  - `ruby -e 'require "yaml"; YAML.load_file(".../publish.yml"); puts "YAML OK"'`
+  - результат ожидается как достаточная узкая проверка для workflow-only патча
+
+Следствие:
+- Publish pipeline в `PSGraphView` по-прежнему проще, чем в `PSGraph`, но теперь он лучше защищен именно на тех местах, где у `PSGraphView` есть свой дополнительный риск: bundled native runtime.
+- Следующий естественный шаг уже не про базовую publish-механику, а про реальный dry-run или первый controlled release прогон.
+
 ## 2026-04-11 12:02:45 PDT
 
 Решение:

@@ -15,9 +15,9 @@ on:
         required: false
         default: 'beta1'
       graphviz_runtime_version:
-        description: 'Graphviz runtime version to bundle, e.g. 0.1.0-beta.3'
+        description: 'Graphviz runtime version to bundle, e.g. 0.1.0-beta.12'
         required: false
-        default: '0.1.0-beta.3'
+        default: '0.1.0-beta.12'
 
 jobs:
   publish:
@@ -98,7 +98,7 @@ jobs:
         run: |
           graphviz_runtime_version='${{ github.event.inputs.graphviz_runtime_version }}'
           if [ -z "$graphviz_runtime_version" ]; then
-            graphviz_runtime_version='0.1.0-beta.3'
+            graphviz_runtime_version='0.1.0-beta.12'
           fi
 
           dotnet publish src/PSGraphView.PowerShell/PSGraphView.PowerShell.csproj \
@@ -122,7 +122,31 @@ jobs:
             Update-ModuleManifest -Path $manifest -ModuleVersion $version -Prerelease $prerelease
           }
 
-          Test-ModuleManifest -Path $manifest | Out-Null
+          $metadata = Test-ModuleManifest -Path $manifest
+          if ($metadata.Version.ToString() -ne $version) {
+            throw "Published manifest version '$($metadata.Version)' does not match expected version '$version'."
+          }
+
+          $manifestPrerelease = $metadata.PrivateData.PSData.Prerelease
+          if ([string]::IsNullOrWhiteSpace($prerelease)) {
+            if (-not [string]::IsNullOrWhiteSpace($manifestPrerelease)) {
+              throw "Published manifest prerelease '$manifestPrerelease' should be empty for a stable release."
+            }
+          }
+          elseif ($manifestPrerelease -ne $prerelease) {
+            throw "Published manifest prerelease '$manifestPrerelease' does not match expected prerelease '$prerelease'."
+          }
+
+      - name: Smoke published module bundle
+        shell: pwsh
+        run: |
+          $manifest = Join-Path $PWD 'PSGraphView/PSGraphView.psd1'
+          $outputDirectory = Join-Path $PWD 'artifacts/publish-smoke'
+
+          pwsh -NoLogo -NoProfile -File ./eng/Test-GraphvizNoSystemSmoke.ps1 `
+            -ModuleManifestPath $manifest `
+            -OutputDirectory $outputDirectory `
+            -RequireBundledGraphvizRuntime
 
       - name: Publish PowerShell module to PSGallery
         shell: pwsh
