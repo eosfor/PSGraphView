@@ -34,6 +34,16 @@
   - для draw-команд используется Graphviz `json`, а не `xdot_json`
   - текущие managed имена `XdotJson` пока оставлены ради совместимости, но фактический payload нужно считать Graphviz JSON с `_draw_`/`_ldraw_`
 - publish уже умеет скачивать bundled runtime из private release-ов `eosfor/graphviz-psgv` и раскладывать его в `runtimes/<rid>/native`.
+- release-engineering контур для модуля тоже усилен:
+  - `publish.yml` теперь использует актуальный bundled runtime `0.1.0-beta.12` по умолчанию
+  - перед `Publish-Module` есть bundled smoke на уже опубликованном module layout
+  - есть безопасный `workflow_dispatch` dry-run режим без реальной публикации в `PSGallery`
+  - первый реальный dry-run уже подтвержден:
+    - workflow: `psgraphview-publish`
+    - run: `24291734993`
+    - итог: `success`
+    - `Publish-Module` был корректно пропущен
+    - опубликован artifact `psgraphview-publish-dry-run`
 - `PSGraphView.Graphviz` уже умеет грузить bundled `libpsgv`.
 - `Патч 0` закрыт:
   - native test harness для `PSGraphView.Graphviz.Tests` работает
@@ -112,6 +122,8 @@
   - отдельные более крупные representative graphs
 - небольшой CI follow-up:
   - обновить GitHub Actions, чтобы убрать предупреждение про будущую deprecation `Node.js 20`
+- release-engineering follow-up:
+  - первый controlled non-dry-run publish в `PSGallery`
 
 ## Архитектура
 
@@ -467,5 +479,7 @@
   - отдельно решить, какие большие графы вроде `WikiVote` стоит держать как representative integration scenario
 - после этого закрыть маленький CI follow-up:
   - обновить action-ы или workflow-конфигурацию под будущий переход GitHub Actions с `Node.js 20`
+- отдельно, уже после этого плана:
+  - использовать подтвержденный dry-run contour как основу для первого controlled publish в `PSGallery`
 - image-операции `I` возвращать в план только если они реально начнут приходить из `xdot_json`;
 - `MSAGL` по-прежнему держать вне этого изменения.

@@ -1,5 +1,55 @@
 # Architecture Decision Log
 
+## 2026-04-11 14:14:58 PDT
+
+Решение:
+Считать publish dry-run подтвержденным: `PSGallery` publish workflow теперь проверен реальным `workflow_dispatch` прогоном, который проходит весь release contour до `Publish-Module`, но не публикует модуль наружу.
+
+Причины:
+- После добавления `dry_run` режим был нужен не как абстрактная опция в YAML, а как реально подтвержденный safe path перед первым настоящим publish.
+- Для `PSGraphView` особенно важно было проверить не только build и tests, но и:
+  - `dotnet publish`
+  - обновление manifest в publish output
+  - bundled smoke через `PSGraphView.psd1`
+  - корректный skip шага `Publish-Module`
+- Это и есть минимально достаточная репетиция релиза без внешнего side effect.
+
+Телеметрия / наблюдения:
+- Workflow:
+  - [publish.yml](/Users/andrei/repo/PSGraphView/.github/workflows/publish.yml)
+  - run: `24291734993`
+  - ссылка: [GitHub Actions run 24291734993](https://github.com/eosfor/PSGraphView/actions/runs/24291734993)
+- Параметры dry-run:
+  - `version=0.1.0`
+  - `prerelease=beta1`
+  - `graphviz_runtime_version=0.1.0-beta.12`
+  - `dry_run=true`
+- Итог:
+  - job `publish (9.0.x)` -> `success`
+  - длительность: `1m0s`
+  - `Publish PowerShell module to PSGallery` был пропущен
+  - опубликован artifact:
+    - `psgraphview-publish-dry-run`
+- Подтвержденные шаги внутри run:
+  - `Restore dependencies`
+  - `Build`
+  - `Run tests`
+  - `Publish PowerShell module`
+  - `Update module manifest version`
+  - `Smoke published module bundle`
+  - `Upload dry-run artifacts`
+  - `Skip PSGallery publish in dry-run`
+- Наблюдения по warning-ам:
+  - GitHub снова показал warning про будущую deprecation `Node.js 20` для standard actions
+  - build/tests прошли с уже существующими C# warning-ами по nullability и unused event
+  - эти warning-и не заблокировали dry-run, но остались техническим долгом
+
+Следствие:
+- Publish pipeline теперь можно считать не просто настроенным, а реально проверенным в безопасном режиме.
+- Следующий release-engineering шаг уже предельно конкретный:
+  - controlled non-dry-run publish в `PSGallery`
+- Это отдельный шаг от основного Graphviz-плана; основной план по-прежнему должен идти дальше в сторону raster thresholds и `extended` integration contour.
+
 ## 2026-04-11 12:09:54 PDT
 
 Решение:
