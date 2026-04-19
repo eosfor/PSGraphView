@@ -1,0 +1,108 @@
+name: psgraphview-gallery-installed-e2e
+
+on:
+  workflow_dispatch:
+    inputs:
+      module_version:
+        description: 'Exact PSGallery module version to validate, e.g. 0.1.0-beta2'
+        required: true
+        default: '0.1.0-beta2'
+
+  release:
+    types: [published]
+
+jobs:
+  gallery-installed:
+    name: ${{ matrix.os }} / ${{ matrix.rid }}
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            rid: linux-x64
+          - os: windows-2022
+            rid: win-x64
+          - os: macos-14
+            rid: osx-arm64
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install PowerShell
+        uses: PSModule/install-powershell@v1
+        with:
+          Version: latest
+
+      - name: Resolve module version
+        id: module
+        shell: pwsh
+        run: |
+          if ('${{ github.event_name }}' -eq 'release') {
+            $tag = '${{ github.ref }}' -replace '^refs/tags/', ''
+            $tag = $tag -replace '^v', ''
+            if ($tag -notmatch '^[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9\-]+)?$') {
+              throw 'Bad tag format. Expected vX.Y.Z or vX.Y.Z-label.'
+            }
+
+            $moduleVersion = $tag
+          }
+          else {
+            $moduleVersion = '${{ github.event.inputs.module_version }}'
+            if ($moduleVersion -notmatch '^[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9\-]+)?$') {
+              throw 'Manual module_version must look like X.Y.Z or X.Y.Z-label.'
+            }
+          }
+
+          $allowPrerelease = $moduleVersion.Contains('-')
+          "module_version=$moduleVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "allow_prerelease=$allowPrerelease" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Install PSGraphView from PSGallery
+        shell: pwsh
+        run: |
+          Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
+
+          $moduleVersion = '${{ steps.module.outputs.module_version }}'
+          $allowPrerelease = '${{ steps.module.outputs.allow_prerelease }}' -eq 'True'
+
+          $installParameters = @{
+            Name = 'PSGraphView'
+            Repository = 'PSGallery'
+            RequiredVersion = $moduleVersion
+            Scope = 'CurrentUser'
+            Force = $true
+            ErrorAction = 'Stop'
+          }
+
+          if ($allowPrerelease) {
+            $installParameters.AllowPrerelease = $true
+          }
+
+          Install-Module @installParameters
+
+          $installed = Get-InstalledModule -Name PSGraphView -RequiredVersion $moduleVersion -ErrorAction Stop
+          if ($null -eq $installed) {
+            throw "PSGraphView $moduleVersion was not found after Install-Module."
+          }
+
+      - name: Run gallery-installed baseline suite
+        shell: pwsh
+        run: |
+          $outputDirectory = Join-Path $PWD 'artifacts/gallery-installed-e2e/${{ matrix.rid }}'
+          pwsh -NoLogo -NoProfile -File ./eng/Test-GraphvizBaselineSuite.ps1 `
+            -ModuleName PSGraphView `
+            -RequiredVersion '${{ steps.module.outputs.module_version }}' `
+            -DisableExternalDot `
+            -OutputDirectory $outputDirectory
+
+      - name: Upload gallery-installed artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gallery-installed-e2e-${{ matrix.rid }}
+          path: artifacts/gallery-installed-e2e/${{ matrix.rid }}
+          if-no-files-found: warn

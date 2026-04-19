@@ -20,6 +20,8 @@ param(
 
     [string]$GraphvizNativeLibraryPath,
 
+    [switch]$DisableExternalDot,
+
     [switch]$PassThru
 )
 
@@ -77,6 +79,63 @@ function Assert-ScenarioManifest {
     }
 }
 
+function Resolve-InstalledModuleManifestPath {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$InstalledModuleName,
+
+        [string]$ExactVersion
+    )
+
+    $moduleCandidates = @(Get-Module -ListAvailable -Name $InstalledModuleName)
+    if ($moduleCandidates.Count -eq 0) {
+        throw "Module '$InstalledModuleName' is not installed."
+    }
+
+    $candidates = New-Object System.Collections.Generic.List[object]
+    foreach ($candidate in $moduleCandidates) {
+        $manifestPath = $candidate.Path
+        if ([string]::IsNullOrWhiteSpace($manifestPath) -or -not (Test-Path -LiteralPath $manifestPath)) {
+            continue
+        }
+
+        $metadata = Test-ModuleManifest -Path $manifestPath
+        $prerelease = $metadata.PrivateData.PSData.Prerelease
+        $fullVersion = if ([string]::IsNullOrWhiteSpace($prerelease)) {
+            $metadata.Version.ToString()
+        }
+        else {
+            "$($metadata.Version)-$prerelease"
+        }
+
+        $candidates.Add([pscustomobject]@{
+            ManifestPath = $manifestPath
+            Version = $metadata.Version
+            Prerelease = $prerelease
+            FullVersion = $fullVersion
+        }) | Out-Null
+    }
+
+    if ($candidates.Count -eq 0) {
+        throw "Module '$InstalledModuleName' is installed, but no readable manifest was found."
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($ExactVersion)) {
+        $matching = @($candidates | Where-Object { $_.FullVersion -eq $ExactVersion })
+        if ($matching.Count -eq 0) {
+            throw "Installed module '$InstalledModuleName' does not contain version '$ExactVersion'."
+        }
+
+        return $matching[0].ManifestPath
+    }
+
+    $selected = $candidates |
+        Sort-Object @{ Expression = { $_.Version }; Descending = $true }, @{ Expression = { [string]::IsNullOrWhiteSpace($_.Prerelease) }; Descending = $true } |
+        Select-Object -First 1
+
+    return $selected.ManifestPath
+}
+
 function Assert-FileStartsWith {
     param(
         [Parameter(Mandatory = $true)]
@@ -98,6 +157,36 @@ function Assert-FileStartsWith {
     }
 
     return $bytes
+}
+
+function New-FailingDotShim {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$DirectoryPath
+    )
+
+    New-Item -ItemType Directory -Path $DirectoryPath -Force | Out-Null
+
+    if ($IsWindows) {
+        $shimPath = Join-Path $DirectoryPath 'dot.cmd'
+        Set-Content -LiteralPath $shimPath -Encoding Ascii -Value @(
+            '@echo off'
+            'echo Graphviz process fallback is forbidden in baseline suite tests. 1>&2'
+            'exit /b 86'
+        )
+
+        return $shimPath
+    }
+
+    $shimPath = Join-Path $DirectoryPath 'dot'
+    Set-Content -LiteralPath $shimPath -Encoding Ascii -Value @(
+        '#!/usr/bin/env sh'
+        'echo "Graphviz process fallback is forbidden in baseline suite tests." >&2'
+        'exit 86'
+    )
+    & chmod +x $shimPath
+
+    return $shimPath
 }
 
 function Get-ThresholdResult {
@@ -228,21 +317,8 @@ if ($PSBoundParameters.ContainsKey('ModuleManifestPath')) {
     Import-Module $resolvedModuleManifestPath -Force -ErrorAction Stop
 }
 else {
-    $importParameters = @{
-        Name = $ModuleName
-        Force = $true
-        ErrorAction = 'Stop'
-    }
-
-    if (-not [string]::IsNullOrWhiteSpace($RequiredVersion)) {
-        $importParameters.RequiredVersion = $RequiredVersion
-    }
-
-    Import-Module @importParameters
-    $resolvedModuleManifestPath = (Get-Module $ModuleName | Select-Object -First 1 -ExpandProperty Path)
-    if ([string]::IsNullOrWhiteSpace($resolvedModuleManifestPath)) {
-        throw "Imported module '$ModuleName' did not expose a manifest path."
-    }
+    $resolvedModuleManifestPath = Resolve-InstalledModuleManifestPath -InstalledModuleName $ModuleName -ExactVersion $RequiredVersion
+    Import-Module $resolvedModuleManifestPath -Force -ErrorAction Stop
 }
 
 $modulePath = Get-Module PSGraphView | Select-Object -First 1 -ExpandProperty Path
@@ -266,109 +342,132 @@ $comparisonOptions = [System.Activator]::CreateInstance($rasterComparisonOptions
 $startedAt = [DateTimeOffset]::Now
 $scenarioResults = New-Object System.Collections.Generic.List[object]
 $failureMessages = New-Object System.Collections.Generic.List[string]
+$originalPath = $env:PATH
+$originalDotPath = $env:PSGRAPHVIEW_GRAPHVIZ_DOT_PATH
+$shimDirectory = $null
 
-foreach ($scenario in $scenarios) {
-    $scenarioInputPath = Resolve-RequiredPath -PathValue (Join-Path $resolvedFixtureRoot ([string]$scenario.inputPath)) -Description "Scenario '$($scenario.id)' input"
-    $scenarioBaselineDirectory = Resolve-RequiredPath -PathValue (Join-Path $resolvedBaselineRoot ([string]$scenario.baselinePath)) -Description "Scenario '$($scenario.id)' baseline directory"
-    $scenarioOutputDirectory = Join-Path $resolvedOutputDirectory ([string]$scenario.id)
-    New-Item -ItemType Directory -Path $scenarioOutputDirectory -Force | Out-Null
+if ($DisableExternalDot) {
+    $shimDirectory = Join-Path $resolvedOutputDirectory 'fake-tools'
+    $null = New-FailingDotShim -DirectoryPath $shimDirectory
+    $env:PATH = $shimDirectory + [System.IO.Path]::PathSeparator + $originalPath
+    $env:PSGRAPHVIEW_GRAPHVIZ_DOT_PATH = Join-Path $shimDirectory $(if ($IsWindows) { 'missing-dot.exe' } else { 'missing-dot' })
+}
 
-    $baselineSvgPath = Resolve-RequiredPath -PathValue (Join-Path $scenarioBaselineDirectory 'graphviz.svg') -Description "Scenario '$($scenario.id)' baseline svg"
-    $baselinePngPath = Resolve-RequiredPath -PathValue (Join-Path $scenarioBaselineDirectory 'graphviz.png') -Description "Scenario '$($scenario.id)' baseline png"
-    $baselineJpgPath = Resolve-RequiredPath -PathValue (Join-Path $scenarioBaselineDirectory 'graphviz.jpg') -Description "Scenario '$($scenario.id)' baseline jpg"
+try {
+    foreach ($scenario in $scenarios) {
+        $scenarioInputPath = Resolve-RequiredPath -PathValue (Join-Path $resolvedFixtureRoot ([string]$scenario.inputPath)) -Description "Scenario '$($scenario.id)' input"
+        $scenarioBaselineDirectory = Resolve-RequiredPath -PathValue (Join-Path $resolvedBaselineRoot ([string]$scenario.baselinePath)) -Description "Scenario '$($scenario.id)' baseline directory"
+        $scenarioOutputDirectory = Join-Path $resolvedOutputDirectory ([string]$scenario.id)
+        New-Item -ItemType Directory -Path $scenarioOutputDirectory -Force | Out-Null
 
-    $candidateSvgPath = Join-Path $scenarioOutputDirectory 'candidate.svg'
-    $candidatePngPath = Join-Path $scenarioOutputDirectory 'candidate.png'
-    $candidateJpgPath = Join-Path $scenarioOutputDirectory 'candidate.jpg'
-    $pngDiffPath = Join-Path $scenarioOutputDirectory 'diff-png.png'
-    $jpgDiffPath = Join-Path $scenarioOutputDirectory 'diff-jpg.png'
+        $baselineSvgPath = Resolve-RequiredPath -PathValue (Join-Path $scenarioBaselineDirectory 'graphviz.svg') -Description "Scenario '$($scenario.id)' baseline svg"
+        $baselinePngPath = Resolve-RequiredPath -PathValue (Join-Path $scenarioBaselineDirectory 'graphviz.png') -Description "Scenario '$($scenario.id)' baseline png"
+        $baselineJpgPath = Resolve-RequiredPath -PathValue (Join-Path $scenarioBaselineDirectory 'graphviz.jpg') -Description "Scenario '$($scenario.id)' baseline jpg"
 
-    $renderer = [System.Enum]::Parse($graphvizLayoutEngineType, [string]$scenario.renderer)
+        $candidateSvgPath = Join-Path $scenarioOutputDirectory 'candidate.svg'
+        $candidatePngPath = Join-Path $scenarioOutputDirectory 'candidate.png'
+        $candidateJpgPath = Join-Path $scenarioOutputDirectory 'candidate.jpg'
+        $pngDiffPath = Join-Path $scenarioOutputDirectory 'diff-png.png'
+        $jpgDiffPath = Join-Path $scenarioOutputDirectory 'diff-jpg.png'
 
-    Export-GraphvizView -DotPath $scenarioInputPath -Renderer $renderer -As Svg -OutputPath $candidateSvgPath | Out-Null
-    Export-GraphvizView -DotPath $scenarioInputPath -Renderer $renderer -As Png -OutputPath $candidatePngPath | Out-Null
-    Export-GraphvizView -DotPath $scenarioInputPath -Renderer $renderer -As Jpg -OutputPath $candidateJpgPath | Out-Null
+        $renderer = [System.Enum]::Parse($graphvizLayoutEngineType, [string]$scenario.renderer)
 
-    $candidatePngBytes = Assert-FileStartsWith -PathValue $candidatePngPath -ExpectedPrefix ([byte[]](0x89, 0x50, 0x4E, 0x47))
-    $candidateJpgBytes = Assert-FileStartsWith -PathValue $candidateJpgPath -ExpectedPrefix ([byte[]](0xFF, 0xD8))
+        Export-GraphvizView -DotPath $scenarioInputPath -Renderer $renderer -As Svg -OutputPath $candidateSvgPath | Out-Null
+        Export-GraphvizView -DotPath $scenarioInputPath -Renderer $renderer -As Png -OutputPath $candidatePngPath | Out-Null
+        Export-GraphvizView -DotPath $scenarioInputPath -Renderer $renderer -As Jpg -OutputPath $candidateJpgPath | Out-Null
 
-    $baselinePngBytes = [System.IO.File]::ReadAllBytes($baselinePngPath)
-    $baselineJpgBytes = [System.IO.File]::ReadAllBytes($baselineJpgPath)
+        $candidatePngBytes = Assert-FileStartsWith -PathValue $candidatePngPath -ExpectedPrefix ([byte[]](0x89, 0x50, 0x4E, 0x47))
+        $candidateJpgBytes = Assert-FileStartsWith -PathValue $candidateJpgPath -ExpectedPrefix ([byte[]](0xFF, 0xD8))
 
-    $pngComparison = $rasterImageComparerType::Compare($baselinePngBytes, $candidatePngBytes, $comparisonOptions)
-    $jpgComparison = $rasterImageComparerType::Compare($baselineJpgBytes, $candidateJpgBytes, $comparisonOptions)
+        $baselinePngBytes = [System.IO.File]::ReadAllBytes($baselinePngPath)
+        $baselineJpgBytes = [System.IO.File]::ReadAllBytes($baselineJpgPath)
 
-    [System.IO.File]::WriteAllBytes(
-        $pngDiffPath,
-        $rasterImageComparerType::RenderDiffPng($baselinePngBytes, $candidatePngBytes, $comparisonOptions))
-    [System.IO.File]::WriteAllBytes(
-        $jpgDiffPath,
-        $rasterImageComparerType::RenderDiffPng($baselineJpgBytes, $candidateJpgBytes, $comparisonOptions))
+        $pngComparison = $rasterImageComparerType::Compare($baselinePngBytes, $candidatePngBytes, $comparisonOptions)
+        $jpgComparison = $rasterImageComparerType::Compare($baselineJpgBytes, $candidateJpgBytes, $comparisonOptions)
 
-    $rasterThresholds = $null
-    if ($null -ne $scenario.PSObject.Properties['rasterThresholds']) {
-        $rasterThresholds = $scenario.rasterThresholds
+        [System.IO.File]::WriteAllBytes(
+            $pngDiffPath,
+            $rasterImageComparerType::RenderDiffPng($baselinePngBytes, $candidatePngBytes, $comparisonOptions))
+        [System.IO.File]::WriteAllBytes(
+            $jpgDiffPath,
+            $rasterImageComparerType::RenderDiffPng($baselineJpgBytes, $candidateJpgBytes, $comparisonOptions))
+
+        $rasterThresholds = $null
+        if ($null -ne $scenario.PSObject.Properties['rasterThresholds']) {
+            $rasterThresholds = $scenario.rasterThresholds
+        }
+
+        $pngThresholds = $null
+        $jpgThresholds = $null
+        if ($null -ne $rasterThresholds) {
+            if ($null -ne $rasterThresholds.PSObject.Properties['png']) {
+                $pngThresholds = $rasterThresholds.png
+            }
+
+            if ($null -ne $rasterThresholds.PSObject.Properties['jpg']) {
+                $jpgThresholds = $rasterThresholds.jpg
+            }
+        }
+
+        $pngThresholdResult = Get-ThresholdResult -Comparison $pngComparison -Thresholds $pngThresholds
+        $jpgThresholdResult = Get-ThresholdResult -Comparison $jpgComparison -Thresholds $jpgThresholds
+        $succeeded = $pngThresholdResult.succeeded -and $jpgThresholdResult.succeeded
+
+        if (-not $succeeded) {
+            foreach ($failure in @($pngThresholdResult.failures)) {
+                $failureMessages.Add("Scenario '$($scenario.id)' png: $failure") | Out-Null
+            }
+
+            foreach ($failure in @($jpgThresholdResult.failures)) {
+                $failureMessages.Add("Scenario '$($scenario.id)' jpg: $failure") | Out-Null
+            }
+        }
+
+        $scenarioResult = [ordered]@{
+            id = [string]$scenario.id
+            renderer = [string]$scenario.renderer
+            inputPath = $scenarioInputPath
+            baselineDirectory = $scenarioBaselineDirectory
+            outputDirectory = $scenarioOutputDirectory
+            disableExternalDot = [bool]$DisableExternalDot
+            succeeded = $succeeded
+            svg = Get-SvgTelemetry -BaselinePath $baselineSvgPath -CandidatePath $candidateSvgPath
+            png = [ordered]@{
+                baselineBytes = Get-FileSizeOrNull -PathValue $baselinePngPath
+                candidateBytes = Get-FileSizeOrNull -PathValue $candidatePngPath
+                diffPath = $pngDiffPath
+                comparison = Convert-ComparisonResult -Comparison $pngComparison
+                threshold = $pngThresholdResult
+            }
+            jpg = [ordered]@{
+                baselineBytes = Get-FileSizeOrNull -PathValue $baselineJpgPath
+                candidateBytes = Get-FileSizeOrNull -PathValue $candidateJpgPath
+                diffPath = $jpgDiffPath
+                comparison = Convert-ComparisonResult -Comparison $jpgComparison
+                threshold = $jpgThresholdResult
+            }
+        }
+
+        $scenarioResultPath = Join-Path $scenarioOutputDirectory 'baseline-compare-result.json'
+        $scenarioResult | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $scenarioResultPath -Encoding utf8
+        $scenarioResults.Add([pscustomobject]$scenarioResult) | Out-Null
+
+        if ($succeeded) {
+            Write-Host "Baseline scenario '$($scenario.id)' passed."
+        }
+        else {
+            Write-Warning "Baseline scenario '$($scenario.id)' exceeded one or more raster thresholds."
+        }
     }
+}
+finally {
+    $env:PATH = $originalPath
 
-    $pngThresholds = $null
-    $jpgThresholds = $null
-    if ($null -ne $rasterThresholds) {
-        if ($null -ne $rasterThresholds.PSObject.Properties['png']) {
-            $pngThresholds = $rasterThresholds.png
-        }
-
-        if ($null -ne $rasterThresholds.PSObject.Properties['jpg']) {
-            $jpgThresholds = $rasterThresholds.jpg
-        }
-    }
-
-    $pngThresholdResult = Get-ThresholdResult -Comparison $pngComparison -Thresholds $pngThresholds
-    $jpgThresholdResult = Get-ThresholdResult -Comparison $jpgComparison -Thresholds $jpgThresholds
-    $succeeded = $pngThresholdResult.succeeded -and $jpgThresholdResult.succeeded
-
-    if (-not $succeeded) {
-        foreach ($failure in @($pngThresholdResult.failures)) {
-            $failureMessages.Add("Scenario '$($scenario.id)' png: $failure") | Out-Null
-        }
-
-        foreach ($failure in @($jpgThresholdResult.failures)) {
-            $failureMessages.Add("Scenario '$($scenario.id)' jpg: $failure") | Out-Null
-        }
-    }
-
-    $scenarioResult = [ordered]@{
-        id = [string]$scenario.id
-        renderer = [string]$scenario.renderer
-        inputPath = $scenarioInputPath
-        baselineDirectory = $scenarioBaselineDirectory
-        outputDirectory = $scenarioOutputDirectory
-        succeeded = $succeeded
-        svg = Get-SvgTelemetry -BaselinePath $baselineSvgPath -CandidatePath $candidateSvgPath
-        png = [ordered]@{
-            baselineBytes = Get-FileSizeOrNull -PathValue $baselinePngPath
-            candidateBytes = Get-FileSizeOrNull -PathValue $candidatePngPath
-            diffPath = $pngDiffPath
-            comparison = Convert-ComparisonResult -Comparison $pngComparison
-            threshold = $pngThresholdResult
-        }
-        jpg = [ordered]@{
-            baselineBytes = Get-FileSizeOrNull -PathValue $baselineJpgPath
-            candidateBytes = Get-FileSizeOrNull -PathValue $candidateJpgPath
-            diffPath = $jpgDiffPath
-            comparison = Convert-ComparisonResult -Comparison $jpgComparison
-            threshold = $jpgThresholdResult
-        }
-    }
-
-    $scenarioResultPath = Join-Path $scenarioOutputDirectory 'baseline-compare-result.json'
-    $scenarioResult | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $scenarioResultPath -Encoding utf8
-    $scenarioResults.Add([pscustomobject]$scenarioResult) | Out-Null
-
-    if ($succeeded) {
-        Write-Host "Baseline scenario '$($scenario.id)' passed."
+    if ($null -eq $originalDotPath) {
+        Remove-Item Env:PSGRAPHVIEW_GRAPHVIZ_DOT_PATH -ErrorAction SilentlyContinue
     }
     else {
-        Write-Warning "Baseline scenario '$($scenario.id)' exceeded one or more raster thresholds."
+        $env:PSGRAPHVIEW_GRAPHVIZ_DOT_PATH = $originalDotPath
     }
 }
 
