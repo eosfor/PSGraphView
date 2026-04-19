@@ -57,6 +57,14 @@ jobs:
 
             $moduleVersion = $tag
           }
+          elseif ('${{ github.event_name }}' -eq 'push') {
+            $module = Find-Module -Name PSGraphView -Repository PSGallery -AllowPrerelease -ErrorAction Stop | Select-Object -First 1
+            if ($null -eq $module) {
+              throw 'PSGraphView was not found in PSGallery during push validation.'
+            }
+
+            $moduleVersion = $module.Version.ToString()
+          }
           else {
             $moduleVersion = '${{ github.event.inputs.module_version }}'
             if ($moduleVersion -notmatch '^[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9\-]+)?$') {
