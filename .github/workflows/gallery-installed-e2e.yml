@@ -99,7 +99,17 @@ jobs:
 
           Install-Module @installParameters
 
-          $installed = Get-InstalledModule -Name PSGraphView -RequiredVersion $moduleVersion -ErrorAction Stop
+          $installedParameters = @{
+            Name = 'PSGraphView'
+            RequiredVersion = $moduleVersion
+            ErrorAction = 'Stop'
+          }
+
+          if ($allowPrerelease) {
+            $installedParameters.AllowPrerelease = $true
+          }
+
+          $installed = Get-InstalledModule @installedParameters
           if ($null -eq $installed) {
             throw "PSGraphView $moduleVersion was not found after Install-Module."
           }
