@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "scenarios": [
+    {
+      "id": "smoke-basic",
+      "dotPath": "quality/raster-smoke.dot",
+      "renderer": "Dot",
+      "maxComparisonDimension": 1024,
+      "differentPixelThreshold": 8,
+      "thresholds": {
+        "png": {
+          "maxRootMeanSquareDifference": 65.0,
+          "maxDifferentPixelPercent": 25.0,
+          "minGlobalStructuralSimilarity": 0.40
+        },
+        "jpg": {
+          "maxRootMeanSquareDifference": 62.0,
+          "maxDifferentPixelPercent": 25.0,
+          "minGlobalStructuralSimilarity": 0.40
+        }
+      }
+    },
+    {
+      "id": "wiki-vote-seed20",
+      "dotPath": "quality/wiki-vote-seed20.dot",
+      "renderer": "Dot",
+      "maxComparisonDimension": 1024,
+      "differentPixelThreshold": 8,
+      "thresholds": {
+        "png": {
+          "maxRootMeanSquareDifference": 38.0,
+          "maxDifferentPixelPercent": 20.0,
+          "minGlobalStructuralSimilarity": 0.52
+        },
+        "jpg": {
+          "maxRootMeanSquareDifference": 45.0,
+          "maxDifferentPixelPercent": 18.0,
+          "minGlobalStructuralSimilarity": 0.43
+        }
+      }
+    }
+  ]
+}

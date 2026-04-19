@@ -1,5 +1,61 @@
 # Architecture Decision Log
 
+## 2026-04-19 13:21:14 PDT
+
+Решение:
+Считать базовый raster quality gate введенным: thresholds для `RMSE`, `different-pixel %` и `SSIM` зафиксированы в репозитории, а repeatable regression-step оформлен отдельным `eng`-скриптом поверх pinned DOT-входов.
+
+Причины:
+- До этого raster compare уже существовал как manual инструмент, но не как реальный gate.
+- Без thresholds compare не мог отличать приемлемое текущее расхождение от реального регресса.
+- Для первого рабочего quality gate нужен был небольшой, но representative набор:
+  - один простой smoke graph
+  - один pinned `WikiVote` subgraph
+- Эти два сценария дают полезное покрытие:
+  - маленький граф с простыми label/arrow path
+  - более крупный реальный граф с большим количеством узлов и ребер
+- Gate должен был валить именно native raster path, а не случайно уходить во внешний `dot`, поэтому script специально ломает `PSGRAPHVIEW_GRAPHVIZ_DOT_PATH` для candidate render-а и использует `dot` только как explicit baseline renderer.
+
+Телеметрия / наблюдения:
+- Добавлены pinned inputs:
+  - [raster-smoke.dot](/Users/andrei/repo/PSGraphView/tests/Fixtures/Graphviz/quality/raster-smoke.dot)
+  - [wiki-vote-seed20.dot](/Users/andrei/repo/PSGraphView/tests/Fixtures/Graphviz/quality/wiki-vote-seed20.dot)
+- Добавлен threshold manifest:
+  - [raster-quality-gate.json](/Users/andrei/repo/PSGraphView/tests/Fixtures/Graphviz/quality/raster-quality-gate.json)
+- Добавлен repeatable gate script:
+  - [Test-GraphvizRasterQualityGate.ps1](/Users/andrei/repo/PSGraphView/eng/Test-GraphvizRasterQualityGate.ps1)
+- Локальная проверка gate:
+  - summary:
+    - `/Users/andrei/repo/PSGraphView/artifacts/local-raster-quality-gate/raster-quality-gate-results.json`
+  - итог:
+    - `scenarioCount=2`
+    - `failureCount=0`
+    - `succeeded=true`
+    - `durationMs=1415.78`
+- Зафиксированные текущие метрики и thresholds:
+  - `smoke-basic / png`:
+    - observed: `rmse=57.4447`, `diff%=23.4077`, `ssim=0.493517`
+    - threshold: `rmse<=65.0`, `diff%<=25.0`, `ssim>=0.40`
+  - `smoke-basic / jpg`:
+    - observed: `rmse=56.1938`, `diff%=23.8140`, `ssim=0.488233`
+    - threshold: `rmse<=62.0`, `diff%<=25.0`, `ssim>=0.40`
+  - `wiki-vote-seed20 / png`:
+    - observed: `rmse=31.6704`, `diff%=17.0028`, `ssim=0.568433`
+    - threshold: `rmse<=38.0`, `diff%<=20.0`, `ssim>=0.52`
+  - `wiki-vote-seed20 / jpg`:
+    - observed: `rmse=38.2482`, `diff%=15.3318`, `ssim=0.459697`
+    - threshold: `rmse<=45.0`, `diff%<=18.0`, `ssim>=0.43`
+- Дополнительная узкая проверка:
+  - `dotnet test tests/PSGraphView.Graphviz.Tests/PSGraphView.Graphviz.Tests.csproj --filter RasterImageComparerTests --no-restore`
+  - итог: `4 passed`
+
+Следствие:
+- Active task `Raster Quality Gate` можно считать закрытой на базовом уровне.
+- Следующий шаг теперь уже не про сами thresholds, а про:
+  - `extended` integration coverage
+  - pinned baseline assets для gallery-installed e2e pipeline-ов
+  - последующий post-publish contour через `Install-Module`
+
 ## 2026-04-19 13:07:54 PDT
 
 Решение:

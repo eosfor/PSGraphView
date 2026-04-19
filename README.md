@@ -58,6 +58,7 @@ Demo scripts:
 - `demos/Compare-WikiVote-GraphvizSvg.ps1` builds or reuses one DOT file, writes both `dot -Tsvg` and native `Export-GraphvizView -As Svg` outputs, and saves warm/cold timing results to JSON.
 - `demos/Compare-WikiVote-GraphvizRaster.ps1` builds or reuses one DOT file, writes both Graphviz and native `Png/Jpg` outputs, saves diff images, and records numeric raster divergence metrics to JSON.
 - For local native Graphviz benchmarking without a bundled runtime, pass `-GraphvizNativeLibraryPath <path-to-libpsgv>` or set `PSGRAPHVIEW_PSGV_LIBRARY_PATH`.
+- `eng/Test-GraphvizRasterQualityGate.ps1` runs the repeatable raster quality gate against pinned DOT inputs and fails if `RMSE`, `different-pixel %`, or `SSIM` cross the agreed thresholds in `tests/Fixtures/Graphviz/quality/raster-quality-gate.json`.
 
 No-system-Graphviz smoke:
 - `eng/Test-GraphvizNoSystemSmoke.ps1` validates `Json|Svg|Png|Jpg` through `PSGraphView.psd1` while the external `dot` path is intentionally broken.
@@ -71,6 +72,7 @@ Graphviz fixture inputs:
 - To resync the local fixture catalog from a checked-out `graphviz` repo, run `eng/Sync-GraphvizFixtures.ps1 -GraphvizSourceRoot <path-to-graphviz> -Clean`.
 - The script also honors `PSGRAPHVIEW_GRAPHVIZ_SOURCE_DIR` if you do not want to pass `-GraphvizSourceRoot`.
 - To run the local `core` or `extended` fixture suite through `PSGraphView.psd1`, use `eng/Invoke-GraphvizFixtureSuite.ps1 -ModuleManifestPath <path-to-PSGraphView.psd1>`.
+- Raster quality fixtures and thresholds live under `tests/Fixtures/Graphviz/quality`.
 - Cross-platform CI for the fixture suite lives in `.github/workflows/graphviz-fixture-suite.yml`.
 
 Workspace:

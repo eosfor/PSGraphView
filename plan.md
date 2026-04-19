@@ -38,10 +38,10 @@
   - есть manual compare/benchmark для `WikiVote`;
   - есть `RasterImageComparer`;
   - есть demo-скрипт для raster compare;
-  - базовые численные метрики уже снимаются, но thresholds и regression gate еще не введены.
+  - raster quality gate уже введен для pinned `WikiVote` subgraph и простого smoke graph;
+  - larger integration contour и gallery baseline layer еще не закрыты.
 
 Осталось:
-- ввести repeatable baseline и thresholds для raster compare;
 - расширить integration contour за пределы текущего smoke и `core` fixture-tier;
 - добавить отдельные post-publish e2e pipeline-ы на чистых runner-ах с установкой модуля из `PSGallery`;
 - обновить CI action-ы под будущее снятие `Node.js 20`;
@@ -81,20 +81,14 @@
 
 ## Активные задачи
 
-### 1. Raster Quality Gate
-- Зафиксировать baseline/thresholds для:
-  - `RMSE`
-  - `different-pixel %`
-  - `SSIM`
-- Начать с:
-  - `WikiVote` subgraph
-  - одного простого smoke graph
-- После этого оформить repeatable regression-step поверх уже существующего compare helper.
-
-### 2. Extended Integration Coverage
+### 1. Extended Integration Coverage
 - Добавить `extended` fixture tier как отдельный необязательный или nightly слой.
 - Решить, какие большие representative graphs стоит держать отдельно от fixture-suite:
   - например, `WikiVote`.
+
+### 2. Gallery Baseline Assets
+- Подготовить pinned baseline-артефакты для будущих gallery-installed e2e pipeline-ов.
+- Для этого использовать curated `.gv/.dot` входы и native Graphviz output-ы как эталон.
 
 ### 3. CI Cleanup
 - Обновить workflow/action-ы, чтобы убрать предупреждение про будущую deprecation `Node.js 20`.
@@ -138,6 +132,14 @@
 - gallery-installed output-ы сравниваются с pinned native Graphviz baseline и проходят agreed thresholds;
 - gallery-installed output-ы не пустые и содержат ожидаемые артефакты рендера.
 
+Проверки, уже добавленные для raster quality gate:
+- `eng/Test-GraphvizRasterQualityGate.ps1` сравнивает native `Png/Jpg` с нативным Graphviz baseline;
+- gate использует pinned DOT-входы:
+  - `tests/Fixtures/Graphviz/quality/raster-smoke.dot`
+  - `tests/Fixtures/Graphviz/quality/wiki-vote-seed20.dot`
+- текущие thresholds зафиксированы в:
+  - `tests/Fixtures/Graphviz/quality/raster-quality-gate.json`
+
 ## Риски
 
 - Текст и шрифты могут визуально отличаться между платформами, даже если layout уже посчитан.
@@ -148,8 +150,7 @@
 ## Следующий шаг
 
 Следующий практический шаг:
-- ввести baseline и thresholds для raster compare;
-- затем поднять `extended` fixture tier или отдельные большие integration scenario;
-- потом подготовить pinned baseline-артефакты для gallery-installed e2e pipeline-ов;
+- поднять `extended` fixture tier или отдельные большие integration scenario;
+- затем подготовить pinned baseline-артефакты для gallery-installed e2e pipeline-ов;
 - после этого готовить первый controlled publish в `PSGallery` и включать post-publish gallery-installed проверки;
 - отдельно закрыть CI cleanup по `Node.js 20`.

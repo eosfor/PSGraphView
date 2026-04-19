@@ -62,7 +62,16 @@
   - `RasterImageComparer`
 - Добавлен demo-скрипт:
   - `demos/Compare-WikiVote-GraphvizRaster.ps1`
-- Сняты первые численные метрики на простом smoke graph и на `WikiVote` subgraph.
+- Добавлен repeatable quality gate:
+  - `eng/Test-GraphvizRasterQualityGate.ps1`
+  - pinned `raster-smoke.dot`
+  - pinned `wiki-vote-seed20.dot`
+  - threshold manifest `raster-quality-gate.json`
+- Зафиксированы первые рабочие thresholds для:
+  - `RMSE`
+  - `different-pixel %`
+  - `SSIM`
 
 Итог этапа:
-- база для quality gate уже есть, но thresholds и automated regression step еще не введены.
+- базовый raster quality gate уже введен;
+- дальше остается расширять integration contour и готовить pinned gallery baseline layer.

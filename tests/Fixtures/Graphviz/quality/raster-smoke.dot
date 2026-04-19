@@ -1,0 +1,8 @@
+digraph G {
+  graph [rankdir=LR]
+  node [shape=box style=rounded]
+
+  start -> parse [label="parse"];
+  parse -> emit [label="emit"];
+  emit -> done [label="done"];
+}
