@@ -1,5 +1,48 @@
 # Architecture Decision Log
 
+## 2026-04-19 13:07:54 PDT
+
+Решение:
+Добавить в план отдельный слой post-publish e2e pipeline-ов на чистых runner-ах, который проверяет реальный пользовательский сценарий через `Install-Module` из `PSGallery`, а не только source-built publish output.
+
+Причины:
+- Текущие `no-system-graphviz` и fixture workflow уже хорошо проверяют код и bundled publish layout, но они стартуют из исходников этого репозитория.
+- Это не то же самое, что реальная установка модуля пользователем:
+  - `Install-Module`
+  - `Import-Module`
+  - использование уже опубликованного пакета на пустом агенте
+- Для `PSGraphView` это особенно важно из-за native runtime и raster path:
+  - packaging может быть корректным в локальном `dotnet publish`, но сломаться в реальном gallery package
+  - import path и native dependency resolution нужно проверять именно после установки из `PSGallery`
+- Проверка только на факт появления файлов недостаточна; нужен еще compare с эталонными output-ами.
+- Эталоны логично строить не вручную, а на основе pinned native Graphviz baseline для curated `.gv/.dot` входов.
+
+Телеметрия / наблюдения:
+- Это пока плановый шаг; нового hosted run для него еще нет.
+- Уже существующие слои, на которые он будет опираться:
+  - [no-system-graphviz.yml](/Users/andrei/repo/PSGraphView/.github/workflows/no-system-graphviz.yml)
+  - [graphviz-fixture-suite.yml](/Users/andrei/repo/PSGraphView/.github/workflows/graphviz-fixture-suite.yml)
+  - [publish.yml](/Users/andrei/repo/PSGraphView/.github/workflows/publish.yml)
+- Уже существующая база для compare:
+  - [RasterImageComparer.cs](/Users/andrei/repo/PSGraphView/src/PSGraphView.Graphviz/RasterImageComparer.cs)
+  - [Compare-WikiVote-GraphvizRaster.ps1](/Users/andrei/repo/PSGraphView/demos/Compare-WikiVote-GraphvizRaster.ps1)
+  - [tests/Fixtures/Graphviz/manifest.json](/Users/andrei/repo/PSGraphView/tests/Fixtures/Graphviz/manifest.json)
+- Предполагаемый сценарий pipeline:
+  - чистый runner
+  - `Install-Module PSGraphView`
+  - `Import-Module PSGraphView`
+  - прогон curated e2e fixture-набора
+  - сохранение `Svg/Png/Jpg`
+  - compare с pinned native Graphviz baseline
+
+Следствие:
+- Новый слой проверки не должен заменять текущие source-built workflow.
+- Его нужно держать отдельно как post-publish или release-validation contour.
+- Перед внедрением этого слоя нужно:
+  - определить pinned baseline inputs и output-ы
+  - зафиксировать thresholds для compare
+  - провести первый controlled non-dry-run publish в `PSGallery`
+
 ## 2026-04-11 14:14:58 PDT
 
 Решение:

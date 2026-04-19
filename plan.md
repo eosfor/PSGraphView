@@ -43,6 +43,7 @@
 Осталось:
 - ввести repeatable baseline и thresholds для raster compare;
 - расширить integration contour за пределы текущего smoke и `core` fixture-tier;
+- добавить отдельные post-publish e2e pipeline-ы на чистых runner-ах с установкой модуля из `PSGallery`;
 - обновить CI action-ы под будущее снятие `Node.js 20`;
 - отдельно провести первый controlled non-dry-run publish в `PSGallery`;
 - вернуть в работу image-операции `I` только если они реально начнут приходить из Graphviz JSON.
@@ -98,8 +99,25 @@
 ### 3. CI Cleanup
 - Обновить workflow/action-ы, чтобы убрать предупреждение про будущую deprecation `Node.js 20`.
 
-### 4. Release Follow-up
+### 4. Gallery E2E Pipelines
+- Добавить отдельные workflow на `Linux`, `macOS` и `Windows` для чистого runner-а.
+- Сценарий каждого workflow:
+  - `Install-Module PSGraphView`
+  - `Import-Module PSGraphView`
+  - прогон curated набора e2e тестов
+  - запись `Svg`, `Png` и `Jpg` результатов
+  - проверка, что файлы существуют и не пустые
+  - сравнение с эталонными output-ами
+- Эти pipeline-ы должны проверять именно установленный из `PSGallery` модуль, а не локально собранный publish output.
+- Эталонные output-ы нужно готовить на основе pinned native Graphviz baseline:
+  - брать curated `.gv/.dot` входы
+  - рендерить их нативным Graphviz
+  - сохранять как эталоны для `Svg` и raster compare
+- Этот contour логично запускать как отдельный post-publish или release-validation слой, а не смешивать с обычным PR gate.
+
+### 5. Release Follow-up
 - После завершения quality gate использовать уже подтвержденный `dry_run` как основу для первого controlled non-dry-run publish в `PSGallery`.
+- После первого publish включить gallery-installed e2e pipeline-ы как обязательную release-validation проверку.
 
 ## Основные проверки
 
@@ -113,6 +131,13 @@
 - `core` fixture-suite проходит на `Linux`, `macOS` и `Windows`.
 - Для raster path остается доступной телеметрия расхождения с оригинальным `dot`.
 
+Дополнительные проверки, которые нужно добавить следующим слоем:
+- установленный из `PSGallery` модуль успешно ставится через `Install-Module` на чистом runner-е;
+- установленный из `PSGallery` модуль успешно импортируется через `Import-Module`;
+- gallery-installed e2e набор успешно отдает `Svg`, `Png` и `Jpg` на `Linux`, `macOS` и `Windows`;
+- gallery-installed output-ы сравниваются с pinned native Graphviz baseline и проходят agreed thresholds;
+- gallery-installed output-ы не пустые и содержат ожидаемые артефакты рендера.
+
 ## Риски
 
 - Текст и шрифты могут визуально отличаться между платформами, даже если layout уже посчитан.
@@ -125,5 +150,6 @@
 Следующий практический шаг:
 - ввести baseline и thresholds для raster compare;
 - затем поднять `extended` fixture tier или отдельные большие integration scenario;
-- потом закрыть CI cleanup по `Node.js 20`;
-- после этого готовить первый controlled publish в `PSGallery`.
+- потом подготовить pinned baseline-артефакты для gallery-installed e2e pipeline-ов;
+- после этого готовить первый controlled publish в `PSGallery` и включать post-publish gallery-installed проверки;
+- отдельно закрыть CI cleanup по `Node.js 20`.
