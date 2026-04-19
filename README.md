@@ -74,6 +74,7 @@ Graphviz fixture inputs:
 - To run the local `core` or `extended` fixture suite through `PSGraphView.psd1`, use `eng/Invoke-GraphvizFixtureSuite.ps1 -ModuleManifestPath <path-to-PSGraphView.psd1>`.
 - Raster quality fixtures and thresholds live under `tests/Fixtures/Graphviz/quality`.
 - Cross-platform CI for the fixture suite lives in `.github/workflows/graphviz-fixture-suite.yml`.
+- The same workflow keeps `core` on push/PR and runs `extended` as a scheduled nightly layer or on manual dispatch.
 
 Workspace:
 - Open `/Users/andrei/repo/psgraph-visualization.code-workspace` to work on `PSGraph` and `PSGraphView` side by side in VS Code.

@@ -82,7 +82,7 @@
 ## Активные задачи
 
 ### 1. Extended Integration Coverage
-- Добавить `extended` fixture tier как отдельный необязательный или nightly слой.
+- `extended` fixture tier уже подтвержден локально и вынесен в отдельный nightly/manual CI слой.
 - Решить, какие большие representative graphs стоит держать отдельно от fixture-suite:
   - например, `WikiVote`.
 

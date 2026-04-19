@@ -40,6 +40,12 @@
   - `linux-x64`
   - `osx-arm64`
   - `win-x64`
+- `extended` suite локально подтвержден на:
+  - `states`
+  - `table`
+  - `heawood`
+  - `structs`
+- Тот же workflow расширен так, чтобы `extended` шел отдельным nightly/manual слоем без утяжеления `core` PR gate.
 
 Итог этапа:
 - есть отдельный кроссплатформенный regression contour поверх curated Graphviz fixture-ов.

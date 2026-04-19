@@ -1,6 +1,9 @@
 name: psgraphview-graphviz-fixture-suite
 
 on:
+  schedule:
+    - cron: '0 6 * * *'
+
   workflow_dispatch:
     inputs:
       graphviz_runtime_version:
@@ -73,6 +76,26 @@ jobs:
             throw 'GRAPHVIZ_RUNTIME_GITHUB_TOKEN secret is required for the bundled Graphviz fixture workflow.'
           }
 
+      - name: Resolve fixture suite parameters
+        id: parameters
+        shell: pwsh
+        run: |
+          $graphvizRuntimeVersion = '${{ github.event.inputs.graphviz_runtime_version }}'
+          if ([string]::IsNullOrWhiteSpace($graphvizRuntimeVersion)) {
+            $graphvizRuntimeVersion = '0.1.0-beta.12'
+          }
+
+          $fixtureTier = '${{ github.event.inputs.fixture_tier }}'
+          if ('${{ github.event_name }}' -eq 'schedule') {
+            $fixtureTier = 'extended'
+          }
+          elseif ([string]::IsNullOrWhiteSpace($fixtureTier)) {
+            $fixtureTier = 'core'
+          }
+
+          "graphviz_runtime_version=$graphvizRuntimeVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "fixture_tier=$fixtureTier" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
       - name: Restore PowerShell module
         shell: pwsh
         run: |
@@ -83,10 +106,7 @@ jobs:
         env:
           PSGRAPHVIEW_GITHUB_TOKEN: ${{ secrets.GRAPHVIZ_RUNTIME_GITHUB_TOKEN }}
         run: |
-          $graphvizRuntimeVersion = '${{ github.event.inputs.graphviz_runtime_version }}'
-          if ([string]::IsNullOrWhiteSpace($graphvizRuntimeVersion)) {
-            $graphvizRuntimeVersion = '0.1.0-beta.12'
-          }
+          $graphvizRuntimeVersion = '${{ steps.parameters.outputs.graphviz_runtime_version }}'
 
           $publishDirectory = Join-Path $PWD 'artifacts/PSGraphView/${{ matrix.rid }}'
           dotnet publish ./src/PSGraphView.PowerShell/PSGraphView.PowerShell.csproj `
@@ -99,10 +119,7 @@ jobs:
       - name: Run Graphviz fixture suite
         shell: pwsh
         run: |
-          $fixtureTier = '${{ github.event.inputs.fixture_tier }}'
-          if ([string]::IsNullOrWhiteSpace($fixtureTier)) {
-            $fixtureTier = 'core'
-          }
+          $fixtureTier = '${{ steps.parameters.outputs.fixture_tier }}'
 
           $publishDirectory = Join-Path $PWD 'artifacts/PSGraphView/${{ matrix.rid }}'
           $manifestPath = Join-Path $publishDirectory 'PSGraphView.psd1'
@@ -118,6 +135,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: graphviz-fixture-suite-${{ matrix.rid }}
+          name: graphviz-fixture-suite-${{ matrix.rid }}-${{ steps.parameters.outputs.fixture_tier }}
           path: artifacts/graphviz-fixture-suite/${{ matrix.rid }}
           if-no-files-found: warn

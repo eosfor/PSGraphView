@@ -1,5 +1,46 @@
 # Architecture Decision Log
 
+## 2026-04-19 13:54:06 PDT
+
+Решение:
+Поднять `extended` integration coverage как отдельный nightly/manual слой в уже существующем fixture workflow, не смешивая его с быстрым `core` PR gate.
+
+Причины:
+- `core` уже доказал свою полезность как короткий обязательный regression contour.
+- `extended` нужен, чтобы проверять более сложные входы, но его невыгодно вешать на каждый push и каждый PR.
+- Дублировать второй почти такой же workflow ради `extended` не нужно:
+  - логика publish и runner уже есть;
+  - достаточно дать тому же workflow отдельный режим для schedule/manual запуска.
+- Такой вариант дает больше покрытия без лишнего шума и без удлинения основного PR path.
+
+Телеметрия / наблюдения:
+- Локальный `extended` прогон уже подтвержден:
+  - summary:
+    - `/Users/andrei/repo/PSGraphView/artifacts/local-graphviz-fixture-suite-extended/fixture-suite-results.json`
+  - итог:
+    - `totalFixtureCount=4`
+    - `failureCount=0`
+    - `successCount=4`
+    - `durationMs=2103.3`
+- Пройденные fixture-ы:
+  - `states`
+  - `table`
+  - `heawood`
+  - `structs`
+- Обновлен workflow:
+  - [graphviz-fixture-suite.yml](/Users/andrei/repo/PSGraphView/.github/workflows/graphviz-fixture-suite.yml)
+  - что изменено:
+    - добавлен `schedule`
+    - `schedule` запускает tier `extended`
+    - `workflow_dispatch` по-прежнему может запускать `core`, `extended` или `all`
+    - artifact name теперь включает tier для лучшей читаемости
+
+Следствие:
+- `extended` integration coverage можно считать поднятым на уровне CI-контура.
+- Следующий шаг уже не про fixture tiers, а про:
+  - выбор больших representative graph scenario вне fixture-suite
+  - подготовку pinned baseline assets для gallery-installed e2e
+
 ## 2026-04-19 13:21:14 PDT
 
 Решение:
