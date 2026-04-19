@@ -1,0 +1,30 @@
+{
+  "id": "arrows",
+  "renderer": "Dot",
+  "inputPath": "core/arrows.gv",
+  "baselinePath": "assets/arrows",
+  "tags": [
+    "arrow",
+    "style",
+    "core"
+  ],
+  "generatedAt": "2026-04-19T15:12:07.0466760-07:00",
+  "dotCommand": "dot",
+  "outputs": {
+    "svg": {
+      "path": "assets/arrows/graphviz.svg",
+      "bytes": 62061,
+      "sha256": "897c028ade2e141eda8addcfcb3aaf4d91fb3d355c8dd97896c2a4b466efba6f"
+    },
+    "png": {
+      "path": "assets/arrows/graphviz.png",
+      "bytes": 79319,
+      "sha256": "2493a6b984b1e28d08a853ad3902f29d8c01dbbeb00395583c29e37a9543b31c"
+    },
+    "jpg": {
+      "path": "assets/arrows/graphviz.jpg",
+      "bytes": 75817,
+      "sha256": "ee47f651e223ef31a48bda10619b72e041da3d47f7b37943d9a619ade9c52915"
+    }
+  }
+}

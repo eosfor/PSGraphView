@@ -1,5 +1,83 @@
 # Architecture Decision Log
 
+## 2026-04-19 15:09:05 PDT
+
+Решение:
+Подготовить pinned native Graphviz baseline layer до первого `PSGallery` publish и выбрать два отдельных representative scenario вне fixture-suite:
+- `wiki-vote-seed20`
+- `ngk10-4-sfdp`
+
+Причины:
+- Для будущего post-publish сценария через `Install-Module` нужны не только входные `.gv/.dot`, но и уже зафиксированные эталонные `Svg/Png/Jpg`.
+- Генерировать baseline внутри gallery-installed workflow невыгодно:
+  - это потребует системного Graphviz на чистом runner-е;
+  - такой contour перестанет проверять именно автономный installed-module path.
+- Значит baseline нужно хранить в репозитории и уметь воспроизводимо пересобирать отдельным скриптом.
+- Помимо малых fixture-ов нужен хотя бы один-два более крупных representative scenario, чтобы post-publish contour не ограничивался только базовыми примерами.
+- `wiki-vote-seed20` уже доказал свою полезность в raster quality gate.
+- `ngk10_4.gv` из graphviz corpus добавляет отдельный network-style сценарий под `sfdp`, ближе к force/network layout, чем обычные `dot`-fixture-ы.
+
+Телеметрия / наблюдения:
+- Добавлены baseline inputs и tooling:
+  - [tests/Baselines/Graphviz/manifest.json](/Users/andrei/repo/PSGraphView/tests/Baselines/Graphviz/manifest.json)
+  - [eng/Export-GraphvizBaselineAssets.ps1](/Users/andrei/repo/PSGraphView/eng/Export-GraphvizBaselineAssets.ps1)
+  - [eng/Test-GraphvizBaselineSuite.ps1](/Users/andrei/repo/PSGraphView/eng/Test-GraphvizBaselineSuite.ps1)
+  - [tests/Fixtures/Graphviz/representative/ngk10_4.gv](/Users/andrei/repo/PSGraphView/tests/Fixtures/Graphviz/representative/ngk10_4.gv)
+- Baseline manifest сейчас включает `6` сценариев:
+  - `clust1`
+  - `records`
+  - `arrows`
+  - `table`
+  - `wiki-vote-seed20`
+  - `ngk10-4-sfdp`
+- Локальная генерация baseline:
+  - summary:
+    - `/Users/andrei/repo/PSGraphView/tests/Baselines/Graphviz/baseline-summary.json`
+  - итог:
+    - `scenarioCount=6`
+    - `durationMs=1508.59`
+    - `dotCommandPath=/opt/homebrew/bin/dot`
+- Локальный compare-suite against current module:
+  - summary:
+    - `/Users/andrei/repo/PSGraphView/artifacts/local-baseline-suite/baseline-suite-results.json`
+  - итог:
+    - `scenarioCount=6`
+    - `failureCount=0`
+    - `durationMs=5725.65`
+- Representative raster telemetry:
+  - `wiki-vote-seed20 / png`:
+    - `rmse=46.537`
+    - `diff%=13.3837`
+    - `ssim=0.366526`
+  - `wiki-vote-seed20 / jpg`:
+    - `rmse=44.1982`
+    - `diff%=13.9694`
+    - `ssim=0.389072`
+  - `ngk10-4-sfdp / png`:
+    - `rmse=48.5329`
+    - `diff%=12.455`
+    - `ssim=0.077591`
+  - `ngk10-4-sfdp / jpg`:
+    - `rmse=47.64`
+    - `diff%=12.5054`
+    - `ssim=0.080927`
+- Малые fixture-ы тоже уже промерены:
+  - `clust1 / png`: `rmse=53.4261`, `diff%=18.5185`, `ssim=0.34222`
+  - `records / png`: `rmse=54.4717`, `diff%=15.0149`, `ssim=0.288235`
+  - `arrows / png`: `rmse=78.6472`, `diff%=36.7504`, `ssim=0.306772`
+  - `table / png`: `rmse=59.4827`, `diff%=19.9823`, `ssim=0.592146`
+- Важное наблюдение:
+  - локальная compare telemetry уже полезна для калибровки,
+  - но фиксировать жесткие cross-platform thresholds в baseline manifest пока рано:
+    - сначала нужен хотя бы один gallery-installed hosted прогон на `Linux`, `macOS` и `Windows`.
+
+Следствие:
+- baseline layer можно считать подготовленной базой для post-publish `Install-Module` contour.
+- Следующий практический шаг уже не про генерацию baseline, а про:
+  - первый controlled non-dry-run publish в `PSGallery`
+  - подключение `eng/Test-GraphvizBaselineSuite.ps1` в gallery-installed workflow
+  - калибровку cross-platform thresholds по telemetry первого hosted gallery run
+
 ## 2026-04-19 14:50:19 PDT
 
 Решение:

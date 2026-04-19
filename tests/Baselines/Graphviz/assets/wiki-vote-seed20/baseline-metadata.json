@@ -1,0 +1,30 @@
+{
+  "id": "wiki-vote-seed20",
+  "renderer": "Dot",
+  "inputPath": "quality/wiki-vote-seed20.dot",
+  "baselinePath": "assets/wiki-vote-seed20",
+  "tags": [
+    "representative",
+    "wiki-vote",
+    "large"
+  ],
+  "generatedAt": "2026-04-19T15:12:07.5643970-07:00",
+  "dotCommand": "dot",
+  "outputs": {
+    "svg": {
+      "path": "assets/wiki-vote-seed20/graphviz.svg",
+      "bytes": 40563,
+      "sha256": "2d997b67bf849f3ef254897a6785fdd5a5be3935a73e72f07763ca81d7e41ded"
+    },
+    "png": {
+      "path": "assets/wiki-vote-seed20/graphviz.png",
+      "bytes": 680098,
+      "sha256": "a8621f8a779546e6af08d1460a7d5e37af0c93a07295285366bbb9da8a543a72"
+    },
+    "jpg": {
+      "path": "assets/wiki-vote-seed20/graphviz.jpg",
+      "bytes": 335565,
+      "sha256": "8f5e73a1f4b36d2efd92798cc5e4abce323fb22e31686ca29db706622c6b81e5"
+    }
+  }
+}

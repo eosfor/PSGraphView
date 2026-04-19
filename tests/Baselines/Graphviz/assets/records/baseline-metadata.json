@@ -1,0 +1,30 @@
+{
+  "id": "records",
+  "renderer": "Dot",
+  "inputPath": "core/records.gv",
+  "baselinePath": "assets/records",
+  "tags": [
+    "record",
+    "label",
+    "core"
+  ],
+  "generatedAt": "2026-04-19T15:12:06.8259510-07:00",
+  "dotCommand": "dot",
+  "outputs": {
+    "svg": {
+      "path": "assets/records/graphviz.svg",
+      "bytes": 7064,
+      "sha256": "dda9869563a45e0baec772a786d4ea4fb001bc45be7430594b77d03159676a83"
+    },
+    "png": {
+      "path": "assets/records/graphviz.png",
+      "bytes": 13494,
+      "sha256": "c7b6ddf4da93320eda0e7e3c70e9c4b259ff055d76b98bb2a92b5eae4bc92932"
+    },
+    "jpg": {
+      "path": "assets/records/graphviz.jpg",
+      "bytes": 14829,
+      "sha256": "06e55346d3c0b04e33bfd395df69a6fbb66fb4d7a5ad8c54c69a7631d2736efa"
+    }
+  }
+}

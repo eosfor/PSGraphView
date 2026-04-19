@@ -1,0 +1,30 @@
+{
+  "id": "clust1",
+  "renderer": "Dot",
+  "inputPath": "core/clust1.gv",
+  "baselinePath": "assets/clust1",
+  "tags": [
+    "cluster",
+    "subgraph",
+    "core"
+  ],
+  "generatedAt": "2026-04-19T15:12:06.5887100-07:00",
+  "dotCommand": "dot",
+  "outputs": {
+    "svg": {
+      "path": "assets/clust1/graphviz.svg",
+      "bytes": 6033,
+      "sha256": "fc90371f4424571ebc0b41268c305a495eae9932bbf29f89342216f878ebc640"
+    },
+    "png": {
+      "path": "assets/clust1/graphviz.png",
+      "bytes": 29010,
+      "sha256": "439715606266be943dc349636332c54f2f3b0b01e5a0c2b7742af275758792f7"
+    },
+    "jpg": {
+      "path": "assets/clust1/graphviz.jpg",
+      "bytes": 19449,
+      "sha256": "f871e31df62c6f1f311acc801f4339e6ff9cfdcd16de1da2fee923f9ec434378"
+    }
+  }
+}

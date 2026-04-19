@@ -1,0 +1,30 @@
+{
+  "id": "table",
+  "renderer": "Dot",
+  "inputPath": "extended/table.gv",
+  "baselinePath": "assets/table",
+  "tags": [
+    "html-like",
+    "table",
+    "extended"
+  ],
+  "generatedAt": "2026-04-19T15:12:07.2525330-07:00",
+  "dotCommand": "dot",
+  "outputs": {
+    "svg": {
+      "path": "assets/table/graphviz.svg",
+      "bytes": 6335,
+      "sha256": "406e71a7e38357eb0ef4a049b2f9ebbbd0e466cfa1249f38a83a6fa30d1bf112"
+    },
+    "png": {
+      "path": "assets/table/graphviz.png",
+      "bytes": 16713,
+      "sha256": "50dfe8cd0865ac0831c45092414b65e66777d1c7af54c24f0310c0708b98004b"
+    },
+    "jpg": {
+      "path": "assets/table/graphviz.jpg",
+      "bytes": 20286,
+      "sha256": "c94641d6868e15d204bd231cc1e9c31dfbc1d1719605f60c16c026153c3baaa0"
+    }
+  }
+}

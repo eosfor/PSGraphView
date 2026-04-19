@@ -1,0 +1,31 @@
+{
+  "id": "ngk10-4-sfdp",
+  "renderer": "Sfdp",
+  "inputPath": "representative/ngk10_4.gv",
+  "baselinePath": "assets/ngk10-4-sfdp",
+  "tags": [
+    "representative",
+    "network",
+    "large",
+    "sfdp"
+  ],
+  "generatedAt": "2026-04-19T15:12:07.7940380-07:00",
+  "dotCommand": "dot",
+  "outputs": {
+    "svg": {
+      "path": "assets/ngk10-4-sfdp/graphviz.svg",
+      "bytes": 32538,
+      "sha256": "8dbac6204e1f631d9e6385870e1591219247fc0bb040f9d48cbe66c2b92dd77d"
+    },
+    "png": {
+      "path": "assets/ngk10-4-sfdp/graphviz.png",
+      "bytes": 192078,
+      "sha256": "c0e2f20849f17245a5c79eeceeac7c40366ae2e6119f7afaf91b02a1796d3ce1"
+    },
+    "jpg": {
+      "path": "assets/ngk10-4-sfdp/graphviz.jpg",
+      "bytes": 104094,
+      "sha256": "41780ef3611e726662b6e07e9488bef0cc90ce1817ee47a17a069513b36ccddf"
+    }
+  }
+}

@@ -28,6 +28,10 @@
 - Cross-platform `no-system-graphviz` smoke подтвержден на `Linux`, `macOS` и `Windows`.
 - Curated `core` fixture-suite подтвержден на `Linux`, `macOS` и `Windows`.
 - Curated `extended` fixture-suite подтвержден на `Linux`, `macOS` и `Windows`.
+- Pinned native Graphviz baseline assets подготовлены для будущего gallery-installed contour.
+- Representative scenario вне fixture-suite уже выбраны:
+  - `wiki-vote-seed20`
+  - `ngk10-4-sfdp`
 - Publish workflow усилен:
   - используется bundled runtime `0.1.0-beta.12` по умолчанию;
   - перед `Publish-Module` есть bundled smoke;
@@ -40,10 +44,10 @@
   - есть `RasterImageComparer`;
   - есть demo-скрипт для raster compare;
   - raster quality gate уже введен для pinned `WikiVote` subgraph и простого smoke graph;
-  - larger integration contour и gallery baseline layer еще не закрыты.
+  - pinned baseline layer уже добавлен;
+  - gallery-installed acceptance contour еще не включен.
 
 Осталось:
-- расширить integration contour за пределы текущего smoke и `core` fixture-tier;
 - добавить отдельные post-publish e2e pipeline-ы на чистых runner-ах с установкой модуля из `PSGallery`;
 - обновить CI action-ы под будущее снятие `Node.js 20`;
 - отдельно провести первый controlled non-dry-run publish в `PSGallery`;
@@ -75,7 +79,7 @@
 - `Патч 3a`: выполнен. Regression-защита от возврата к внешнему `dot` для `Svg`.
 - `Патч 4`: выполнен. Managed `scene -> Png/Jpg` на `SkiaSharp`.
 - `Патч 4a`: выполнен. Модульный runtime path для raster через `psd1`.
-- `Патч 5`: частично выполнен. Compare и benchmark есть, но acceptance-gate еще нет.
+- `Патч 5`: частично выполнен. Quality gate и pinned baseline compare готовы, но gallery-installed acceptance-gate еще не включен.
 - `Патч 6`: выполнен. Автономный bundled path без системного Graphviz подтвержден.
 - `Патч 6a`: выполнен. `core` fixture-suite работает в hosted CI на трех ОС.
 - `Патч 6b`: выполнен. `extended` fixture-suite работает в hosted CI на трех ОС.
@@ -83,14 +87,18 @@
 
 ## Активные задачи
 
-### 1. Representative Integration Scenarios
-- `extended` fixture tier уже подтвержден в hosted CI и больше не является blocker.
-- Решить, какие большие representative graphs стоит держать отдельно от fixture-suite:
-  - например, `WikiVote`.
+### 1. Gallery Publish And Installed-Module Validation
+- Pinned baseline assets и compare-suite уже готовы:
+  - `tests/Baselines/Graphviz/manifest.json`
+  - `eng/Export-GraphvizBaselineAssets.ps1`
+  - `eng/Test-GraphvizBaselineSuite.ps1`
+- Следующий product step:
+  - первый controlled non-dry-run publish в `PSGallery`
+  - затем post-publish workflow через `Install-Module` и `Import-Module`
 
-### 2. Gallery Baseline Assets
-- Подготовить pinned baseline-артефакты для будущих gallery-installed e2e pipeline-ов.
-- Для этого использовать curated `.gv/.dot` входы и native Graphviz output-ы как эталон.
+### 2. Cross-Platform Baseline Calibration
+- После первого gallery-installed прогона снять telemetry на `Linux`, `macOS` и `Windows`.
+- По этим данным решить, какие raster thresholds фиксировать прямо в baseline manifest для обязательного release gate.
 
 ### 3. CI Cleanup
 - Обновить workflow/action-ы, чтобы убрать предупреждение про будущую deprecation `Node.js 20`.
@@ -142,6 +150,17 @@
 - текущие thresholds зафиксированы в:
   - `tests/Fixtures/Graphviz/quality/raster-quality-gate.json`
 
+Проверки, уже подготовленные для gallery-installed baseline layer:
+- `eng/Export-GraphvizBaselineAssets.ps1` генерирует pinned native Graphviz `Svg/Png/Jpg` baseline-артефакты;
+- `eng/Test-GraphvizBaselineSuite.ps1` умеет сравнивать локальный или установленный модуль с pinned baseline-набором;
+- baseline manifest сейчас включает:
+  - `clust1`
+  - `records`
+  - `arrows`
+  - `table`
+  - `wiki-vote-seed20`
+  - `ngk10-4-sfdp`
+
 ## Риски
 
 - Текст и шрифты могут визуально отличаться между платформами, даже если layout уже посчитан.
@@ -152,7 +171,7 @@
 ## Следующий шаг
 
 Следующий практический шаг:
-- подготовить pinned baseline-артефакты для gallery-installed e2e pipeline-ов;
-- параллельно определить 1-2 больших representative graph scenario вне fixture-suite;
-- после этого готовить первый controlled publish в `PSGallery` и включать post-publish gallery-installed проверки;
+- выбрать версию и prerelease-label для первого controlled non-dry-run publish в `PSGallery`;
+- после publish включить post-publish gallery-installed проверки через `Install-Module` и `eng/Test-GraphvizBaselineSuite.ps1`;
+- затем зафиксировать cross-platform thresholds по telemetry этого gallery-installed прогона;
 - отдельно закрыть CI cleanup по `Node.js 20`.

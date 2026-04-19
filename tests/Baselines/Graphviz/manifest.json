@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "scenarios": [
+    {
+      "id": "clust1",
+      "renderer": "Dot",
+      "inputPath": "core/clust1.gv",
+      "baselinePath": "assets/clust1",
+      "tags": ["cluster", "subgraph", "core"]
+    },
+    {
+      "id": "records",
+      "renderer": "Dot",
+      "inputPath": "core/records.gv",
+      "baselinePath": "assets/records",
+      "tags": ["record", "label", "core"]
+    },
+    {
+      "id": "arrows",
+      "renderer": "Dot",
+      "inputPath": "core/arrows.gv",
+      "baselinePath": "assets/arrows",
+      "tags": ["arrow", "style", "core"]
+    },
+    {
+      "id": "table",
+      "renderer": "Dot",
+      "inputPath": "extended/table.gv",
+      "baselinePath": "assets/table",
+      "tags": ["html-like", "table", "extended"]
+    },
+    {
+      "id": "wiki-vote-seed20",
+      "renderer": "Dot",
+      "inputPath": "quality/wiki-vote-seed20.dot",
+      "baselinePath": "assets/wiki-vote-seed20",
+      "tags": ["representative", "wiki-vote", "large"]
+    },
+    {
+      "id": "ngk10-4-sfdp",
+      "renderer": "Sfdp",
+      "inputPath": "representative/ngk10_4.gv",
+      "baselinePath": "assets/ngk10-4-sfdp",
+      "tags": ["representative", "network", "large", "sfdp"]
+    }
+  ]
+}

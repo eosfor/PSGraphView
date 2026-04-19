@@ -73,6 +73,9 @@ Graphviz fixture inputs:
 - The script also honors `PSGRAPHVIEW_GRAPHVIZ_SOURCE_DIR` if you do not want to pass `-GraphvizSourceRoot`.
 - To run the local `core` or `extended` fixture suite through `PSGraphView.psd1`, use `eng/Invoke-GraphvizFixtureSuite.ps1 -ModuleManifestPath <path-to-PSGraphView.psd1>`.
 - Raster quality fixtures and thresholds live under `tests/Fixtures/Graphviz/quality`.
+- Pinned native Graphviz baseline assets for future gallery-installed checks live under `tests/Baselines/Graphviz`.
+- To regenerate those baseline assets from the local `dot` command, run `eng/Export-GraphvizBaselineAssets.ps1 -Clean`.
+- To compare a locally built or already installed module against the pinned baseline set, run `eng/Test-GraphvizBaselineSuite.ps1`.
 - Cross-platform CI for the fixture suite lives in `.github/workflows/graphviz-fixture-suite.yml`.
 - The same workflow keeps `core` on push/PR and runs `extended` as a scheduled nightly layer or on manual dispatch.
 
