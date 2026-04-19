@@ -1,6 +1,13 @@
 name: psgraphview-gallery-installed-e2e
 
 on:
+  push:
+    paths:
+      - '.github/workflows/gallery-installed-e2e.yml'
+      - 'eng/Test-GraphvizBaselineSuite.ps1'
+      - 'tests/Baselines/**'
+      - 'tests/Fixtures/Graphviz/representative/**'
+
   workflow_dispatch:
     inputs:
       module_version:
