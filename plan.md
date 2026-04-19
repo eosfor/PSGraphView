@@ -37,6 +37,9 @@
   - перед `Publish-Module` есть bundled smoke;
   - есть безопасный `dry_run`;
   - dry-run уже подтвержден.
+- Первый controlled publish уже выполнен:
+  - `PSGraphView 0.1.0-beta2` опубликован в `PSGallery`.
+- Gallery-installed baseline suite уже подтвержден на `Linux`, `macOS` и `Windows` через `Install-Module` и `Import-Module` с чистого runner-а.
 
 Частично завершено:
 - `Патч 5` закрыт частично:
@@ -45,12 +48,13 @@
   - есть demo-скрипт для raster compare;
   - raster quality gate уже введен для pinned `WikiVote` subgraph и простого smoke graph;
   - pinned baseline layer уже добавлен;
-  - gallery-installed acceptance contour еще не включен.
+  - gallery-installed acceptance contour уже включен и прошел первый hosted прогон на трех ОС;
+  - cross-platform raster thresholds для baseline manifest еще не зафиксированы как обязательный release gate.
 
 Осталось:
-- добавить отдельные post-publish e2e pipeline-ы на чистых runner-ах с установкой модуля из `PSGallery`;
+- откалибровать и зафиксировать cross-platform thresholds для gallery-installed baseline compare;
+- решить, какие из этих thresholds станут обязательным release gate;
 - обновить CI action-ы под будущее снятие `Node.js 20`;
-- отдельно провести первый controlled non-dry-run publish в `PSGallery`;
 - вернуть в работу image-операции `I` только если они реально начнут приходить из Graphviz JSON.
 
 ## Архитектура
@@ -79,7 +83,7 @@
 - `Патч 3a`: выполнен. Regression-защита от возврата к внешнему `dot` для `Svg`.
 - `Патч 4`: выполнен. Managed `scene -> Png/Jpg` на `SkiaSharp`.
 - `Патч 4a`: выполнен. Модульный runtime path для raster через `psd1`.
-- `Патч 5`: частично выполнен. Quality gate и pinned baseline compare готовы, но gallery-installed acceptance-gate еще не включен.
+- `Патч 5`: частично выполнен. Quality gate, pinned baseline compare и gallery-installed acceptance contour готовы, но финальные cross-platform thresholds еще не зафиксированы.
 - `Патч 6`: выполнен. Автономный bundled path без системного Graphviz подтвержден.
 - `Патч 6a`: выполнен. `core` fixture-suite работает в hosted CI на трех ОС.
 - `Патч 6b`: выполнен. `extended` fixture-suite работает в hosted CI на трех ОС.
@@ -87,41 +91,26 @@
 
 ## Активные задачи
 
-### 1. Gallery Publish And Installed-Module Validation
-- Pinned baseline assets и compare-suite уже готовы:
-  - `tests/Baselines/Graphviz/manifest.json`
-  - `eng/Export-GraphvizBaselineAssets.ps1`
-  - `eng/Test-GraphvizBaselineSuite.ps1`
-- Следующий product step:
-  - первый controlled non-dry-run publish в `PSGallery`
-  - затем post-publish workflow через `Install-Module` и `Import-Module`
+### 1. Cross-Platform Baseline Calibration
+- Первый hosted gallery-installed прогон уже получен:
+  - `PSGallery`: `PSGraphView 0.1.0-beta2`
+  - workflow: `psgraphview-gallery-installed-e2e`
+  - run: `24642173313`
+- Следующий шаг на этих данных:
+  - снять telemetry из artifacts по `Linux`, `macOS` и `Windows`
+  - определить рабочие thresholds для raster compare в baseline manifest
+  - решить, какие thresholds делать обязательным release gate
 
-### 2. Cross-Platform Baseline Calibration
-- После первого gallery-installed прогона снять telemetry на `Linux`, `macOS` и `Windows`.
-- По этим данным решить, какие raster thresholds фиксировать прямо в baseline manifest для обязательного release gate.
-
-### 3. CI Cleanup
+### 2. CI Cleanup
 - Обновить workflow/action-ы, чтобы убрать предупреждение про будущую deprecation `Node.js 20`.
 
-### 4. Gallery E2E Pipelines
-- Добавить отдельные workflow на `Linux`, `macOS` и `Windows` для чистого runner-а.
-- Сценарий каждого workflow:
-  - `Install-Module PSGraphView`
-  - `Import-Module PSGraphView`
-  - прогон curated набора e2e тестов
-  - запись `Svg`, `Png` и `Jpg` результатов
-  - проверка, что файлы существуют и не пустые
-  - сравнение с эталонными output-ами
-- Эти pipeline-ы должны проверять именно установленный из `PSGallery` модуль, а не локально собранный publish output.
-- Эталонные output-ы нужно готовить на основе pinned native Graphviz baseline:
-  - брать curated `.gv/.dot` входы
-  - рендерить их нативным Graphviz
-  - сохранять как эталоны для `Svg` и raster compare
-- Этот contour логично запускать как отдельный post-publish или release-validation слой, а не смешивать с обычным PR gate.
-
-### 5. Release Follow-up
-- После завершения quality gate использовать уже подтвержденный `dry_run` как основу для первого controlled non-dry-run publish в `PSGallery`.
-- После первого publish включить gallery-installed e2e pipeline-ы как обязательную release-validation проверку.
+### 3. Release Follow-up
+- Решить, как использовать уже готовый `psgraphview-gallery-installed-e2e` дальше:
+  - только как post-publish validation
+  - или как обязательный release gate для каждого prerelease/stable publish
+- Если следующий шаг будет релизным:
+  - выбрать политику версионирования после `0.1.0-beta2`
+  - определить момент для `0.1.0` stable
 
 ## Основные проверки
 
@@ -133,14 +122,17 @@
 - Bundled runtime реально используется без системного Graphviz.
 - `no-system-graphviz` smoke проходит на `Linux`, `macOS` и `Windows`.
 - `core` fixture-suite проходит на `Linux`, `macOS` и `Windows`.
+- gallery-installed baseline suite проходит на `Linux`, `macOS` и `Windows` через `Install-Module` и `Import-Module`.
 - Для raster path остается доступной телеметрия расхождения с оригинальным `dot`.
 
-Дополнительные проверки, которые нужно добавить следующим слоем:
+Проверки, уже добавленные для gallery-installed baseline layer:
 - установленный из `PSGallery` модуль успешно ставится через `Install-Module` на чистом runner-е;
 - установленный из `PSGallery` модуль успешно импортируется через `Import-Module`;
 - gallery-installed e2e набор успешно отдает `Svg`, `Png` и `Jpg` на `Linux`, `macOS` и `Windows`;
-- gallery-installed output-ы сравниваются с pinned native Graphviz baseline и проходят agreed thresholds;
+- gallery-installed output-ы сравниваются с pinned native Graphviz baseline;
 - gallery-installed output-ы не пустые и содержат ожидаемые артефакты рендера.
+- Следующий слой поверх этого:
+  - зафиксировать agreed thresholds для hosted cross-platform compare telemetry.
 
 Проверки, уже добавленные для raster quality gate:
 - `eng/Test-GraphvizRasterQualityGate.ps1` сравнивает native `Png/Jpg` с нативным Graphviz baseline;
@@ -171,7 +163,7 @@
 ## Следующий шаг
 
 Следующий практический шаг:
-- выбрать версию и prerelease-label для первого controlled non-dry-run publish в `PSGallery`;
-- после publish включить post-publish gallery-installed проверки через `Install-Module` и `eng/Test-GraphvizBaselineSuite.ps1`;
-- затем зафиксировать cross-platform thresholds по telemetry этого gallery-installed прогона;
+- снять и разобрать telemetry из artifacts gallery-installed run `24642173313`;
+- по этим данным зафиксировать cross-platform thresholds в baseline manifest;
+- после этого решить, делать ли `psgraphview-gallery-installed-e2e` обязательным release gate;
 - отдельно закрыть CI cleanup по `Node.js 20`.

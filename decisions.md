@@ -1,5 +1,75 @@
 # Architecture Decision Log
 
+## 2026-04-19 16:55:55 PDT
+
+Решение:
+Считать release contour через `PSGallery` и отдельный gallery-installed baseline contour введенными в работу:
+- `PSGraphView 0.1.0-beta2` опубликован в `PSGallery`;
+- workflow `psgraphview-gallery-installed-e2e` подтвержден на `Linux`, `macOS` и `Windows` уже против установленного из gallery модуля;
+- для Windows в этом workflow нужно использовать свежий `pwsh`, а не встроенный `7.4.x`.
+
+Причины:
+- До этого publish был подтвержден только через `dry_run`, а gallery-installed contour существовал как код и частичные hosted прогоны.
+- Для текущей цели было недостаточно знать, что локальный publish output работает:
+  - нужен был реальный publish наружу;
+  - затем проверка реального пользовательского сценария `Install-Module -> Import-Module -> baseline suite`.
+- Первая попытка publish с `0.1.0-beta1` не дала новой информации о продукте: версия уже была занята в `PSGallery`.
+- После успешного publish `0.1.0-beta2` самым критичным оставался Windows:
+  - на встроенном `pwsh 7.4.14` gallery-installed import падал с ошибкой загрузки `System.Runtime 9.0.0.0`;
+  - это не баг модуля как такового, а несовместимость старого host runtime с собранным `net9.0` модулем;
+  - значит workflow должен ставить новый `pwsh` и на Windows тоже.
+
+Телеметрия / наблюдения:
+- Первая non-dry-run попытка publish:
+  - run: `24641875826`
+  - ссылка: [GitHub Actions run 24641875826](https://github.com/eosfor/PSGraphView/actions/runs/24641875826)
+  - итог:
+    - build/tests/publish bundle/smoke -> `success`
+    - `Publish PowerShell module to PSGallery` -> `failure`
+  - точная причина:
+    - `PSGraphView 0.1.0-beta1` уже существовал в `PSGallery`
+- Успешный controlled publish:
+  - workflow: [publish.yml](/Users/andrei/repo/PSGraphView/.github/workflows/publish.yml)
+  - run: `24641913920`
+  - ссылка: [GitHub Actions run 24641913920](https://github.com/eosfor/PSGraphView/actions/runs/24641913920)
+  - итог:
+    - `publish (9.0.x)` -> `success`
+    - `Publish PowerShell module to PSGallery` -> `success`
+  - опубликованный модуль:
+    - `PSGraphView 0.1.0-beta2`
+    - `PublishedDate=2026-04-19T23:38:30-07:00`
+- Gallery-installed validation:
+  - workflow: [gallery-installed-e2e.yml](/Users/andrei/repo/PSGraphView/.github/workflows/gallery-installed-e2e.yml)
+  - green run: `24642173313`
+  - ссылка: [GitHub Actions run 24642173313](https://github.com/eosfor/PSGraphView/actions/runs/24642173313)
+  - итог:
+    - `ubuntu-24.04 / linux-x64` -> `success` за `40s`
+    - `macos-14 / osx-arm64` -> `success` за `32s`
+    - `windows-2022 / win-x64` -> `success` за `3m8s`
+- Важный промежуточный сбой на Windows до финального фикса:
+  - run: `24642125612`
+  - `Import-Module` падал на:
+    - `Could not load file or assembly 'System.Runtime, Version=9.0.0.0'`
+  - наблюдение:
+    - встроенный runner `pwsh` был `7.4.14`
+    - после возврата шага `Install PowerShell` Windows успешно прошел на свежем `pwsh`
+- Workflow change, который закрыл Windows:
+  - commit: `bd65692`
+  - суть:
+    - `PSModule/install-powershell@v1` снова выполняется и на Windows
+    - отдельный шаг верификации версии `pwsh` унифицирован для всех ОС
+- Сохраняется отдельный технический долг:
+  - GitHub по-прежнему показывает warning про deprecation `Node.js 20` для standard actions
+
+Следствие:
+- Publish contour теперь подтвержден не только в `dry_run`, но и реальным релизом `0.1.0-beta2`.
+- Gallery-installed contour теперь подтвержден end-to-end на трех ОС.
+- Следующий практический шаг уже не про сам publish/install path, а про:
+  - разбор artifacts и telemetry из `24642173313`
+  - фиксацию cross-platform thresholds в baseline manifest
+  - решение, станет ли этот workflow обязательным release gate
+
+
 ## 2026-04-19 15:09:05 PDT
 
 Решение:

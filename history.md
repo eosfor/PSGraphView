@@ -81,3 +81,24 @@
 Итог этапа:
 - базовый raster quality gate уже введен;
 - дальше остается расширять integration contour и готовить pinned gallery baseline layer.
+
+## Этап 6. Первый publish и gallery-installed validation
+
+- Выполнен первый реальный controlled publish в `PSGallery`:
+  - `PSGraphView 0.1.0-beta2`
+- Добавлен отдельный workflow:
+  - `psgraphview-gallery-installed-e2e`
+- Этот workflow проверяет уже установленный из gallery модуль:
+  - `Install-Module`
+  - `Import-Module`
+  - baseline suite против pinned native Graphviz assets
+- Hosted run `24642173313` подтвердил green matrix на:
+  - `linux-x64`
+  - `osx-arm64`
+  - `win-x64`
+- На Windows отдельно добран фикс workflow:
+  - для gallery-installed проверки нужен свежий `pwsh`, а не встроенный `7.4.x`
+
+Итог этапа:
+- publish path и gallery-installed validation уже подтверждены end-to-end;
+- дальше остается калибровка cross-platform thresholds и cleanup CI.
