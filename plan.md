@@ -27,6 +27,7 @@
 - `Export-GraphvizView -As Png|Jpg` работает в обычном `pwsh` через `Import-Module ...psd1`.
 - Cross-platform `no-system-graphviz` smoke подтвержден на `Linux`, `macOS` и `Windows`.
 - Curated `core` fixture-suite подтвержден на `Linux`, `macOS` и `Windows`.
+- Curated `extended` fixture-suite подтвержден на `Linux`, `macOS` и `Windows`.
 - Publish workflow усилен:
   - используется bundled runtime `0.1.0-beta.12` по умолчанию;
   - перед `Publish-Module` есть bundled smoke;
@@ -77,12 +78,13 @@
 - `Патч 5`: частично выполнен. Compare и benchmark есть, но acceptance-gate еще нет.
 - `Патч 6`: выполнен. Автономный bundled path без системного Graphviz подтвержден.
 - `Патч 6a`: выполнен. `core` fixture-suite работает в hosted CI на трех ОС.
+- `Патч 6b`: выполнен. `extended` fixture-suite работает в hosted CI на трех ОС.
 - `Патч 7`: backlog. Возможный отдельный follow-up по `DSM`.
 
 ## Активные задачи
 
-### 1. Extended Integration Coverage
-- `extended` fixture tier уже подтвержден локально и вынесен в отдельный nightly/manual CI слой.
+### 1. Representative Integration Scenarios
+- `extended` fixture tier уже подтвержден в hosted CI и больше не является blocker.
 - Решить, какие большие representative graphs стоит держать отдельно от fixture-suite:
   - например, `WikiVote`.
 
@@ -150,7 +152,7 @@
 ## Следующий шаг
 
 Следующий практический шаг:
-- поднять `extended` fixture tier или отдельные большие integration scenario;
-- затем подготовить pinned baseline-артефакты для gallery-installed e2e pipeline-ов;
+- подготовить pinned baseline-артефакты для gallery-installed e2e pipeline-ов;
+- параллельно определить 1-2 больших representative graph scenario вне fixture-suite;
 - после этого готовить первый controlled publish в `PSGallery` и включать post-publish gallery-installed проверки;
 - отдельно закрыть CI cleanup по `Node.js 20`.

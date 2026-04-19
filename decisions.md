@@ -1,5 +1,48 @@
 # Architecture Decision Log
 
+## 2026-04-19 14:50:19 PDT
+
+Решение:
+Считать hosted cross-platform fixture coverage закрытой не только для `core`, но и для `extended`: оба режима уже подтверждены реальными `GitHub Actions` run-ами на этой ветке.
+
+Причины:
+- До этого `extended` был подтвержден локально и описан как nightly/manual слой, но hosted run на текущей ветке еще не был зафиксирован в decision log.
+- После зеленого ручного `workflow_dispatch` прогона этот этап больше не является следующим шагом по плану.
+- Значит активный фокус можно сместить с самого fixture contour на baseline-артефакты и будущие gallery-installed e2e проверки.
+
+Телеметрия / наблюдения:
+- Push-triggered `core` run на ветке:
+  - workflow: [graphviz-fixture-suite.yml](/Users/andrei/repo/PSGraphView/.github/workflows/graphviz-fixture-suite.yml)
+  - run: `24639546416`
+  - ссылка: [GitHub Actions run 24639546416](https://github.com/eosfor/PSGraphView/actions/runs/24639546416)
+  - итог:
+    - `ubuntu-24.04 / linux-x64`: `success`
+    - `macos-14 / osx-arm64`: `success`
+    - `windows-2022 / win-x64`: `success`
+- Manual `extended` run на той же ветке:
+  - workflow: [graphviz-fixture-suite.yml](/Users/andrei/repo/PSGraphView/.github/workflows/graphviz-fixture-suite.yml)
+  - run: `24639548864`
+  - ссылка: [GitHub Actions run 24639548864](https://github.com/eosfor/PSGraphView/actions/runs/24639548864)
+  - итог:
+    - `ubuntu-24.04 / linux-x64`: `success`
+    - `macos-14 / osx-arm64`: `success`
+    - `windows-2022 / win-x64`: `success`
+- Во всех job прошли шаги:
+  - `Restore PowerShell module`
+  - `Publish module with bundled Graphviz runtime`
+  - `Run Graphviz fixture suite`
+  - `Upload fixture artifacts`
+- Наблюдение по CI осталось прежним:
+  - GitHub продолжает показывать warning про будущую deprecation `Node.js 20` для standard actions.
+
+Следствие:
+- `extended` fixture coverage можно считать закрытой на hosted CI уровне.
+- Следующий шаг теперь уже не про fixture workflow, а про:
+  - pinned baseline assets
+  - representative large graph scenarios
+  - gallery-installed e2e pipeline-ы
+  - controlled publish из `PSGallery`
+
 ## 2026-04-19 13:54:06 PDT
 
 Решение:
