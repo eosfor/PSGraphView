@@ -206,20 +206,36 @@ function Get-ThresholdResult {
         }
     }
 
+    $rmseThreshold = $null
+    $differentPixelPercentThreshold = $null
+    $globalStructuralSimilarityThreshold = $null
+
+    if ($null -ne $Thresholds.PSObject.Properties['rootMeanSquareDifferenceMax']) {
+        $rmseThreshold = [double]$Thresholds.rootMeanSquareDifferenceMax
+    }
+
+    if ($null -ne $Thresholds.PSObject.Properties['differentPixelPercentMax']) {
+        $differentPixelPercentThreshold = [double]$Thresholds.differentPixelPercentMax
+    }
+
+    if ($null -ne $Thresholds.PSObject.Properties['globalStructuralSimilarityMin']) {
+        $globalStructuralSimilarityThreshold = [double]$Thresholds.globalStructuralSimilarityMin
+    }
+
     $failures = New-Object System.Collections.Generic.List[string]
-    if ($null -ne $Thresholds.rootMeanSquareDifferenceMax -and
-        $Comparison.Metrics.RootMeanSquareDifference -gt [double]$Thresholds.rootMeanSquareDifferenceMax) {
-        $failures.Add("rmse=$([Math]::Round($Comparison.Metrics.RootMeanSquareDifference, 4)) exceeds $($Thresholds.rootMeanSquareDifferenceMax)") | Out-Null
+    if ($null -ne $rmseThreshold -and
+        $Comparison.Metrics.RootMeanSquareDifference -gt $rmseThreshold) {
+        $failures.Add("rmse=$([Math]::Round($Comparison.Metrics.RootMeanSquareDifference, 4)) exceeds $rmseThreshold") | Out-Null
     }
 
-    if ($null -ne $Thresholds.differentPixelPercentMax -and
-        ($Comparison.Metrics.DifferentPixelRatio * 100.0) -gt [double]$Thresholds.differentPixelPercentMax) {
-        $failures.Add("differentPixel%=$([Math]::Round($Comparison.Metrics.DifferentPixelRatio * 100.0, 4)) exceeds $($Thresholds.differentPixelPercentMax)") | Out-Null
+    if ($null -ne $differentPixelPercentThreshold -and
+        ($Comparison.Metrics.DifferentPixelRatio * 100.0) -gt $differentPixelPercentThreshold) {
+        $failures.Add("differentPixel%=$([Math]::Round($Comparison.Metrics.DifferentPixelRatio * 100.0, 4)) exceeds $differentPixelPercentThreshold") | Out-Null
     }
 
-    if ($null -ne $Thresholds.globalStructuralSimilarityMin -and
-        $Comparison.Metrics.GlobalStructuralSimilarity -lt [double]$Thresholds.globalStructuralSimilarityMin) {
-        $failures.Add("ssim=$([Math]::Round($Comparison.Metrics.GlobalStructuralSimilarity, 6)) is below $($Thresholds.globalStructuralSimilarityMin)") | Out-Null
+    if ($null -ne $globalStructuralSimilarityThreshold -and
+        $Comparison.Metrics.GlobalStructuralSimilarity -lt $globalStructuralSimilarityThreshold) {
+        $failures.Add("ssim=$([Math]::Round($Comparison.Metrics.GlobalStructuralSimilarity, 6)) is below $globalStructuralSimilarityThreshold") | Out-Null
     }
 
     return [pscustomobject]@{

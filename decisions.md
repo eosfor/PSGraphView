@@ -1,5 +1,81 @@
 # Architecture Decision Log
 
+## 2026-04-19 17:11:32 PDT
+
+Решение:
+Зафиксировать cross-platform raster thresholds прямо в pinned baseline manifest:
+- thresholds вычислены по artifacts gallery-installed run `24642173313`;
+- за базу взяты worst-case значения по трем ОС для каждого сценария и формата;
+- как обязательные метрики для всех сценариев зафиксированы `RMSE` и `differentPixelPercent`;
+- `SSIM` зафиксирован только там, где он оказался достаточно стабильным между платформами;
+- `Test-GraphvizBaselineSuite.ps1` должен корректно работать и с полными, и с частичными threshold-объектами.
+
+Причины:
+- До этого compare-suite уже умел считать telemetry, но baseline manifest не содержал зафиксированных cross-platform порогов.
+- После первого green gallery-installed run появилась достаточная фактическая база для калибровки.
+- Прямой перенос всех трех метрик на все сценарии дал бы формально корректные, но бесполезные thresholds:
+  - на части Windows-сценариев `SSIM` падает очень низко из-за platform-specific raster/text differences;
+  - если просто зафиксировать такой низкий порог, он перестанет быть полезным сигналом.
+- Поэтому pragmatical rule такой:
+  - `RMSE` и `differentPixelPercent` обязательны везде;
+  - `SSIM` включаем только там, где hosted telemetry показала приемлемую стабильность;
+  - для остальных сценариев отсутствие `SSIM` threshold лучше, чем декоративный порог около нуля.
+- Во время фиксации threshold-ов выявился дефект самого compare-runner:
+  - под `Set-StrictMode` он падал, если в threshold object отсутствовала одна из метрик;
+  - это нужно было исправить, иначе частичные thresholds в manifest были бы невозможны.
+
+Телеметрия / наблюдения:
+- Источник данных:
+  - artifacts run `24642173313`
+  - workflow: [gallery-installed-e2e.yml](/Users/andrei/repo/PSGraphView/.github/workflows/gallery-installed-e2e.yml)
+  - ссылка: [GitHub Actions run 24642173313](https://github.com/eosfor/PSGraphView/actions/runs/24642173313)
+- Aggregated worst-case telemetry по трем ОС:
+  - `clust1 / png`: `rmse_max=56.7839`, `diff%=18.5185`, `ssim_min=0.213154`
+  - `clust1 / jpg`: `rmse_max=48.4422`, `diff%=18.7947`, `ssim_min=0.390923`
+  - `records / png`: `rmse_max=58.5173`, `diff%=16.1990`, `ssim_min=0.080311`
+  - `records / jpg`: `rmse_max=58.9832`, `diff%=16.2700`, `ssim_min=0.053063`
+  - `arrows / png`: `rmse_max=78.6472`, `diff%=36.7504`, `ssim_min=0.284517`
+  - `arrows / jpg`: `rmse_max=79.5029`, `diff%=38.7915`, `ssim_min=0.040251`
+  - `table / png`: `rmse_max=74.9666`, `diff%=23.6842`, `ssim_min=0.278276`
+  - `table / jpg`: `rmse_max=71.7800`, `diff%=25.8050`, `ssim_min=0.303920`
+  - `wiki-vote-seed20 / png`: `rmse_max=54.3613`, `diff%=15.2819`, `ssim_min=0.097600`
+  - `wiki-vote-seed20 / jpg`: `rmse_max=53.0309`, `diff%=16.4854`, `ssim_min=0.071102`
+  - `ngk10-4-sfdp / png`: `rmse_max=62.7250`, `diff%=24.3880`, `ssim_min=0.059441`
+  - `ngk10-4-sfdp / jpg`: `rmse_max=61.5982`, `diff%=25.1332`, `ssim_min=0.070566`
+- Зафиксированные thresholds в [manifest.json](/Users/andrei/repo/PSGraphView/tests/Baselines/Graphviz/manifest.json):
+  - `clust1 / png`: `rmse<=58.8`, `diff%<=19.6`, `ssim>=0.183154`
+  - `clust1 / jpg`: `rmse<=50.5`, `diff%<=19.8`, `ssim>=0.360923`
+  - `records / png`: `rmse<=60.6`, `diff%<=17.2`
+  - `records / jpg`: `rmse<=61.0`, `diff%<=17.3`
+  - `arrows / png`: `rmse<=80.7`, `diff%<=37.8`, `ssim>=0.254517`
+  - `arrows / jpg`: `rmse<=81.6`, `diff%<=39.8`
+  - `table / png`: `rmse<=77.0`, `diff%<=24.7`, `ssim>=0.248276`
+  - `table / jpg`: `rmse<=73.8`, `diff%<=26.9`, `ssim>=0.273920`
+  - `wiki-vote-seed20 / png`: `rmse<=56.4`, `diff%<=16.3`
+  - `wiki-vote-seed20 / jpg`: `rmse<=55.1`, `diff%<=17.5`
+  - `ngk10-4-sfdp / png`: `rmse<=64.8`, `diff%<=25.4`
+  - `ngk10-4-sfdp / jpg`: `rmse<=63.6`, `diff%<=26.2`
+- Исправленный compare-runner:
+  - [Test-GraphvizBaselineSuite.ps1](/Users/andrei/repo/PSGraphView/eng/Test-GraphvizBaselineSuite.ps1)
+  - fix:
+    - threshold properties теперь читаются через `PSObject.Properties[...]`
+    - script больше не падает, если в threshold object нет `globalStructuralSimilarityMin`
+- Локальная проверка после фикса:
+  - команда:
+    - `pwsh -NoLogo -NoProfile -File ./eng/Test-GraphvizBaselineSuite.ps1 -ModuleManifestPath ./src/PSGraphView.PowerShell/bin/Debug/net9.0/PSGraphView.psd1 -GraphvizNativeLibraryPath /var/folders/1j/j11fjyg16ys35ssgq1kz8d6m0000gn/T/psgraphview-graphviz-native/libpsgv.dylib -DisableExternalDot -OutputDirectory ./artifacts/local-gallery-baseline-threshold-check`
+  - summary:
+    - `/Users/andrei/repo/PSGraphView/artifacts/local-gallery-baseline-threshold-check/baseline-suite-results.json`
+  - итог:
+    - `scenarioCount=6`
+    - `failureCount=0`
+    - `durationMs=5630.75`
+
+Следствие:
+- Cross-platform threshold calibration можно считать завершенной.
+- Следующий шаг уже не в подборе чисел, а в policy:
+  - делать ли `psgraphview-gallery-installed-e2e` обязательным release gate;
+  - если да, то в каком режиме: для каждого prerelease, только для stable, или как post-publish validation.
+
 ## 2026-04-19 16:55:55 PDT
 
 Решение:

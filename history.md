@@ -98,7 +98,9 @@
   - `win-x64`
 - На Windows отдельно добран фикс workflow:
   - для gallery-installed проверки нужен свежий `pwsh`, а не встроенный `7.4.x`
+- По artifacts этого run зафиксированы cross-platform thresholds в pinned baseline manifest.
 
 Итог этапа:
 - publish path и gallery-installed validation уже подтверждены end-to-end;
-- дальше остается калибровка cross-platform thresholds и cleanup CI.
+- калибровка cross-platform thresholds закрыта;
+- дальше остается policy по обязательному release gate и cleanup CI.

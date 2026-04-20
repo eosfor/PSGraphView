@@ -49,11 +49,11 @@
   - raster quality gate уже введен для pinned `WikiVote` subgraph и простого smoke graph;
   - pinned baseline layer уже добавлен;
   - gallery-installed acceptance contour уже включен и прошел первый hosted прогон на трех ОС;
-  - cross-platform raster thresholds для baseline manifest еще не зафиксированы как обязательный release gate.
+  - cross-platform raster thresholds уже зафиксированы в baseline manifest;
+  - остается решить, какие из них считать обязательным release gate.
 
 Осталось:
-- откалибровать и зафиксировать cross-platform thresholds для gallery-installed baseline compare;
-- решить, какие из этих thresholds станут обязательным release gate;
+- решить, какие из уже зафиксированных thresholds станут обязательным release gate;
 - обновить CI action-ы под будущее снятие `Node.js 20`;
 - вернуть в работу image-операции `I` только если они реально начнут приходить из Graphviz JSON.
 
@@ -83,7 +83,7 @@
 - `Патч 3a`: выполнен. Regression-защита от возврата к внешнему `dot` для `Svg`.
 - `Патч 4`: выполнен. Managed `scene -> Png/Jpg` на `SkiaSharp`.
 - `Патч 4a`: выполнен. Модульный runtime path для raster через `psd1`.
-- `Патч 5`: частично выполнен. Quality gate, pinned baseline compare и gallery-installed acceptance contour готовы, но финальные cross-platform thresholds еще не зафиксированы.
+- `Патч 5`: частично выполнен. Quality gate, pinned baseline compare, gallery-installed acceptance contour и cross-platform thresholds готовы, но policy для обязательного release gate еще не зафиксирована.
 - `Патч 6`: выполнен. Автономный bundled path без системного Graphviz подтвержден.
 - `Патч 6a`: выполнен. `core` fixture-suite работает в hosted CI на трех ОС.
 - `Патч 6b`: выполнен. `extended` fixture-suite работает в hosted CI на трех ОС.
@@ -96,10 +96,11 @@
   - `PSGallery`: `PSGraphView 0.1.0-beta2`
   - workflow: `psgraphview-gallery-installed-e2e`
   - run: `24642173313`
-- Следующий шаг на этих данных:
-  - снять telemetry из artifacts по `Linux`, `macOS` и `Windows`
-  - определить рабочие thresholds для raster compare в baseline manifest
+- По telemetry этого run уже зафиксированы thresholds в:
+  - `tests/Baselines/Graphviz/manifest.json`
+- Что осталось по этому блоку:
   - решить, какие thresholds делать обязательным release gate
+  - при необходимости сузить или расширить набор метрик для отдельных сценариев
 
 ### 2. CI Cleanup
 - Обновить workflow/action-ы, чтобы убрать предупреждение про будущую deprecation `Node.js 20`.
@@ -124,6 +125,7 @@
 - `core` fixture-suite проходит на `Linux`, `macOS` и `Windows`.
 - gallery-installed baseline suite проходит на `Linux`, `macOS` и `Windows` через `Install-Module` и `Import-Module`.
 - Для raster path остается доступной телеметрия расхождения с оригинальным `dot`.
+- Cross-platform thresholds уже зафиксированы в pinned baseline manifest.
 
 Проверки, уже добавленные для gallery-installed baseline layer:
 - установленный из `PSGallery` модуль успешно ставится через `Install-Module` на чистом runner-е;
@@ -152,6 +154,7 @@
   - `table`
   - `wiki-vote-seed20`
   - `ngk10-4-sfdp`
+- baseline manifest теперь также хранит cross-platform raster thresholds для этих сценариев.
 
 ## Риски
 
@@ -163,7 +166,6 @@
 ## Следующий шаг
 
 Следующий практический шаг:
-- снять и разобрать telemetry из artifacts gallery-installed run `24642173313`;
-- по этим данным зафиксировать cross-platform thresholds в baseline manifest;
-- после этого решить, делать ли `psgraphview-gallery-installed-e2e` обязательным release gate;
+- решить, делать ли `psgraphview-gallery-installed-e2e` обязательным release gate с уже зафиксированными thresholds;
+- при необходимости вручную посмотреть проблемные cross-platform diff-артефакты для `records`, `wiki-vote-seed20` и `ngk10-4-sfdp`;
 - отдельно закрыть CI cleanup по `Node.js 20`.

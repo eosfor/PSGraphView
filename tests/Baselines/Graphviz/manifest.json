@@ -6,42 +6,107 @@
       "renderer": "Dot",
       "inputPath": "core/clust1.gv",
       "baselinePath": "assets/clust1",
-      "tags": ["cluster", "subgraph", "core"]
+      "tags": ["cluster", "subgraph", "core"],
+      "rasterThresholds": {
+        "png": {
+          "rootMeanSquareDifferenceMax": 58.8,
+          "differentPixelPercentMax": 19.6,
+          "globalStructuralSimilarityMin": 0.183154
+        },
+        "jpg": {
+          "rootMeanSquareDifferenceMax": 50.5,
+          "differentPixelPercentMax": 19.8,
+          "globalStructuralSimilarityMin": 0.360923
+        }
+      }
     },
     {
       "id": "records",
       "renderer": "Dot",
       "inputPath": "core/records.gv",
       "baselinePath": "assets/records",
-      "tags": ["record", "label", "core"]
+      "tags": ["record", "label", "core"],
+      "rasterThresholds": {
+        "png": {
+          "rootMeanSquareDifferenceMax": 60.6,
+          "differentPixelPercentMax": 17.2
+        },
+        "jpg": {
+          "rootMeanSquareDifferenceMax": 61.0,
+          "differentPixelPercentMax": 17.3
+        }
+      }
     },
     {
       "id": "arrows",
       "renderer": "Dot",
       "inputPath": "core/arrows.gv",
       "baselinePath": "assets/arrows",
-      "tags": ["arrow", "style", "core"]
+      "tags": ["arrow", "style", "core"],
+      "rasterThresholds": {
+        "png": {
+          "rootMeanSquareDifferenceMax": 80.7,
+          "differentPixelPercentMax": 37.8,
+          "globalStructuralSimilarityMin": 0.254517
+        },
+        "jpg": {
+          "rootMeanSquareDifferenceMax": 81.6,
+          "differentPixelPercentMax": 39.8
+        }
+      }
     },
     {
       "id": "table",
       "renderer": "Dot",
       "inputPath": "extended/table.gv",
       "baselinePath": "assets/table",
-      "tags": ["html-like", "table", "extended"]
+      "tags": ["html-like", "table", "extended"],
+      "rasterThresholds": {
+        "png": {
+          "rootMeanSquareDifferenceMax": 77.0,
+          "differentPixelPercentMax": 24.7,
+          "globalStructuralSimilarityMin": 0.248276
+        },
+        "jpg": {
+          "rootMeanSquareDifferenceMax": 73.8,
+          "differentPixelPercentMax": 26.9,
+          "globalStructuralSimilarityMin": 0.27392
+        }
+      }
     },
     {
       "id": "wiki-vote-seed20",
       "renderer": "Dot",
       "inputPath": "quality/wiki-vote-seed20.dot",
       "baselinePath": "assets/wiki-vote-seed20",
-      "tags": ["representative", "wiki-vote", "large"]
+      "tags": ["representative", "wiki-vote", "large"],
+      "rasterThresholds": {
+        "png": {
+          "rootMeanSquareDifferenceMax": 56.4,
+          "differentPixelPercentMax": 16.3
+        },
+        "jpg": {
+          "rootMeanSquareDifferenceMax": 55.1,
+          "differentPixelPercentMax": 17.5
+        }
+      }
     },
     {
       "id": "ngk10-4-sfdp",
       "renderer": "Sfdp",
       "inputPath": "representative/ngk10_4.gv",
       "baselinePath": "assets/ngk10-4-sfdp",
-      "tags": ["representative", "network", "large", "sfdp"]
+      "tags": ["representative", "network", "large", "sfdp"],
+      "rasterThresholds": {
+        "png": {
+          "rootMeanSquareDifferenceMax": 64.8,
+          "differentPixelPercentMax": 25.4
+        },
+        "jpg": {
+          "rootMeanSquareDifferenceMax": 63.6,
+          "differentPixelPercentMax": 26.2
+        }
+      }
     }
   ]
 }
