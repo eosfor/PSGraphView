@@ -1,15 +1,20 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <RootNamespace>PSGraphView.Dsm</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="PSGraph.Common" Version="2.5.0-beta3" />
+    <PackageReference Include="PSGraph.Common" Version="2.6.0-beta1"
+                      Condition="!Exists('../../../PSGraph/PSGraph.Common/PSGraph.Common.csproj')" />
     <PackageReference Include="Svg" Version="3.4.7" />
+  </ItemGroup>
+
+  <ItemGroup Condition="Exists('../../../PSGraph/PSGraph.Common/PSGraph.Common.csproj')">
+    <ProjectReference Include="../../../PSGraph/PSGraph.Common/PSGraph.Common.csproj" />
   </ItemGroup>
 
 </Project>

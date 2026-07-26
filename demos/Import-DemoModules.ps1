@@ -7,8 +7,8 @@ function Import-PSGraphViewDemoModules {
     )
 
     $repoRoot = Split-Path -Parent $PSScriptRoot
-    $defaultPsQuickGraphManifest = Join-Path (Join-Path (Split-Path -Parent $repoRoot) 'PSGraph') 'PSGraph.Tests/bin/Debug/net9.0/PSQuickGraph.psd1'
-    $defaultPsGraphViewManifest = Join-Path $repoRoot 'tests/PSGraphView.PowerShell.Tests/bin/Debug/net9.0/PSGraphView.psd1'
+    $defaultPsQuickGraphManifest = Join-Path (Join-Path (Split-Path -Parent $repoRoot) 'PSGraph') 'PSGraph.Tests/bin/Debug/net8.0/PSQuickGraph.psd1'
+    $defaultPsGraphViewManifest = Join-Path $repoRoot 'tests/PSGraphView.PowerShell.Tests/bin/Debug/net8.0/PSGraphView.psd1'
 
     Remove-Module PSQuickGraph, PSGraphView -ErrorAction SilentlyContinue
 

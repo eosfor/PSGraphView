@@ -9,7 +9,7 @@ on:
       version:
         description: 'Module version without prerelease suffix, e.g. 0.1.0'
         required: true
-        default: '0.1.0'
+        default: '0.2.0'
       dry_run:
         description: 'Run the full publish validation but skip Publish-Module'
         required: false
@@ -49,7 +49,7 @@ jobs:
         run: |
           sibling_repo="$(cd "$GITHUB_WORKSPACE/.." && pwd)/PSGraph"
           rm -rf "$sibling_repo"
-          git clone --depth 1 --branch feature/vis-refactoring https://github.com/eosfor/PSGraph.git "$sibling_repo"
+          git clone --depth 1 --branch dev https://github.com/eosfor/PSGraph.git "$sibling_repo"
           ln -sfn "$sibling_repo" "$GITHUB_WORKSPACE/PSGraph"
           test -f "$sibling_repo/DSM/DSM.csproj"
 

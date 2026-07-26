@@ -1,6 +1,6 @@
 @{
     RootModule = 'PSGraphView.PowerShell.dll'
-    ModuleVersion = '0.1.0'
+    ModuleVersion = '0.2.0'
     GUID = '0ef8d550-6c15-4e60-9e6d-74c06fb149c9'
     Author = 'PSGraphView'
     CompanyName = 'PSGraphView'
@@ -17,7 +17,7 @@
             Prerelease = 'beta1'
             Tags = @('Graph', 'Visualization', 'DSM', 'Vega', 'MSAGL', 'PSGraph')
             ProjectUri = 'https://github.com/eosfor/PSGraphView'
-            ReleaseNotes = 'First beta release of the extracted PSGraphView PowerShell module.'
+            ReleaseNotes = 'Adds .NET 8 and PowerShell 7.4-7.6 compatibility without bundling the PowerShell runtime.'
         }
     }
 }

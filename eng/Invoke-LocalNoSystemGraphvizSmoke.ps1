@@ -1,5 +1,5 @@
 param(
-    [string]$ModuleManifestPath = './src/PSGraphView.PowerShell/bin/Debug/net9.0/PSGraphView.psd1',
+    [string]$ModuleManifestPath = './src/PSGraphView.PowerShell/bin/Debug/net8.0/PSGraphView.psd1',
 
     [string]$GraphvizNativeLibraryPath,
 
